@@ -33,11 +33,15 @@ console.error = function(...args) {
 app.use(cors());
 app.use(bodyParser.json());
 
-// Start background cron jobs
-startCronJobs();
+// Start background cron jobs (only locally, Vercel uses cron endpoints)
+if (!process.env.VERCEL) {
+    startCronJobs();
+}
 
 // Serve static files from the current directory
-app.use(express.static(__dirname));
+if (!process.env.VERCEL) {
+    app.use(express.static(__dirname));
+}
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
