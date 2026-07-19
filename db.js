@@ -105,11 +105,8 @@ const initSchema = () => {
         status TEXT,
         subscription TEXT DEFAULT 'free'
     )`, () => {
-        // Fallback for migrations (won't run on fresh install)
         db.run(`ALTER TABLE users ADD COLUMN fcmTokens TEXT`, () => {});
-        db.run(`ALTER TABLE users ADD COLUMN role TEXT`, (err) => {
-            if (!err) db.run(`UPDATE users SET role = 'admin', status = 'approved'`);
-        });
+        db.run(`ALTER TABLE users ADD COLUMN role TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN status TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN subscription TEXT DEFAULT 'free'`, () => {});
     });
