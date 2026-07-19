@@ -922,7 +922,16 @@ const ensureMasterAdmin = async () => {
         const rawPassword = 'Daksh@2707';
 
         db.get('SELECT id FROM users WHERE username = ? OR email = ?', [username, email], async (err, row) => {
-            if (!err && !row) {
+            if (!err && row) {
+                // User exists, promote them to master admin
+                db.run('UPDATE users SET role = ?, status = ?, subscription = ? WHERE id = ?', 
+                    ['admin', 'approved', 'pro', row.id],
+                    (updateErr) => {
+                        if (!updateErr) console.log('Existing user promoted to Master Admin.');
+                    }
+                );
+            } else if (!err && !row) {
+                // User does not exist, insert them
                 const hashedPassword = await bcrypt.hash(rawPassword, 10);
                 const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
                 const createdAt = new Date().toISOString();
