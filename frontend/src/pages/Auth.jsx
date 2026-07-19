@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pendingMessage, setPendingMessage] = useState(false);
   const { login, register } = useAuth();
@@ -86,7 +88,12 @@ const Auth = () => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-secondary uppercase tracking-wider mb-2">Password</label>
-                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="input-field" placeholder="Enter password" />
+                <div className="relative">
+                  <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} className="input-field pr-10" placeholder="Enter password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-white transition-colors">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn-primary w-full mt-4">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, CheckCircle } from 'lucide-react';
+import { User, Shield, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 const Profile = () => {
   const { user } = useAuth();
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleUpdatePassword = async () => {
     if (!password.trim()) {
@@ -58,13 +59,18 @@ const Profile = () => {
             <h3 className="text-lg font-bold text-white mb-4">Security</h3>
             <label className="block text-xs font-medium text-secondary uppercase tracking-wider mb-2">Change Password</label>
             <div className="flex gap-3">
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field bg-black/40 flex-1"
-                placeholder="Enter new password..."
-              />
+              <div className="relative flex-1">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field bg-black/40 w-full pr-10"
+                  placeholder="Enter new password..."
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-white transition-colors">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <button onClick={handleUpdatePassword} className="btn-primary shrink-0">
                 Update
               </button>
