@@ -62,8 +62,7 @@ function App() {
   React.useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/settings/public');
-        const json = await res.json();
+        const json = { data: await api.getPublicSettings() };
         if (json.data) {
           if (json.data.globalBanner) setGlobalBanner(json.data.globalBanner);
           if (json.data.brandName) {

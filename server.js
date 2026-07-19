@@ -363,7 +363,7 @@ app.delete('/api/applicants/:id', authMiddleware, (req, res) => {
 // GET public settings
 app.get('/api/settings/public', (req, res) => {
     db.all('SELECT * FROM settings WHERE key = "global_banner"', (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return res.json({ message: 'success', data: {} });
         const settings = {};
         rows.forEach(r => settings[r.key] = r.value);
         res.json({ message: 'success', data: settings });
