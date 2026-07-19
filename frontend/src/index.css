@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-primary: #10b981;
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-focus: rgba(16, 185, 129, 0.5);
+
+  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.15);
+  --shadow-glow-primary: 0 4px 24px rgba(16, 185, 129, 0.4);
+}
+
+:root {
+  --bg: #0a0a0f;
+  --surface: rgba(255, 255, 255, 0.02);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --text-secondary: #8b95a5;
+  --text-muted: #545d6e;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+html.light {
+  --bg: #f8fafc;
+  --surface: rgba(0, 0, 0, 0.03);
+  --surface-hover: rgba(0, 0, 0, 0.06);
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: rgba(0, 0, 0, 0.1);
+  --color-white: #0f172a; /* Invert white text to dark slate */
+  --color-black: #ffffff; /* Invert black backgrounds to white */
+  --color-gray-100: #1e293b;
+  --color-gray-200: #334155;
+  --color-gray-300: #475569;
+  --color-gray-400: #64748b;
+  --color-gray-500: #94a3b8;
+}
+@layer base {
+  body {
+    @apply bg-background text-gray-100 font-sans antialiased;
+  }
+  
+  option {
+    background-color: var(--bg);
+    color: var(--text-primary, #f3f4f6);
+  }
+
+  html.light option {
+    color: #111827;
+  }
+  
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/20;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface backdrop-blur-xl border border-border rounded-2xl shadow-lg;
+  }
+  
+  .glass-card-hover {
+    @apply hover:bg-surface-hover hover:border-white/10 transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium px-4 py-2 rounded-lg shadow-glow-primary hover:shadow-glow-primary hover:-translate-y-[1px] transition-all duration-200;
+  }
+
+  .btn-outline {
+    @apply bg-surface backdrop-blur-md border border-border text-secondary font-medium px-4 py-2 rounded-lg hover:text-white hover:border-emerald-500/50 hover:bg-white/5 transition-all duration-200;
+  }
+  
+  .input-field {
+    @apply w-full bg-black/20 border border-border rounded-lg px-4 py-2 text-sm text-gray-100 focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-emerald-500/20 transition-all;
+  }
+}
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  .print-hidden, nav, header, aside, .sidebar {
+    display: none !important;
+  }
+
+  .glass-card {
+    background: white !important;
+    color: black !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  td, th {
+    color: black !important;
+    border-bottom: 1px solid #ccc !important;
+  }
+  
+  * {
+    color: black !important;
+  }
+}

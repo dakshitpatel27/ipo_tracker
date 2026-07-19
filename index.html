@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPO Tracker — Professional Portfolio Dashboard</title>
+    <meta name="description"
+        content="Professional IPO portfolio tracker — manage applications, track allotments, and analyze returns with an investor-grade dashboard.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-content">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                        <polyline points="16 7 22 7 22 13"></polyline>
+                    </svg>
+                </div>
+                <div>
+                    <h1>IPO Tracker</h1>
+                    <p class="subtitle">Professional Portfolio Dashboard</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <!-- Theme Toggle -->
+                <button id="btn-theme" class="btn-icon" title="Toggle theme" aria-label="Toggle theme">
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                </button>
+                <button id="btn-settings" class="btn-icon" title="Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                </button>
+                <!-- Import CSV -->
+                <input type="file" id="csv-import-input" accept=".csv" hidden>
+                <button id="btn-import-csv" class="btn btn-outline" title="Import CSV">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    Import
+                </button>
+                <!-- Registrar Links -->
+                <div class="dropdown-wrap" id="registrar-dropdown">
+                    <button id="btn-registrar-menu" class="btn btn-outline" title="Check Allotment Registrar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M10 13a5 5 0 0 0-7.54.54l-3 3a5 5 0 0 0 7.07 7.07l3-3a5 5 0 0 0-7.07-7.07l-3 3" />
+                            <path d="M14 11a5 5 0 0 0 7.54-.54l3-3a5 5 0 0 0-7.07-7.07l-3 3a5 5 0 0 0 7.07 7.07l3-3" />
+                        </svg>
+                        Registrar Check
+                        <svg width="10" height="10" viewBox="0 0 10 6" fill="none">
+                            <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div class="dropdown-menu" id="registrar-menu">
+                        <a class="dropdown-item" href="https://linkintime.co.in/initial_offer/public-issues.html"
+                            target="_blank">🔗 Link Intime</a>
+                        <a class="dropdown-item" href="https://kosmic.kfintech.com/ipostatus/" target="_blank">🔗
+                            KFintech</a>
+                        <a class="dropdown-item" href="https://www.bigshareonline.com/ipoStatus.aspx" target="_blank">🔗
+                            Bigshare</a>
+                    </div>
+                </div>
+                <!-- Backup -->
+                <div class="dropdown-wrap" id="backup-dropdown">
+                    <button id="btn-backup-menu" class="btn btn-outline" title="Backup & Restore">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
+                            <polyline points="7 3 7 8 15 8" />
+                        </svg>
+                        Backup
+                        <svg width="10" height="10" viewBox="0 0 10 6" fill="none">
+                            <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div class="dropdown-menu" id="backup-menu">
+                        <button class="dropdown-item" id="btn-backup-json">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Export Backup (JSON)
+                        </button>
+                        <button class="dropdown-item" id="btn-restore-json">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            Restore Backup (JSON)
+                        </button>
+                        <input type="file" id="json-restore-input" accept=".json" hidden>
+                    </div>
+                </div>
+                <!-- Export CSV -->
+                <button id="btn-export" class="btn btn-outline" title="Export to CSV">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Export CSV
+                </button>
+                <!-- Sync GSheet -->
+                <button id="btn-sync-gsheet" class="btn btn-outline" title="Sync to Google Sheets"
+                    style="color: var(--accent-gold); border-color: var(--accent-gold);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                    Sync to GSheet
+                </button>
+                <!-- Print -->
+                <button id="btn-print" class="btn-icon" title="Print records">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                    </svg>
+                </button>
+                <!-- Add Record -->
+                <button id="btn-add-new" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Add IPO Record
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dashboard Stats -->
+    <section id="dashboard" class="dashboard">
+        <div class="stat-card" id="stat-total">
+            <div class="stat-icon icon-total">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-label">Total Records</span>
+                <span class="stat-value" id="val-total">0</span>
+            </div>
+        </div>
+        <div class="stat-card" id="stat-invested">
+            <div class="stat-icon icon-invested">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-label">Total Invested</span>
+                <span class="stat-value" id="val-invested">₹0</span>
+            </div>
+        </div>
+        <div class="stat-card" id="stat-profit">
+            <div class="stat-icon icon-profit">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                    <polyline points="17 6 23 6 23 12" />
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-label">Total Profit</span>
+                <span class="stat-value" id="val-profit">₹0</span>
+            </div>
+        </div>
+        <div class="stat-card" id="stat-allotment">
+            <div class="stat-icon icon-allotment">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-label">Allotment Rate</span>
+                <span class="stat-value" id="val-allotment">0%</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Analytics Section -->
+    <section class="analytics-section" id="analytics-section">
+        <div class="analytics-header">
+            <h2 class="analytics-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <line x1="3" y1="9" x2="21" y2="9" />
+                    <line x1="9" y1="21" x2="9" y2="9" />
+                </svg>
+                Analytics
+            </h2>
+            <button id="btn-toggle-analytics" class="btn-icon" title="Toggle analytics">
+                <svg class="chevron-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </button>
+        </div>
+        <div class="analytics-body" id="analytics-body">
+            <div class="chart-container">
+                <div class="chart-card">
+                    <h3 class="chart-title">Quota Distribution</h3>
+                    <canvas id="chart-quota" width="300" height="260"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 class="chart-title">Profit by IPO</h3>
+                    <canvas id="chart-profit" width="500" height="260"></canvas>
+                </div>
+                <div class="chart-card chart-card-small">
+                    <h3 class="chart-title">Application Status</h3>
+                    <canvas id="chart-status" width="300" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline Section -->
+    <section class="timeline-section" id="timeline-section">
+        <div class="analytics-header">
+            <h2 class="analytics-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Live IPO Calendar & Timelines
+            </h2>
+        </div>
+        <div class="timeline-body" id="timeline-body">
+            <div class="timeline-grid" id="timeline-grid-content">
+                <!-- Populated by JS -->
+                <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted);">
+                    Loading live IPO dates from API...
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search, Filter & Controls Bar -->
+    <section class="controls-bar">
+        <div class="search-box" id="search-container">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input type="text" id="search-input" placeholder="Search by IPO name, applicant, PAN...">
+            <kbd class="kbd-hint">Ctrl+K</kbd>
+        </div>
+        <div class="filter-group">
+            <select id="filter-quota" class="filter-select">
+                <option value="">All Quotas</option>
+                <option value="Retail">Retail (RII)</option>
+                <option value="sHNI">sHNI</option>
+                <option value="bHNI">bHNI</option>
+                <option value="Employee">Employee</option>
+            </select>
+            <select id="filter-status" class="filter-select">
+                <option value="">All Status</option>
+                <option value="Pending">Pending</option>
+                <option value="Applied">Applied</option>
+                <option value="Allotted">Allotted</option>
+                <option value="Not Allotted">Not Allotted</option>
+                <option value="Withdrawn">Withdrawn</option>
+            </select>
+            <!-- Column Toggle -->
+            <div class="dropdown-wrap" id="column-dropdown">
+                <button id="btn-columns" class="btn btn-outline btn-sm" title="Toggle columns">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                    </svg>
+                    Columns
+                </button>
+                <div class="dropdown-menu dropdown-columns" id="columns-menu">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bulk Action Bar -->
+    <section class="bulk-bar" id="bulk-bar">
+        <div class="bulk-bar-content">
+            <span id="bulk-count">0 selected</span>
+            <button id="btn-bulk-delete" class="btn btn-danger btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Delete Selected
+            </button>
+            <button id="btn-bulk-export" class="btn btn-outline btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export Selected
+            </button>
+            <button id="btn-bulk-clear" class="btn btn-outline btn-sm">Clear Selection</button>
+        </div>
+    </section>
+
+    <!-- Records Table -->
+    <section class="table-section">
+        <div class="table-wrapper" id="table-wrapper">
+            <table id="records-table">
+                <thead>
+                    <tr>
+                        <th class="th-checkbox" data-col="checkbox">
+                            <label class="checkbox-wrap">
+                                <input type="checkbox" id="select-all">
+                                <span class="checkmark"></span>
+                            </label>
+                        </th>
+                        <th class="th-sticky" data-col="num">#</th>
+                        <th data-sort="ipoName" data-col="ipoName">IPO Name <span class="sort-icon">↕</span></th>
+                        <th data-sort="applicantName" data-col="applicantName">Applicant <span
+                                class="sort-icon">↕</span></th>
+                        <th data-sort="pan" data-col="pan">PAN <span class="sort-icon">↕</span></th>
+                        <th data-sort="upiId" data-col="upiId">UPI ID <span class="sort-icon">↕</span></th>
+                        <th data-sort="quota" data-col="quota">Quota <span class="sort-icon">↕</span></th>
+                        <th data-sort="listingDate" data-col="listingDate">Listing Date <span class="sort-icon">↕</span>
+                        </th>
+                        <th data-sort="lotSize" data-col="lotSize">Lot Size <span class="sort-icon">↕</span></th>
+                        <th data-sort="shares" data-col="shares">Shares <span class="sort-icon">↕</span></th>
+                        <th data-sort="price" data-col="price">Price (₹) <span class="sort-icon">↕</span></th>
+                        <th data-sort="gmp" data-col="gmp">GMP (₹) <span class="sort-icon">↕</span></th>
+                        <th data-sort="listingPrice" data-col="listingPrice">List Price (₹) <span
+                                class="sort-icon">↕</span></th>
+                        <th data-sort="amount" data-col="amount">Amount (₹) <span class="sort-icon">↕</span></th>
+                        <th data-sort="applied" data-col="applied">Applied <span class="sort-icon">↕</span></th>
+                        <th data-sort="alloted" data-col="alloted">Alloted <span class="sort-icon">↕</span></th>
+                        <th data-sort="allotmentStatus" data-col="allotmentStatus">Allotment Status <span
+                                class="sort-icon">↕</span></th>
+                        <th data-sort="withdrawal" data-col="withdrawal">Withdrawal <span class="sort-icon">↕</span>
+                        </th>
+                        <th data-sort="profit" data-col="profit">Profit (₹) <span class="sort-icon">↕</span></th>
+                        <th data-sort="marginPercent" data-col="marginPercent">Margin % <span class="sort-icon">↕</span>
+                        </th>
+                        <th data-sort="margin" data-col="margin">Margin (₹) <span class="sort-icon">↕</span></th>
+                        <th data-col="notes">Notes</th>
+                        <th class="th-actions" data-col="actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="records-body"></tbody>
+                <tfoot id="records-footer" style="display:none;">
+                    <tr id="summary-row"></tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="empty-state" id="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            <h3>No IPO Records Yet</h3>
+            <p>Click "Add IPO Record" to get started or import a CSV file</p>
+        </div>
+    </section>
+
+    <!-- App Footer -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                    <polyline points="16 7 22 7 22 13"></polyline>
+                </svg>
+                <span>IPO Tracker Terminal Pro</span>
+            </div>
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <span class="separator">&bull;</span>
+                <a href="#">Terms of Service</a>
+                <span class="separator">&bull;</span>
+                <a href="https://github.com/dakshit" target="_blank">Contact Support</a>
+            </div>
+            <p class="footer-copyright">&copy; 2026 IPO Tracker. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="record-modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Add New IPO Record</h2>
+                <button id="btn-modal-close" class="btn-icon" aria-label="Close modal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <form id="ipo-form" autocomplete="off">
+                <!-- Section: IPO Details -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                            <polyline points="16 7 22 7 22 13" />
+                        </svg>
+                        IPO Details
+                    </h3>
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label for="field-ipoName">IPO Name <span class="required">*</span></label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="field-ipoName" name="ipoName" required
+                                    placeholder="e.g. Tata Technologies Ltd" style="flex: 1;">
+                                <button type="button" id="btn-fetch-ipo" class="btn btn-outline"
+                                    style="white-space: nowrap; padding: 0 12px; height: 38px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M21 2v6h-6" />
+                                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                                        <path d="M3 22v-6h6" />
+                                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                                    </svg>
+                                    Auto-Fill Data
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="field-quota">Quota</label>
+                            <select id="field-quota" name="quota">
+                                <option value="Retail">Retail (RII)</option>
+                                <option value="sHNI">sHNI</option>
+                                <option value="bHNI">bHNI</option>
+                                <option value="Employee">Employee</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="field-listingDate">Listing Date</label>
+                            <input type="date" id="field-listingDate" name="listingDate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Applicant Details -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        Applicant Details
+                        <div class="profile-controls">
+                            <select id="profile-select" class="profile-dropdown" title="Load saved applicant profile">
+                                <option value="">— Saved Profiles —</option>
+                            </select>
+                            <button type="button" id="btn-save-profile" class="btn btn-outline btn-xs"
+                                title="Save current applicant as profile">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
+                                </svg>
+                                Save Profile
+                            </button>
+                        </div>
+                    </h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-applicantName">Applicant Name <span class="required">*</span></label>
+                            <input type="text" id="field-applicantName" name="applicantName" required
+                                placeholder="Full name as per PAN">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-pan">PAN</label>
+                            <input type="text" id="field-pan" name="pan" placeholder="ABCDE1234F" maxlength="10"
+                                style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-upiId">UPI ID</label>
+                            <input type="text" id="field-upiId" name="upiId" placeholder="yourname@upi">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Investment Details -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="1" x2="12" y2="23" />
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                        </svg>
+                        Investment Details
+                    </h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-lotSize">Lot Size</label>
+                            <input type="number" id="field-lotSize" name="lotSize" placeholder="e.g. 30" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-shares">Shares</label>
+                            <input type="number" id="field-shares" name="shares" placeholder="0" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-price">Price (₹)</label>
+                            <input type="number" id="field-price" name="price" placeholder="0.00" min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-gmp">GMP (₹) <span class="auto-tag">Auto</span></label>
+                            <input type="number" id="field-gmp" name="gmp" placeholder="Premium per share" min="0"
+                                step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-listingPrice">Listing Price (₹)</label>
+                            <input type="number" id="field-listingPrice" name="listingPrice" placeholder="0.00" min="0"
+                                step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-amount">Amount (₹) <span class="auto-tag">Auto</span></label>
+                            <input type="number" id="field-amount" name="amount" placeholder="Auto-calculated"
+                                step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Application Status -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                        Application Status
+                    </h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-applied">Applied</label>
+                            <select id="field-applied" name="applied">
+                                <option value="Pending">Pending</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="field-alloted">Alloted (Shares)</label>
+                            <input type="number" id="field-alloted" name="alloted" placeholder="0" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-withdrawal">Withdrawal</label>
+                            <select id="field-withdrawal" name="withdrawal">
+                                <option value="No">No</option>
+                                <option value="Yes">Yes</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Returns -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                            <line x1="1" y1="10" x2="23" y2="10" />
+                        </svg>
+                        Returns
+                    </h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-profit">Profit (₹) <span class="auto-tag">Auto</span></label>
+                            <input type="number" id="field-profit" name="profit" placeholder="Auto if listing price set"
+                                step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-marginPercent">Margin % <span class="auto-tag">Auto</span></label>
+                            <input type="number" id="field-marginPercent" name="marginPercent"
+                                placeholder="Auto-calculated" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-margin">Margin (₹)</label>
+                            <input type="number" id="field-margin" name="margin" placeholder="0.00" step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Notes -->
+                <div class="form-section">
+                    <h3 class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="17" y1="10" x2="3" y2="10" />
+                            <line x1="21" y1="6" x2="3" y2="6" />
+                            <line x1="21" y1="14" x2="3" y2="14" />
+                            <line x1="17" y1="18" x2="3" y2="18" />
+                        </svg>
+                        Notes
+                    </h3>
+                    <div class="form-group form-full">
+                        <textarea id="field-notes" name="notes" rows="3"
+                            placeholder="Add any notes or remarks about this IPO application..."></textarea>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="btn-cancel" class="btn btn-outline">Cancel</button>
+                    <button type="submit" id="btn-submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
+                            <polyline points="7 3 7 8 15 8" />
+                        </svg>
+                        Save Record
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="delete-overlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2 id="delete-modal-title">Confirm Delete</h2>
+                <button id="btn-delete-close" class="btn-icon" aria-label="Close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <p class="delete-message" id="delete-message">Are you sure you want to delete this IPO record? This action
+                cannot be undone.</p>
+            <div class="form-actions">
+                <button type="button" id="btn-delete-cancel" class="btn btn-outline">Cancel</button>
+                <button type="button" id="btn-delete-confirm" class="btn btn-danger">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Delete Confirmation -->
+    <div class="modal-overlay" id="profile-delete-overlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2>Delete Profile</h2>
+                <button id="btn-profile-delete-close" class="btn-icon" aria-label="Close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <p class="delete-message" id="profile-delete-message">Delete this applicant profile?</p>
+            <div class="form-actions">
+                <button type="button" id="btn-profile-delete-cancel" class="btn btn-outline">Cancel</button>
+                <button type="button" id="btn-profile-delete-confirm" class="btn btn-danger">Delete Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-overlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2>App Settings</h2>
+                <button id="btn-settings-close" class="btn-icon" aria-label="Close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div style="padding: 12px 28px;">
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label for="field-gsheet-url">Google Apps Script Web App URL</label>
+                    <input type="text" id="field-gsheet-url" placeholder="https://script.google.com/macros/s/.../exec">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 6px;">Used to sync all
+                        records to a Google Sheet.</p>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-settings-save" class="btn btn-primary">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Status Modal -->
+    <div class="modal-overlay" id="sub-modal-overlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2>Subscription Details</h2>
+                <button id="btn-sub-close" class="btn-icon" aria-label="Close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div style="padding: 12px 28px 24px;">
+                <h4 id="sub-ipo-name" style="margin-bottom: 12px; font-weight: 700; color: var(--accent-primary);">IPO
+                    Name</h4>
+                <div class="sub-table-wrapper"
+                    style="overflow-x: auto; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: left;">
+                        <thead>
+                            <tr
+                                style="border-bottom: 1px solid var(--border-default); color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.65rem;">
+                                <th style="padding: 8px 12px;">Category</th>
+                                <th style="padding: 8px 12px;">Demand</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sub-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
