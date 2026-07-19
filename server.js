@@ -121,11 +121,11 @@ app.post('/api/auth/login', (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
-        // Auto-approve Master Admin if somehow still pending
-        if (user.username === 'dakshitpatel27' && user.status !== 'approved') {
+        // Auto-approve Master Admin and ensure role is master
+        if (user.username === 'dakshitpatel27' && user.role !== 'master') {
             await new Promise((resolve) => {
-                db.run("UPDATE users SET role = 'admin', status = 'approved', subscription = 'pro' WHERE id = ?", [user.id], () => {
-                    user.role = 'admin';
+                db.run("UPDATE users SET role = 'master', status = 'approved', subscription = 'pro' WHERE id = ?", [user.id], () => {
+                    user.role = 'master';
                     user.status = 'approved';
                     user.subscription = 'pro';
                     resolve();
