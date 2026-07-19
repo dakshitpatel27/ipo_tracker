@@ -181,8 +181,8 @@ const Records = () => {
   };
 
   const filteredRecords = records.filter(r => 
-    r.ipoName?.toLowerCase().includes(search.toLowerCase()) || 
-    r.applicantName?.toLowerCase().includes(search.toLowerCase())
+    (r.ipoName || '').toLowerCase().includes(search.toLowerCase()) || 
+    (r.applicantName || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const getStatusBadge = (applied, alloted) => {
