@@ -62,10 +62,15 @@ export const api = {
   },
 
   async addRecord(record) {
+    const payload = { 
+      ...record, 
+      id: record.id || generateId(), 
+      createdAt: record.createdAt || new Date().toISOString() 
+    };
     const res = await fetch(`${API_URL}/records`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify(record)
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     return data;

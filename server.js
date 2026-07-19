@@ -244,8 +244,11 @@ app.post('/api/records/bulk', authMiddleware, (req, res) => {
 
 // ADD a new record
 app.post('/api/records', authMiddleware, (req, res) => {
-    const { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus } = req.body;
+    let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus } = req.body;
     
+    id = id || (require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString());
+    createdAt = createdAt || new Date().toISOString();
+
     db.run(
         `INSERT INTO records (id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
