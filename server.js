@@ -914,6 +914,36 @@ app.delete('/api/admin/templates/:id', authMiddleware, isAdmin, (req, res) => {
 // Initial boot
 initFirebaseAdmin();
 
+// Ensure Master Admin Exists
+const ensureMasterAdmin = async () => {
+    try {
+        const username = 'dakshitpatel27';
+        const email = 'gajiparadakshit@gmail.com';
+        const rawPassword = 'Daksh@2707';
+
+        db.get('SELECT id FROM users WHERE username = ? OR email = ?', [username, email], async (err, row) => {
+            if (!err && !row) {
+                const hashedPassword = await bcrypt.hash(rawPassword, 10);
+                const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
+                const createdAt = new Date().toISOString();
+                
+                db.run('INSERT INTO users (id, username, password, email, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [id, username, hashedPassword, email, createdAt, 'admin', 'approved', 'pro'],
+                    (insertErr) => {
+                        if (!insertErr) console.log('Master Admin seeded successfully.');
+                        else console.error('Failed to seed Master Admin', insertErr);
+                    }
+                );
+            }
+        });
+    } catch(e) {
+        console.error('Master admin seed error', e);
+    }
+};
+
+// Wait for DB to be ready before seeding
+setTimeout(ensureMasterAdmin, 2000);
+
 // --- VERCEL CRON ENDPOINT ---
 app.post('/api/cron/run', async (req, res) => {
     const authHeader = req.headers.authorization;
