@@ -945,7 +945,7 @@ const ensureMasterAdmin = async () => {
             if (!err && row) {
                 // User exists, promote them to master admin
                 db.run('UPDATE users SET role = ?, status = ?, subscription = ? WHERE id = ?', 
-                    ['admin', 'approved', 'pro', row.id],
+                    ['master', 'approved', 'pro', row.id],
                     (updateErr) => {
                         if (!updateErr) console.log('Existing user promoted to Master Admin.');
                     }
@@ -957,7 +957,7 @@ const ensureMasterAdmin = async () => {
                 const createdAt = new Date().toISOString();
                 
                 db.run('INSERT INTO users (id, username, password, email, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [id, username, hashedPassword, email, createdAt, 'admin', 'approved', 'pro'],
+                    [id, username, hashedPassword, email, createdAt, 'master', 'approved', 'pro'],
                     (insertErr) => {
                         if (!insertErr) console.log('Master Admin seeded successfully.');
                         else console.error('Failed to seed Master Admin', insertErr);
