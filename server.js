@@ -121,8 +121,24 @@ app.post('/api/auth/login', (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
-        if (user.status === 'pending') return res.status(403).json({ error: 'Account is pending admin approval' });
-        if (user.status === 'rejected') return res.status(403).json({ error: 'Account has been rejected' });
+        // Auto-approve Master Admin if somehow still pending
+        if (user.username === 'dakshitpatel27' && user.status !== 'approved') {
+            await new Promise((resolve) => {
+                db.run("UPDATE users SET role = 'admin', status = 'approved', subscription = 'pro' WHERE id = ?", [user.id], () => {
+                    user.role = 'admin';
+                    user.status = 'approved';
+                    user.subscription = 'pro';
+                    resolve();
+                });
+            });
+        }
+
+        if (user.status !== 'approved') {
+            return res.status(403).json({ error: 'Account is pending admin approval' });
+        }
+        if (user.status === 'rejected') {
+            return res.status(403).json({ error: 'Account has been rejected' });
+        }
 
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ message: 'success', token, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
