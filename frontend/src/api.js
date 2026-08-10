@@ -14,23 +14,41 @@ const getHeaders = () => {
   return headers;
 };
 
+const parseResponse = async (res) => {
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    if (!res.ok) {
+      throw new Error(`Server error (${res.status}: ${res.statusText || 'Connection refused'})`);
+    }
+    throw new Error('Invalid JSON response');
+  }
+  if (!res.ok) {
+    throw new Error(json.error || json.message || `Request failed (${res.status})`);
+  }
+  return json;
+};
+
 export const api = {
   setToken: (token) => { authToken = token; },
   
   get: async (endpoint) => {
     const res = await fetch(`${API_URL}${endpoint}`, { headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
+    return parseResponse(res);
+  },
+  post: async (endpoint, body) => {
+    const res = await fetch(`${API_URL}${endpoint}`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+    return parseResponse(res);
   },
   put: async (endpoint, body) => {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(body) });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
+    return parseResponse(res);
   },
   delete: async (endpoint) => {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'DELETE', headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
+    return parseResponse(res);
   },
 
   login: async (credentials) => {
@@ -55,8 +73,28 @@ export const api = {
     return res.json();
   },
 
+  async getSessions() {
+    const res = await fetch(`${API_URL}/sessions`, { headers: getHeaders() });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch active sessions'); }
+    const data = await res.json();
+    return data.data || [];
+  },
+
+  async revokeSession(sessionId) {
+    const res = await fetch(`${API_URL}/sessions/${sessionId}`, { method: 'DELETE', headers: getHeaders() });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to revoke session'); }
+    return res.json();
+  },
+
+  async revokeAllSessions() {
+    const res = await fetch(`${API_URL}/sessions/logout-all`, { method: 'POST', headers: getHeaders() });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to revoke sessions'); }
+    return res.json();
+  },
+
   async getRecords() {
     const res = await fetch(`${API_URL}/records`, { headers: getHeaders() });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch records'); }
     const data = await res.json();
     return data.data || [];
   },
@@ -84,6 +122,17 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to register token');
+    return data;
+  },
+
+  async autoCheckAllotment(payload) {
+    const res = await fetch(`${API_URL}/allotment/auto-check`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to auto check allotment');
     return data;
   },
 
@@ -126,18 +175,94 @@ export const api = {
     return data;
   },
 
+  async impersonateUser(userId) {
+    const res = await fetch(`${API_URL}/admin/impersonate`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to impersonate user');
+    return data;
+  },
+
+  async bulkUpdateUsers(payload) {
+    const res = await fetch(`${API_URL}/admin/users/bulk-update`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to bulk update users');
+    return data;
+  },
+
+  async bulkNotifyUsers(payload) {
+    const res = await fetch(`${API_URL}/admin/users/bulk-notify`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to bulk notify users');
+    return data;
+  },
+
   async getGlobalAnalytics() {
     const res = await fetch(`${API_URL}/admin/analytics`, { headers: getHeaders() });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch analytics');
-    return data.data;
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch global analytics');
+    return data.data || data;
   },
 
   async getAdminSettings() {
     const res = await fetch(`${API_URL}/admin/settings`, { headers: getHeaders() });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch settings');
-    return data.data;
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch admin settings');
+    return data.data || data;
+  },
+
+  async saveAdminSetting(key, value) {
+    const res = await fetch(`${API_URL}/admin/settings`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ key, value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save admin setting');
+    return data;
+  },
+
+  async getAuditLogs() {
+    const res = await fetch(`${API_URL}/admin/audit-logs`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch audit logs');
+    return data.data || [];
+  },
+
+  async getLiveConsole() {
+    const res = await fetch(`${API_URL}/admin/console`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch console logs');
+    return data.data || [];
+  },
+
+  async getCronJobs() {
+    const res = await fetch(`${API_URL}/admin/cron`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch cron status');
+    return data;
+  },
+
+  async triggerCronJob(job) {
+    const res = await fetch(`${API_URL}/admin/cron/trigger`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ job })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to trigger cron job');
+    return data;
   },
 
   async saveAdminSetting(key, value) {
@@ -221,8 +346,21 @@ export const api = {
     return data.data;
   },
 
-  downloadExport() {
-    window.open(`${API_URL}/admin/export?token=${localStorage.getItem('ipo_token')}`, '_blank');
+  async downloadExport() {
+    const res = await fetch(`${API_URL}/admin/export`, { headers: getHeaders() });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to export data');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `platform_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   },
 
   async impersonateUser(id) {
@@ -255,8 +393,14 @@ export const api = {
       body: JSON.stringify({ records })
     });
     if (!res.ok) {
+      let errorMsg = 'Failed to bulk import';
+      try {
         const err = await res.json();
-        throw new Error(err.error || 'Failed to bulk import');
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        errorMsg = `Server error (${res.status} ${res.statusText})`;
+      }
+      throw new Error(errorMsg);
     }
     return res.json();
   },
@@ -354,5 +498,317 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to delete template');
     return data;
+  },
+
+  // --- 2FA API ---
+  async login2FA(username, token) {
+    const res = await fetch(`${API_URL}/auth/login/2fa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, token })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Invalid 2FA token');
+    return data;
+  },
+
+  async setup2FA() {
+    const res = await fetch(`${API_URL}/auth/2fa/setup`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to setup 2FA');
+    return data;
+  },
+
+  async verify2FA(token) {
+    const res = await fetch(`${API_URL}/auth/2fa/verify`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to verify 2FA');
+    return data;
+  },
+
+  async disable2FA(token) {
+    const res = await fetch(`${API_URL}/auth/2fa/disable`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to disable 2FA');
+    return data;
+  },
+
+  // --- Notification Preferences API ---
+  async getNotificationPreferences() {
+    const res = await fetch(`${API_URL}/users/notification-preferences`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to get notification preferences');
+    return data.data;
+  },
+
+  async updateNotificationPreferences(prefs) {
+    const res = await fetch(`${API_URL}/users/notification-preferences`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(prefs)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update preferences');
+    return data;
+  },
+
+  // --- Notifications Inbox API ---
+  async getNotifications() {
+    const res = await fetch(`${API_URL}/notifications`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch notifications');
+    return data.data || [];
+  },
+
+  async markNotificationRead(id) {
+    const res = await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to mark notification read');
+    return data;
+  },
+
+  async markAllNotificationsRead() {
+    const res = await fetch(`${API_URL}/notifications/read-all`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to mark all read');
+    return data;
+  },
+
+  async deleteNotification(id) {
+    const res = await fetch(`${API_URL}/notifications/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete notification');
+    return data;
+  },
+
+  // --- PDF Parser API ---
+  async parseAllotmentPdf(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    
+    const res = await fetch(`${API_URL}/records/parse-allotment-pdf`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to parse PDF');
+    return data.matches || [];
+  },
+
+  // --- Sessions API ---
+  async getSessions() {
+    const res = await fetch(`${API_URL}/sessions`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch sessions');
+    return data.data || [];
+  },
+
+  async revokeSession(id) {
+    const res = await fetch(`${API_URL}/sessions/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to revoke session');
+    return data;
+  },
+
+  async revokeAllSessions() {
+    const res = await fetch(`${API_URL}/sessions/logout-all`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to revoke all sessions');
+    return data;
+  },
+
+  // --- Self-Service API ---
+  async exportAllUserData() {
+    const res = await fetch(`${API_URL}/users/export-all`, { headers: getHeaders() });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to export data');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ipo_tracker_profile_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  async deleteUserAccount() {
+    const res = await fetch(`${API_URL}/users/delete-account`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete account');
+    return data;
+  },
+
+  // --- Tax Report API ---
+  async downloadItrTaxReport() {
+    const res = await fetch(`${API_URL}/reports/itr-tax-export`, { headers: getHeaders() });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to export tax report');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `itr2_schedule_cg_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  // --- GMP Alerts API ---
+  async getGmpAlerts() {
+    const res = await fetch(`${API_URL}/gmp-alerts`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch GMP alerts');
+    return data.data || [];
+  },
+
+  async addGmpAlert(payload) {
+    const res = await fetch(`${API_URL}/gmp-alerts`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add alert');
+    return data;
+  },
+
+  async deleteGmpAlert(id) {
+    const res = await fetch(`${API_URL}/gmp-alerts/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete alert');
+    return data;
+  },
+
+  // --- Batch Apply API (Feature 5) ---
+  async batchApply(payload) {
+    const res = await fetch(`${API_URL}/records/batch-apply`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to batch apply');
+    return data;
+  },
+
+  // --- Telegram API ---
+  async getTelegramSettings() {
+    const res = await fetch(`${API_URL}/user/telegram`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  async saveTelegramSettings(payload) {
+    const res = await fetch(`${API_URL}/user/telegram`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async testTelegramBot(chatId, botToken) {
+    const res = await fetch(`${API_URL}/webhooks/telegram/test`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ chatId, botToken })
+    });
+    return parseResponse(res);
+  },
+
+  // --- Passcode PIN API ---
+  async getPinStatus() {
+    const res = await fetch(`${API_URL}/user/pin/status`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.enabled;
+  },
+
+  async setPin(pin) {
+    const res = await fetch(`${API_URL}/user/pin`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'set', pin })
+    });
+    return parseResponse(res);
+  },
+
+  async verifyPin(pin) {
+    const res = await fetch(`${API_URL}/user/pin`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'verify', pin })
+    });
+    return parseResponse(res);
+  },
+
+  async disablePin() {
+    const res = await fetch(`${API_URL}/user/pin`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'disable' })
+    });
+    return parseResponse(res);
+  },
+
+  // --- PAN & Batch ASBA API ---
+  async checkDuplicatePan(pan, ipoName) {
+    const res = await fetch(`${API_URL}/records/check-duplicate-pan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ pan, ipoName })
+    });
+    return parseResponse(res);
+  },
+
+  async generateBatchAsba(payload) {
+    const res = await fetch(`${API_URL}/records/batch-asba`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
   }
 };

@@ -3,33 +3,110 @@ import { Search, Loader2 } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
 
+const DEFAULT_FORM = {
+  ipoName: '',
+  applicantName: '',
+  quota: 'Retail',
+  listingDate: '',
+  lotSize: '',
+  shares: '',
+  price: '',
+  gmp: '',
+  listingPrice: '',
+  amount: '',
+  applied: 'Pending',
+  alloted: '',
+  profit: '',
+  notes: '',
+  holdingStatus: 'Holding',
+  sellDate: '',
+  sellPrice: '',
+  registrar: '',
+  dematId: '',
+  bankAccount: '',
+  ifscCode: '',
+};
+
+const getChargesBreakdown = (data) => {
+  const price = parseFloat(data.price) || 0;
+  const shares = parseFloat(data.shares) || 0;
+  const sellPrice = parseFloat(data.sellPrice) || 0;
+  const listingPrice = parseFloat(data.listingPrice) || 0;
+  const gmp = parseFloat(data.gmp) || 0;
+  const status = data.holdingStatus;
+
+  const buyValue = price * shares;
+  const sellValue = sellPrice * shares;
+
+  const stampDuty = buyValue * 0.00005;
+  let brokerage = 0, stt = 0, exchange = 0, sebi = 0, dp = 0, gst = 0;
+
+  if (status === 'Sold' && sellPrice > 0) {
+    brokerage = 20;
+    stt = sellValue * 0.001;
+    exchange = sellValue * 0.0000345;
+    sebi = sellValue * 0.000001;
+    dp = 13.50;
+    gst = (brokerage + exchange + sebi + dp) * 0.18;
+  }
+
+  const totalCharges = stampDuty + brokerage + stt + exchange + sebi + dp + gst;
+
+  let gross = 0;
+  if (status === 'Sold' && sellPrice > 0) {
+    gross = (sellPrice - price) * shares;
+  } else if (listingPrice > 0) {
+    gross = (listingPrice - price) * shares;
+  } else if (gmp > 0) {
+    gross = gmp * shares;
+  }
+  
+  const net = gross - totalCharges;
+
+  return {
+    stampDuty: stampDuty.toFixed(2),
+    brokerage: brokerage.toFixed(2),
+    stt: stt.toFixed(2),
+    exchange: exchange.toFixed(2),
+    sebi: sebi.toFixed(2),
+    dp: dp.toFixed(2),
+    gst: gst.toFixed(2),
+    total: totalCharges.toFixed(2),
+    gross: gross.toFixed(2),
+    net: net.toFixed(2)
+  };
+};
+
 const IpoForm = ({ initialData, onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState({
-    ipoName: '',
-    applicantName: '',
-    quota: 'Retail',
-    listingDate: '',
-    lotSize: '',
-    shares: '',
-    price: '',
-    gmp: '',
-    listingPrice: '',
-    amount: '',
-    applied: 'Pending',
-    alloted: '',
-    profit: '',
-    notes: '',
-    holdingStatus: 'Holding',
-    sellDate: '',
-    sellPrice: '',
-  });
+  const [formData, setFormData] = useState(DEFAULT_FORM);
 
   const [applicants, setApplicants] = useState([]);
   const [loadingFinAPI, setLoadingFinAPI] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
+
+  useEffect(() => {
+    async function checkPanDuplicate() {
+      if (formData.pan && formData.ipoName && !initialData) {
+        try {
+          const res = await api.checkDuplicatePan(formData.pan, formData.ipoName);
+          if (res.isDuplicate) {
+            setDuplicateWarning(`⚠️ Duplicate Application Alert: PAN ${formData.pan.toUpperCase()} has already applied for "${formData.ipoName}". NSDL/CDSL will auto-reject multiple applications under the same PAN.`);
+          } else {
+            setDuplicateWarning(null);
+          }
+        } catch (e) {
+          setDuplicateWarning(null);
+        }
+      } else {
+        setDuplicateWarning(null);
+      }
+    }
+    checkPanDuplicate();
+  }, [formData.pan, formData.ipoName, initialData]);
 
   useEffect(() => {
     if (initialData) {
-      setFormData({ ...formData, ...initialData });
+      setFormData({ ...DEFAULT_FORM, ...initialData });
     }
   }, [initialData]);
 
@@ -47,17 +124,21 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
     loadApplicants();
   }, []);
 
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => {
       const next = { ...prev, [name]: value };
       
-      // If applicant changes, auto-fill pan and upi
+      // If applicant changes, auto-fill pan, upi, demat, bank details
       if (name === 'applicantName') {
         const found = applicants.find(a => a.name === value);
         if (found) {
           next.pan = found.pan || '';
           next.upiId = found.upiId || '';
+          next.dematId = found.dematId || '';
+          next.bankAccount = found.bankAccount || '';
+          next.ifscCode = found.ifscCode || '';
         }
       }
       
@@ -185,6 +266,12 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
           </div>
         </div>
 
+        {duplicateWarning && (
+          <div className="col-span-1 md:col-span-2 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+            <span>{duplicateWarning}</span>
+          </div>
+        )}
+
         {/* Row 2 */}
         <div className="space-y-2">
           <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Applicant Name *</label>
@@ -259,6 +346,20 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
           </select>
         </div>
         
+        {/* Feature 5: Registrar */}
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Registrar</label>
+          <select name="registrar" value={formData.registrar || ''} onChange={handleChange} className="input-field">
+            <option value="">-- Select Registrar --</option>
+            <option value="KFintech">KFintech (Karvy)</option>
+            <option value="LinkIntime">Link Intime</option>
+            <option value="Bigshare">Bigshare Services</option>
+            <option value="MUFG">MUFG Intime India</option>
+            <option value="Skyline">Skyline Financial</option>
+            <option value="Cameo">Cameo Corporate</option>
+          </select>
+        </div>
+
         {formData.holdingStatus === 'Sold' ? (
           <>
             <div className="space-y-2">
@@ -274,12 +375,65 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
           <div className="space-y-2"></div>
         )}
         
+
         {/* Row 8 */}
         <div className="space-y-2 col-span-1 md:col-span-2">
           <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Expected/Actual Profit (₹)</label>
           <input name="profit" type="number" step="0.01" value={formData.profit} onChange={handleChange} className="input-field bg-emerald-500/10 text-emerald-400 font-bold border-emerald-500/30" />
         </div>
       </div>
+
+      {/* Charges & Net Profit Breakdown Panel */}
+      {(parseFloat(formData.price) > 0 && parseFloat(formData.shares) > 0) && (() => {
+        const breakdown = getChargesBreakdown(formData);
+        return (
+          <div className="bg-surface-2 p-4 rounded-xl border border-border space-y-3 mt-4">
+            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider">Charges & Net Profit Estimate</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <p className="text-secondary">Gross Profit</p>
+                <p className="font-semibold text-white">₹{parseFloat(breakdown.gross).toLocaleString('en-IN')}</p>
+              </div>
+              <div>
+                <p className="text-secondary">Stamp Duty (Buy)</p>
+                <p className="text-gray-300 font-mono">₹{breakdown.stampDuty}</p>
+              </div>
+              {formData.holdingStatus === 'Sold' && (
+                <>
+                  <div>
+                    <p className="text-secondary">Brokerage</p>
+                    <p className="text-gray-300 font-mono">₹{breakdown.brokerage}</p>
+                  </div>
+                  <div>
+                    <p className="text-secondary">STT (Sell)</p>
+                    <p className="text-gray-300 font-mono">₹{breakdown.stt}</p>
+                  </div>
+                  <div>
+                    <p className="text-secondary">Exchange / SEBI</p>
+                    <p className="text-gray-300 font-mono">₹{(parseFloat(breakdown.exchange) + parseFloat(breakdown.sebi)).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-secondary">DP Charges</p>
+                    <p className="text-gray-300 font-mono">₹{breakdown.dp}</p>
+                  </div>
+                  <div>
+                    <p className="text-secondary">GST (18%)</p>
+                    <p className="text-gray-300 font-mono">₹{breakdown.gst}</p>
+                  </div>
+                </>
+              )}
+              <div className="col-span-2 md:col-span-1 bg-black/20 p-2 rounded-lg border border-border/50">
+                <p className="text-secondary font-medium">Total Charges</p>
+                <p className="text-rose-400 font-bold font-mono">₹{breakdown.total}</p>
+              </div>
+              <div className="col-span-2 md:col-span-1 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                <p className="text-emerald-400 font-semibold">Net Profit</p>
+                <p className="text-emerald-400 font-extrabold font-mono text-sm">₹{parseFloat(breakdown.net).toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
         <button type="button" onClick={onCancel} className="btn-outline">Cancel</button>

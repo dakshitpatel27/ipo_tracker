@@ -111,49 +111,178 @@ async function runGmpSync() {
     const res = await fetch('https://finapi.upvaly.com/api/ipo');
     const json = await res.json();
     if (json.status === 'success' && json.data) {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        const stmt = db.prepare(`
-          UPDATE records 
-          SET gmp = ?, profit = ? 
-          WHERE ipoName LIKE ? AND (listingPrice IS NULL OR listingPrice = 0 OR listingPrice = '')
-        `);
+      db.run('BEGIN TRANSACTION', [], (beginErr) => {
+        if (beginErr) {
+          console.error('[Cron] GMP Auto-Sync begin error:', beginErr.message);
+          jobsStatus.gmpSync.status = 'error';
+          return;
+        }
 
         let updateCount = 0;
+        let pending = 0;
+        const validIpos = [];
+
         json.data.forEach(ipo => {
           const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp;
-          if (gmpStr) {
+          const ipoName = ipo.name;
+          if (gmpStr && ipoName) {
             const gmpNum = parseFloat(gmpStr.replace(/[^\d.-]/g, ''));
             if (!isNaN(gmpNum)) {
-              db.run(`
-                UPDATE records 
-                SET gmp = ?, profit = (? * CAST(lotSize AS REAL))
-                WHERE ipoName = ? AND (listingPrice IS NULL OR listingPrice = 0 OR listingPrice = '')
-              `, [gmpNum, gmpNum, ipo.ipoName]);
-              updateCount++;
+              validIpos.push({ ipoName, gmpNum });
             }
           }
         });
 
-        stmt.finalize();
-        db.run('COMMIT', (err) => {
-          if (err) {
-              console.error('[Cron] GMP Auto-Sync commit error:', err.message);
+        pending = validIpos.length;
+
+        if (pending === 0) {
+          db.run('COMMIT', (commitErr) => {
+            if (commitErr) {
+              console.error('[Cron] GMP Auto-Sync commit error:', commitErr.message);
               jobsStatus.gmpSync.status = 'error';
-          } else {
-              console.log(`[Cron] GMP Auto-Sync completed successfully. Processed ${updateCount} live IPOs.`);
+            } else {
+              console.log('[Cron] GMP Auto-Sync completed successfully. Processed 0 live IPOs.');
               jobsStatus.gmpSync.status = 'success';
-          }
+            }
+          });
+          return;
+        }
+
+        validIpos.forEach(({ ipoName, gmpNum }) => {
+          db.run(`
+            UPDATE records 
+            SET gmp = ?, profit = (? * CAST(shares AS REAL))
+            WHERE ipoName LIKE ? AND (listingPrice IS NULL OR listingPrice = 0 OR listingPrice = '')
+          `, [gmpNum, gmpNum, `%${ipoName}%`], (runErr) => {
+            updateCount++;
+            pending--;
+            if (pending === 0) {
+              db.run('COMMIT', (commitErr) => {
+                if (commitErr) {
+                  console.error('[Cron] GMP Auto-Sync commit error:', commitErr.message);
+                  jobsStatus.gmpSync.status = 'error';
+                } else {
+                  console.log(`[Cron] GMP Auto-Sync completed successfully. Processed ${updateCount} live IPOs.`);
+                  jobsStatus.gmpSync.status = 'success';
+                  
+                  // Check GMP alerts after sync
+                  checkGmpAlerts(json.data);
+                }
+              });
+            }
+          });
         });
       });
     } else {
-        jobsStatus.gmpSync.status = 'error';
+      jobsStatus.gmpSync.status = 'error';
     }
   } catch(e) {
     console.error('[Cron] Error fetching Live GMP for auto-sync:', e);
     jobsStatus.gmpSync.status = 'error';
   }
 }
+
+async function sendTelegramMessage(botToken, chatId, text) {
+  if (!botToken || !chatId || !text) return false;
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
+    });
+    const json = await res.json();
+    return json.ok === true;
+  } catch (err) {
+    console.error('[Telegram] Error sending message:', err.message);
+    return false;
+  }
+}
+
+// Feature 3: Check GMP alerts and notify users
+async function checkGmpAlerts(ipoData) {
+  try {
+    db.all('SELECT * FROM gmp_alerts WHERE triggered = 0', [], (err, alerts) => {
+      if (err || !alerts || alerts.length === 0) return;
+
+      alerts.forEach(alert => {
+        const ipo = ipoData.find(i => i.name && i.name.toLowerCase().includes(alert.ipoName.toLowerCase()));
+        if (!ipo) return;
+
+        const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp;
+        if (!gmpStr) return;
+
+        const currentGmp = parseFloat(gmpStr.replace(/[^\d.-]/g, ''));
+        if (isNaN(currentGmp)) return;
+
+        const shouldTrigger = (alert.direction === 'above' && currentGmp >= alert.targetGmp)
+          || (alert.direction === 'below' && currentGmp <= alert.targetGmp);
+
+        if (shouldTrigger) {
+          // Mark as triggered
+          db.run('UPDATE gmp_alerts SET triggered = 1 WHERE id = ?', [alert.id]);
+
+          // Send push notification to user
+          db.get('SELECT fcmTokens, telegramToken, telegramChatId, telegramAlerts FROM users WHERE id = ?', [alert.userId], (userErr, user) => {
+            if (!userErr && user) {
+              if (user.fcmTokens) {
+                try {
+                  const tokens = JSON.parse(user.fcmTokens);
+                  if (tokens.length > 0) {
+                    const firebaseAdmin = require('./firebase-admin');
+                    firebaseAdmin.messaging().sendEachForMulticast({
+                      tokens: [...new Set(tokens)],
+                      notification: {
+                        title: `🔔 GMP Alert: ${alert.ipoName}`,
+                        body: `GMP is now ₹${currentGmp} (target was ₹${alert.targetGmp} ${alert.direction})`
+                      }
+                    }).catch(() => {});
+                  }
+                } catch(e) {}
+              }
+
+              // Send Telegram alert if configured
+              if (user.telegramToken && user.telegramChatId && user.telegramAlerts !== 0) {
+                sendTelegramMessage(
+                  user.telegramToken,
+                  user.telegramChatId,
+                  `🚀 <b>IPO Tracker Alert: ${alert.ipoName}</b>\n\nLive GMP has reached <b>₹${currentGmp}</b> (Target: ₹${alert.targetGmp} ${alert.direction}).`
+                );
+              }
+            }
+          });
+
+          // Also create in-app notification & push SSE realtime alert
+          const notifId = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
+          const title = `🚀 Realtime GMP Alert: ${alert.ipoName}`;
+          const body = `GMP is now ₹${currentGmp} (Target: ₹${alert.targetGmp} ${alert.direction})`;
+
+          db.run(
+            'INSERT INTO notifications (id, title, body, userId, sentAt, status) VALUES (?, ?, ?, ?, ?, ?)',
+            [notifId, title, body, alert.userId, new Date().toISOString(), 'unread']
+          );
+
+          if (global.pushRealtimeNotification) {
+            global.pushRealtimeNotification(alert.userId, {
+              type: 'gmp_alert',
+              id: notifId,
+              title,
+              body,
+              gmp: currentGmp,
+              ipoName: alert.ipoName,
+              sentAt: new Date().toISOString()
+            });
+          }
+
+          console.log(`[Cron] GMP Alert triggered for ${alert.ipoName}: ₹${currentGmp} (target: ₹${alert.targetGmp})`);
+        }
+      });
+    });
+  } catch(e) {
+    console.error('[Cron] GMP Alert check error:', e);
+  }
+}
+
 
 function startCronJobs() {
   cron.schedule('0 9 * * *', runDailyDigest);
@@ -163,5 +292,5 @@ function startCronJobs() {
   console.log('[Cron] Job scheduled: Auto-Sync Live GMP (Hourly).');
 }
 
-module.exports = { startCronJobs, runDailyDigest, runGmpSync, jobsStatus };
+module.exports = { startCronJobs, runDailyDigest, runGmpSync, sendTelegramMessage, jobsStatus };
 

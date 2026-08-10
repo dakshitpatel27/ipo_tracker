@@ -7,6 +7,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import TestEmailModal from '../components/ui/TestEmailModal';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import PageLoader from '../components/ui/PageLoader';
 
 const AdminPanel = () => {
   const { user: currentUser } = useAuth();
@@ -321,7 +322,7 @@ const AdminPanel = () => {
   }, [activeTab]);
 
   if (loading) {
-    return <div className="text-center py-10 text-emerald-500">Loading...</div>;
+    return <PageLoader text="Loading Admin Dashboard..." />;
   }
   
   const tabs = [

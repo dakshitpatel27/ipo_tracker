@@ -6,6 +6,102 @@ const path = require('path');
 const { startCronJobs, runDailyDigest, runGmpSync, jobsStatus } = require('./cron');
 const admin = require('./firebase-admin');
 const crypto = require('crypto');
+const totp = require('./totp');
+const calculator = require('./calculator');
+const multer = require('multer');
+// Polyfill DOMMatrix for pdf-parse in Node.js
+if (typeof global.DOMMatrix === 'undefined') {
+    global.DOMMatrix = class DOMMatrix {
+        constructor() {
+            this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        }
+    };
+}
+const pdfParse = require('pdf-parse');
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper to audit PAN access securely (partially masked)
+function logPanAccess(req, action, targetPan, details) {
+    if (!req.user) return;
+    const userId = req.user.id;
+    const username = req.user.username;
+    const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    
+    const maskedPan = targetPan && targetPan.length >= 10 
+        ? targetPan.substring(0, 2) + 'XXXX' + targetPan.substring(6) 
+        : 'N/A';
+    const actionText = `PAN_${action}`;
+    const detailsText = `${details} (PAN: ${maskedPan})`;
+    
+    db.run(
+        'INSERT INTO audit_logs (id, adminId, adminUsername, action, target, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [logId, userId, username, actionText, 'PAN_DATA', detailsText, new Date().toISOString()]
+    );
+}
+
+function parseUserAgent(ua) {
+    if (!ua) return 'Desktop Web Client';
+    let os = 'Windows';
+    if (ua.includes('Win')) os = 'Windows';
+    else if (ua.includes('Mac')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+    let browser = 'Browser';
+    if (ua.includes('Edg/')) browser = 'Edge';
+    else if (ua.includes('Chrome/')) browser = 'Chrome';
+    else if (ua.includes('Firefox/')) browser = 'Firefox';
+    else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
+
+    return `${browser} on ${os}`;
+}
+
+function getClientIp(req) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        return forwarded.split(',')[0].trim();
+    }
+    return req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '127.0.0.1';
+}
+
+// Helper to initialize session
+function createSession(userId, req, callback) {
+    const sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const rawAgent = req.headers['user-agent'] || 'Unknown Device';
+    const deviceAgent = parseUserAgent(rawAgent);
+    const ipAddress = getClientIp(req);
+    const now = new Date().toISOString();
+
+    // Check user subscription & role for device login limit
+    db.get('SELECT subscription, role FROM users WHERE id = ?', [userId], (err, userRow) => {
+        const isFreeTier = !userRow || (userRow.subscription === 'free' && userRow.role === 'user');
+
+        if (isFreeTier) {
+            // Free Tier: Strictly 1 active device session (delete old sessions)
+            db.run('DELETE FROM sessions WHERE userId = ?', [userId], () => {
+                db.run(
+                    'INSERT INTO sessions (id, userId, deviceAgent, ipAddress, createdAt, lastActiveAt, token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [sessionId, userId, deviceAgent, ipAddress, now, now, ''],
+                    (insertErr) => {
+                        if (insertErr) return callback(insertErr, null);
+                        callback(null, sessionId);
+                    }
+                );
+            });
+        } else {
+            // Pro / Admin / Master Tier: Allow multiple active sessions
+            db.run(
+                'INSERT INTO sessions (id, userId, deviceAgent, ipAddress, createdAt, lastActiveAt, token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [sessionId, userId, deviceAgent, ipAddress, now, now, ''],
+                (insertErr) => {
+                    if (insertErr) return callback(insertErr, null);
+                    callback(null, sessionId);
+                }
+            );
+        }
+    });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -140,34 +236,849 @@ app.post('/api/auth/login', (req, res) => {
             return res.status(403).json({ error: 'Account has been rejected' });
         }
 
-        const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ message: 'success', token, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
+        // 2FA Intercept Flow
+        if (user.totpEnabled) {
+            return res.json({ message: 'require_2fa', username: user.username });
+        }
+
+        createSession(user.id, req, (err, sessionId) => {
+            if (err) return res.status(500).json({ error: 'Failed to create session' });
+            
+            const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+            db.run('UPDATE sessions SET token = ? WHERE id = ?', [token, sessionId]);
+
+            res.json({ message: 'success', token, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
+        });
     });
 });
 
+// Complete 2FA Login Flow
+app.post('/api/auth/login/2fa', (req, res) => {
+    const { username, token } = req.body;
+    if (!username || !token) {
+        return res.status(400).json({ error: 'Username and TOTP token required' });
+    }
+
+    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
+        if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+
+        if (user.status !== 'approved') {
+            return res.status(403).json({ error: 'Account is pending admin approval' });
+        }
+
+        if (!user.totpEnabled || !user.totpSecret) {
+            return res.status(400).json({ error: '2FA is not enabled for this user' });
+        }
+
+        const decryptedSecret = totp.decrypt(user.totpSecret);
+        const isValid = totp.verifyTOTP(token, decryptedSecret);
+        if (!isValid) {
+            return res.status(401).json({ error: 'Invalid 2FA token' });
+        }
+
+        createSession(user.id, req, (err, sessionId) => {
+            if (err) return res.status(500).json({ error: 'Failed to create session' });
+
+            const jwtToken = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+            db.run('UPDATE sessions SET token = ? WHERE id = ?', [jwtToken, sessionId]);
+
+            res.json({ message: 'success', token: jwtToken, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
+        });
+    });
+});
+
+// --- 2FA Setup Endpoints (Authenticated) ---
+app.post('/api/auth/2fa/setup', authMiddleware, async (req, res) => {
+    const secret = totp.generateSecret();
+    const encryptedSecret = totp.encrypt(secret);
+    
+    // Save generated secret (not yet enabled)
+    db.run('UPDATE users SET totpSecret = ? WHERE id = ?', [encryptedSecret, req.user.id], async (err) => {
+        if (err) return res.status(500).json({ error: 'Failed to generate 2FA secret' });
+        
+        try {
+            const qrCodeLib = require('qrcode');
+            const otpauthUrl = `otpauth://totp/IPOWatcher:${req.user.username}?secret=${secret}&issuer=IPOWatcher`;
+            const qrCodeUrl = await qrCodeLib.toDataURL(otpauthUrl);
+            res.json({ message: 'success', qrCode: qrCodeUrl, secret });
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to generate 2FA QR code: ' + e.message });
+        }
+    });
+});
+
+app.post('/api/auth/2fa/verify', authMiddleware, (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'TOTP token is required' });
+
+    db.get('SELECT totpSecret FROM users WHERE id = ?', [req.user.id], (err, user) => {
+        if (err || !user || !user.totpSecret) {
+            return res.status(400).json({ error: '2FA setup has not been initiated' });
+        }
+
+        const decryptedSecret = totp.decrypt(user.totpSecret);
+        const isValid = totp.verifyTOTP(token, decryptedSecret);
+        
+        if (!isValid) {
+            return res.status(400).json({ error: 'Invalid TOTP token' });
+        }
+
+        db.run('UPDATE users SET totpEnabled = 1 WHERE id = ?', [req.user.id], (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: 'Failed to enable 2FA' });
+            res.json({ message: '2FA enabled successfully' });
+        });
+    });
+});
+
+app.post('/api/auth/2fa/disable', authMiddleware, (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'TOTP token is required' });
+
+    db.get('SELECT totpSecret, totpEnabled FROM users WHERE id = ?', [req.user.id], (err, user) => {
+        if (err || !user || !user.totpEnabled || !user.totpSecret) {
+            return res.status(400).json({ error: '2FA is not enabled' });
+        }
+
+        const decryptedSecret = totp.decrypt(user.totpSecret);
+        const isValid = totp.verifyTOTP(token, decryptedSecret);
+        
+        if (!isValid) {
+            return res.status(400).json({ error: 'Invalid TOTP token' });
+        }
+
+        db.run('UPDATE users SET totpEnabled = 0, totpSecret = NULL WHERE id = ?', [req.user.id], (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: 'Failed to disable 2FA' });
+            res.json({ message: '2FA disabled successfully' });
+        });
+    });
+});
+
+// --- User Notification Preferences Endpoints ---
+app.get('/api/users/notification-preferences', authMiddleware, (req, res) => {
+    db.get('SELECT emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err || !row) return res.status(404).json({ error: 'User not found' });
+        res.json({ message: 'success', data: row });
+    });
+});
+
+app.put('/api/users/notification-preferences', authMiddleware, (req, res) => {
+    const { emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled } = req.body;
+    db.run(
+        `UPDATE users SET 
+            emailNotifications = COALESCE(?, emailNotifications), 
+            pushNotifications = COALESCE(?, pushNotifications), 
+            inAppNotifications = COALESCE(?, inAppNotifications),
+            gamificationEnabled = COALESCE(?, gamificationEnabled)
+         WHERE id = ?`,
+        [emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success' });
+        }
+    );
+});
+
+// --- Real-Time Notifications Stream (SSE) & Helpers ---
+const sseClients = new Map(); // userId -> Set of res
+
+function pushRealtimeNotification(userId, payload) {
+    if (sseClients.has(userId)) {
+        const clientSet = sseClients.get(userId);
+        const dataStr = `data: ${JSON.stringify(payload)}\n\n`;
+        clientSet.forEach(clientRes => {
+            try { clientRes.write(dataStr); } catch(e) {}
+        });
+    }
+}
+
+global.pushRealtimeNotification = pushRealtimeNotification;
+
+app.get('/api/notifications/stream', (req, res) => {
+    const token = req.query.token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+    if (!token) return res.status(401).send('Unauthorized');
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        if (!sseClients.has(userId)) {
+            sseClients.set(userId, new Set());
+        }
+        sseClients.get(userId).add(res);
+
+        res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
+
+        req.on('close', () => {
+            if (sseClients.has(userId)) {
+                sseClients.get(userId).delete(res);
+                if (sseClients.get(userId).size === 0) {
+                    sseClients.delete(userId);
+                }
+            }
+        });
+    } catch(err) {
+        return res.status(401).send('Invalid token');
+    }
+});
+
+// Test trigger for instant Real-time GMP notification
+app.post('/api/gmp-alerts/test-trigger', authMiddleware, (req, res) => {
+    const { ipoName, targetGmp, currentGmp } = req.body;
+    const testIpo = ipoName || 'Mainboard IPO';
+    const testCurrent = currentGmp || 450;
+    const testTarget = targetGmp || 400;
+
+    const notifId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const title = `🚀 GMP Threshold Crossed: ${testIpo}`;
+    const body = `Live GMP is now ₹${testCurrent} (Target: ₹${testTarget} above)`;
+
+    db.run(
+        'INSERT INTO notifications (id, title, body, userId, sentAt, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [notifId, title, body, req.user.id, new Date().toISOString(), 'unread'],
+        (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            pushRealtimeNotification(req.user.id, {
+                type: 'gmp_alert',
+                id: notifId,
+                title,
+                body,
+                gmp: testCurrent,
+                ipoName: testIpo,
+                sentAt: new Date().toISOString()
+            });
+
+            res.json({ message: 'Real-time GMP alert broadcasted!', notifId });
+        }
+    );
+});
+
+// --- In-App Notifications Inbox Endpoints ---
+app.get('/api/notifications', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM notifications WHERE userId = ? ORDER BY sentAt DESC LIMIT 100', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows });
+    });
+});
+
+app.put('/api/notifications/:id/read', authMiddleware, (req, res) => {
+    db.run('UPDATE notifications SET status = \'read\' WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success' });
+    });
+});
+
+app.put('/api/notifications/read-all', authMiddleware, (req, res) => {
+    db.run('UPDATE notifications SET status = \'read\' WHERE userId = ?', [req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success' });
+    });
+});
+
+app.delete('/api/notifications/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM notifications WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success' });
+    });
+});
+
+// GET all active sessions for current user (or ALL users if Master Admin)
+app.get('/api/sessions', authMiddleware, (req, res) => {
+    const isMasterAdmin = req.user.role === 'master';
+    const query = isMasterAdmin
+        ? `SELECT sessions.id, sessions.userId, sessions.deviceAgent, sessions.ipAddress, sessions.createdAt, sessions.lastActiveAt, users.username, users.role, users.subscription 
+           FROM sessions JOIN users ON sessions.userId = users.id ORDER BY sessions.lastActiveAt DESC`
+        : `SELECT sessions.id, sessions.userId, sessions.deviceAgent, sessions.ipAddress, sessions.createdAt, sessions.lastActiveAt, users.username, users.role, users.subscription 
+           FROM sessions JOIN users ON sessions.userId = users.id WHERE sessions.userId = ? ORDER BY sessions.lastActiveAt DESC`;
+
+    const params = isMasterAdmin ? [] : [req.user.id];
+
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        if (!rows || rows.length === 0) {
+            // Auto-create active session if none exist yet
+            createSession(req.user.id, req, (createErr, newSessionId) => {
+                const now = new Date().toISOString();
+                const rawAgent = req.headers['user-agent'] || 'Unknown Device';
+                const deviceAgent = parseUserAgent(rawAgent);
+                const ipAddress = getClientIp(req);
+
+                req.sessionId = newSessionId;
+                res.json({
+                    message: 'success',
+                    data: [{
+                        id: newSessionId,
+                        userId: req.user.id,
+                        username: req.user.username,
+                        role: req.user.role,
+                        subscription: req.user.subscription,
+                        deviceAgent,
+                        ipAddress,
+                        createdAt: now,
+                        lastActiveAt: now,
+                        isCurrent: true
+                    }]
+                });
+            });
+            return;
+        }
+
+        let hasCurrentMatch = rows.some(r => r.id === req.sessionId);
+        const sessions = rows.map((row, idx) => {
+            const isCurrent = row.id === req.sessionId || (!hasCurrentMatch && row.userId === req.user.id && idx === 0);
+            return {
+                ...row,
+                isCurrent
+            };
+        });
+
+        res.json({ message: 'success', data: sessions });
+    });
+});
+
+// DELETE (revoke) a specific session (Master Admin can revoke ANY session)
+app.delete('/api/sessions/:id', authMiddleware, (req, res) => {
+    const isMasterAdmin = req.user.role === 'master';
+
+    db.get('SELECT id, userId FROM sessions WHERE id = ?', [req.params.id], (err, sessRow) => {
+        if (err || !sessRow) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        if (!isMasterAdmin && sessRow.userId !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        db.run('DELETE FROM sessions WHERE id = ?', [req.params.id], function(delErr) {
+            if (delErr) return res.status(500).json({ error: delErr.message });
+
+            // If Master Admin revokes another user's session, set user status to 'pending' (requires admin approval to log back in)
+            if (isMasterAdmin && sessRow.userId !== req.user.id) {
+                db.run("UPDATE users SET status = 'pending' WHERE id = ? AND role != 'master'", [sessRow.userId], () => {
+                    res.json({ message: 'success', changes: this.changes, userRequiresApproval: true });
+                });
+            } else {
+                res.json({ message: 'success', changes: this.changes });
+            }
+        });
+    });
+});
+
+// Revoke all sessions except the current one
+app.post('/api/sessions/logout-all', authMiddleware, (req, res) => {
+    const isMasterAdmin = req.user.role === 'master';
+
+    if (isMasterAdmin) {
+        db.all('SELECT DISTINCT userId FROM sessions WHERE id != ?', [req.sessionId || ''], (err, rows) => {
+            const userIdsToLock = (rows || []).map(r => r.userId).filter(uid => uid !== req.user.id);
+
+            db.run('DELETE FROM sessions WHERE id != ?', [req.sessionId || ''], function(delErr) {
+                if (delErr) return res.status(500).json({ error: delErr.message });
+
+                if (userIdsToLock.length > 0) {
+                    const placeholders = userIdsToLock.map(() => '?').join(',');
+                    db.run(`UPDATE users SET status = 'pending' WHERE id IN (${placeholders}) AND role != 'master'`, userIdsToLock, () => {
+                        res.json({ message: 'success', changes: this.changes });
+                    });
+                } else {
+                    res.json({ message: 'success', changes: this.changes });
+                }
+            });
+        });
+    } else {
+        db.run('DELETE FROM sessions WHERE userId = ? AND id != ?', [req.user.id, req.sessionId || ''], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', changes: this.changes });
+        });
+    }
+});
+
+// Self-Service JSON Export of all user data
+app.get('/api/users/export-all', authMiddleware, (req, res) => {
+    logPanAccess(req, 'EXPORT_PROFILE', 'ALL_PROFILE_DATA', 'Self-service export of all personal and demographic data');
+
+    const data = {};
+
+    db.get('SELECT id, username, email, role, status, subscription, createdAt, emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled FROM users WHERE id = ?', [req.user.id], (err, userRow) => {
+        if (err || !userRow) return res.status(500).json({ error: 'Failed to fetch user profile' });
+        data.profile = userRow;
+
+        db.all('SELECT * FROM applicants WHERE userId = ?', [req.user.id], (err2, applicants) => {
+            if (err2) return res.status(500).json({ error: 'Failed to fetch applicants' });
+            data.applicants = applicants;
+
+            db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err3, records) => {
+                if (err3) return res.status(500).json({ error: 'Failed to fetch records' });
+                data.records = records;
+
+                db.all('SELECT id, title, body, sentAt, status FROM notifications WHERE userId = ?', [req.user.id], (err4, notifications) => {
+                    if (err4) return res.status(500).json({ error: 'Failed to fetch notifications' });
+                    data.notifications = notifications;
+
+                    db.all('SELECT id, action, target, details, createdAt FROM audit_logs WHERE adminId = ?', [req.user.id], (err5, auditLogs) => {
+                        if (err5) return res.status(500).json({ error: 'Failed to fetch audit logs' });
+                        data.auditLogs = auditLogs;
+
+                        res.setHeader('Content-Type', 'application/json');
+                        res.setHeader('Content-Disposition', 'attachment; filename="ipo_tracker_profile_export.json"');
+                        res.json(data);
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Self-Service Delete User Account completely
+app.delete('/api/users/delete-account', authMiddleware, (req, res) => {
+    const userId = req.user.id;
+    logPanAccess(req, 'DELETE_PROFILE', 'ALL_PROFILE_DATA', 'Self-service deletion of account and all associated details');
+
+    db.run('BEGIN TRANSACTION', [], (beginErr) => {
+        if (beginErr) return res.status(500).json({ error: 'Failed to delete account' });
+        
+        db.run('DELETE FROM users WHERE id = ?', [userId], (err1) => {
+            db.run('DELETE FROM applicants WHERE userId = ?', [userId], (err2) => {
+                db.run('DELETE FROM records WHERE userId = ?', [userId], (err3) => {
+                    db.run('DELETE FROM notifications WHERE userId = ?', [userId], (err4) => {
+                        db.run('DELETE FROM sessions WHERE userId = ?', [userId], (err5) => {
+                            db.run('DELETE FROM audit_logs WHERE adminId = ?', [userId], (err6) => {
+                                db.run('COMMIT', (commitErr) => {
+                                    if (commitErr) return res.status(500).json({ error: 'Failed to delete account' });
+                                    res.json({ message: 'success' });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Export Schedule CG ITR-Ready tax CSV
+app.get('/api/reports/itr-tax-export', authMiddleware, (req, res) => {
+    db.all("SELECT * FROM records WHERE userId = ? AND holdingStatus = 'Sold' ORDER BY sellDate ASC", [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: 'Failed to fetch tax records' });
+
+        logPanAccess(req, 'EXPORT_TAX_LEDGER', 'MULTIPLE_PANS', `Exported ITR tax ledger containing ${records.length} sales`);
+
+        const csvHeaders = [
+            'Share/Security Name',
+            'Quantity',
+            'Allotment/Acquisition Date',
+            'Acquisition Cost (₹)',
+            'Transfer/Sale Date',
+            'Full Value of Consideration (₹)',
+            'Deductible Transfer Charges (₹)',
+            'Net Capital Gains (₹)',
+            'Gain Type',
+            'ITR-2 Schedule CG Section Code'
+        ];
+
+        const csvRows = records.map(r => {
+            const qty = parseFloat(r.shares) || 0;
+            const buyPrice = parseFloat(r.price) || 0;
+            const sellPrice = parseFloat(r.sellPrice) || 0;
+            
+            const costOfAcquisition = buyPrice * qty;
+            const consideration = sellPrice * qty;
+            
+            // Deductible transfer charges include Brokerage, STT, Exchange charges, SEBI fees, DP charges, GST
+            const stampDuty = parseFloat(r.stampDuty) || 0;
+            const brokerage = parseFloat(r.brokerage) || 0;
+            const stt = parseFloat(r.stt) || 0;
+            const exchange = parseFloat(r.exchangeCharges) || 0;
+            const sebi = parseFloat(r.sebiFees) || 0;
+            const dp = parseFloat(r.dpCharges) || 0;
+            const gst = parseFloat(r.gst) || 0;
+            
+            const transferCharges = stampDuty + brokerage + stt + exchange + sebi + dp + gst;
+            const netGain = consideration - costOfAcquisition - transferCharges;
+
+            // Determine if short term or long term
+            let isLongTerm = false;
+            if (r.sellDate && r.listingDate) {
+                const sellD = new Date(r.sellDate);
+                const listD = new Date(r.listingDate);
+                const diffTime = Math.abs(sellD - listD);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays > 365) isLongTerm = true;
+            }
+            
+            const gainType = isLongTerm ? 'Long Term' : 'Short Term';
+            const sectionCode = isLongTerm ? 'Section 112A' : 'Section 111A';
+
+            return [
+                `"${(r.ipoName || 'Unknown').replace(/"/g, '""')}"`,
+                qty,
+                r.listingDate || r.createdAt ? (r.listingDate || r.createdAt).split('T')[0] : '—',
+                costOfAcquisition.toFixed(2),
+                r.sellDate ? r.sellDate.split('T')[0] : '—',
+                consideration.toFixed(2),
+                transferCharges.toFixed(2),
+                netGain.toFixed(2),
+                gainType,
+                sectionCode
+            ].join(',');
+        });
+
+        const csvContent = [csvHeaders.join(','), ...csvRows].join('\r\n');
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="itr2_schedule_cg_export_${new Date().toISOString().split('T')[0]}.csv"`);
+        res.send(csvContent);
+    });
+});
+
+// Feature 5: CA-Ready PDF / HTML Tax Audit & Schedule CG Report Generator
+app.get('/api/reports/ca-tax-audit-pdf', authMiddleware, (req, res) => {
+    db.all("SELECT * FROM records WHERE userId = ? AND holdingStatus = 'Sold' ORDER BY sellDate ASC", [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: 'Failed to fetch tax records' });
+
+        db.get('SELECT username, email FROM users WHERE id = ?', [req.user.id], (userErr, user) => {
+            const userName = user?.username || 'Valued User';
+            let grossProfitTotal = 0;
+            let stcgTotal = 0;
+            let ltcgTotal = 0;
+            let totalCharges = 0;
+
+            const rowsHtml = (records || []).map((r, i) => {
+                const qty = parseFloat(r.shares) || 1;
+                const buyPrice = parseFloat(r.price) || 0;
+                const sellPrice = parseFloat(r.sellPrice) || parseFloat(r.listingPrice) || buyPrice;
+                const buyValue = qty * buyPrice;
+                const sellValue = qty * sellPrice;
+
+                const grossProfit = sellValue - buyValue;
+                grossProfitTotal += grossProfit;
+
+                const calc = calculator.calculateCharges(buyPrice, qty, sellPrice, 'Sold', r.listingPrice, r.gmp);
+                totalCharges += (calc.totalCharges || 0);
+
+                let isLongTerm = false;
+                if (r.sellDate && r.listingDate) {
+                    const diffDays = Math.ceil(Math.abs(new Date(r.sellDate) - new Date(r.listingDate)) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 365) isLongTerm = true;
+                }
+
+                const netCapGain = calc.netProfit; // Net P&L before income tax (Gross - Statutory Charges)
+                const recordTax = isLongTerm ? Math.max(0, netCapGain * 0.125) : Math.max(0, netCapGain * 0.20);
+                const afterTaxProfit = netCapGain - recordTax;
+
+                if (isLongTerm) ltcgTotal += netCapGain;
+                else stcgTotal += netCapGain;
+
+                return `
+                  <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px;">${i + 1}</td>
+                    <td style="padding: 8px; font-weight: bold;">${r.ipoName || 'IPO'}</td>
+                    <td style="padding: 8px;">${r.applicantName || 'Applicant'}</td>
+                    <td style="padding: 8px;">${r.pan || '—'}</td>
+                    <td style="padding: 8px; text-align: right;">${qty}</td>
+                    <td style="padding: 8px; text-align: right;">₹${buyPrice.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right;">₹${sellPrice.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right; color: ${grossProfit >= 0 ? '#2563eb' : '#dc2626'}; font-weight: bold;">₹${grossProfit.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right; color: #475569;">₹${(calc.totalCharges || 0).toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right; color: #4338ca;">₹${recordTax.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right; color: ${afterTaxProfit >= 0 ? '#059669' : '#dc2626'}; font-weight: bold;">₹${afterTaxProfit.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: center;"><span style="background: ${isLongTerm ? '#dcfce7' : '#fee2e2'}; color: ${isLongTerm ? '#166534' : '#991b1b'}; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">${isLongTerm ? 'LTCG (112A)' : 'STCG (111A)'}</span></td>
+                  </tr>
+                `;
+            }).join('');
+
+            const estimatedTax = (stcgTotal > 0 ? stcgTotal * 0.20 : 0) + (ltcgTotal > 0 ? Math.max(0, ltcgTotal - 125000) * 0.125 : 0);
+            const netAfterTaxTotal = (stcgTotal + ltcgTotal) - estimatedTax;
+
+            const reportHtml = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8" />
+                <title>CA-Ready Tax Audit Report — Schedule CG</title>
+                <style>
+                  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1e293b; padding: 40px; background: #fff; position: relative; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #6366f1; padding-bottom: 15px; margin-bottom: 20px; }
+                  .title { font-size: 20px; font-weight: bold; color: #4338ca; }
+                  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 20px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+                  .card { padding: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; }
+                  .card-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+                  .card-value { font-size: 16px; font-weight: bold; margin-top: 4px; }
+                  table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                  th { background: #f1f5f9; text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; border-bottom: 2px solid #cbd5e1; }
+                  .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; border: none; transition: all 0.2s ease; }
+                  .btn-print { background: #4f46e5; color: #ffffff; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3); }
+                  .btn-print:hover { background: #4338ca; }
+                  .btn-download { background: #059669; color: #ffffff; box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3); }
+                  .btn-download:hover { background: #047857; }
+                  @media print {
+                    .no-print { display: none !important; }
+                    body { padding: 15px !important; }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <div>
+                    <div class="title">IPO TRACKER — CA-READY TAX AUDIT REPORT</div>
+                    <div style="color: #64748b; font-size: 11px; margin-top: 4px;">Schedule CG (Capital Gains) Annexure for FY2024-25</div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <div class="no-print" style="display: flex; gap: 8px;">
+                      <button onclick="window.print()" class="btn-action btn-print">
+                        <span>🖨️ Print Report</span>
+                      </button>
+                      <button onclick="window.print()" class="btn-action btn-download" title="Save as PDF via Print dialog">
+                        <span>📥 Download PDF</span>
+                      </button>
+                    </div>
+                    <div style="text-align: right; font-size: 11px; color: #475569;">
+                      <div><b>Taxpayer:</b> ${userName} (${user?.email || 'N/A'})</div>
+                      <div><b>Date Generated:</b> ${new Date().toLocaleDateString('en-IN')}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="summary-box" style="grid-template-columns: repeat(5, 1fr);">
+                  <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+                    <div class="card-title" style="color: #1e40af;">Total Gross Profit (Raw)</div>
+                    <div class="card-value" style="color: #2563eb;">₹${grossProfitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card">
+                    <div class="card-title">STCG (Before Tax)</div>
+                    <div class="card-value" style="color: #dc2626;">₹${stcgTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card">
+                    <div class="card-title">Statutory Charges</div>
+                    <div class="card-value" style="color: #475569;">₹${totalCharges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card" style="background: #eef2ff; border-color: #c7d2fe;">
+                    <div class="card-title" style="color: #3730a3;">Est. Tax Liability</div>
+                    <div class="card-value" style="color: #4338ca;">₹${estimatedTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card" style="background: #ecfdf5; border-color: #a7f3d0;">
+                    <div class="card-title" style="color: #065f46;">Net After-Tax Profit</div>
+                    <div class="card-value" style="color: #059669;">₹${netAfterTaxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                </div>
+
+                <h3>Realized Transactions Audit Sheet</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>IPO Name</th>
+                      <th>Applicant</th>
+                      <th>PAN</th>
+                      <th style="text-align: right;">Qty</th>
+                      <th style="text-align: right;">Buy Price</th>
+                      <th style="text-align: right;">Sell Price</th>
+                      <th style="text-align: right;">Gross P&L (Raw)</th>
+                      <th style="text-align: right;">Statutory Charges</th>
+                      <th style="text-align: right;">Est. Tax</th>
+                      <th style="text-align: right;">Net P&L (After Tax)</th>
+                      <th style="text-align: center;">Tax Class</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml || '<tr><td colspan="11" style="text-align:center; padding: 20px;">No realized sales recorded yet.</td></tr>'}
+                  </tbody>
+                </table>
+              </body>
+              </html>
+            `;
+
+            res.setHeader('Content-Type', 'text/html');
+            res.send(reportHtml);
+        });
+    });
+});
+
+// Save Telegram settings
+app.post('/api/user/telegram', authMiddleware, (req, res) => {
+    const { telegramToken, telegramChatId, telegramAlerts } = req.body;
+    db.run(
+        'UPDATE users SET telegramToken = ?, telegramChatId = ?, telegramAlerts = ? WHERE id = ?',
+        [telegramToken || '', telegramChatId || '', telegramAlerts ? 1 : 0, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Telegram settings saved successfully' });
+        }
+    );
+});
+
+// GET Telegram settings
+app.get('/api/user/telegram', authMiddleware, (req, res) => {
+    db.get('SELECT telegramToken, telegramChatId, telegramAlerts FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err || !row) return res.status(500).json({ error: 'Failed to fetch Telegram settings' });
+        res.json({ message: 'success', data: row });
+    });
+});
+
+// PIN Passcode Management (Set / Verify / Toggle)
+app.post('/api/user/pin', authMiddleware, async (req, res) => {
+    const { action, pin } = req.body;
+    if (!action) return res.status(400).json({ error: 'Action is required' });
+
+    db.get('SELECT appPin, pinEnabled FROM users WHERE id = ?', [req.user.id], async (err, user) => {
+        if (err || !user) return res.status(404).json({ error: 'User not found' });
+
+        if (action === 'set') {
+            if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+                return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+            }
+            const hashedPin = await bcrypt.hash(pin, 10);
+            db.run('UPDATE users SET appPin = ?, pinEnabled = 1 WHERE id = ?', [hashedPin, req.user.id], (upErr) => {
+                if (upErr) return res.status(500).json({ error: upErr.message });
+                res.json({ message: 'Passcode PIN enabled successfully' });
+            });
+        } else if (action === 'verify') {
+            if (!user.pinEnabled || !user.appPin) {
+                return res.json({ message: 'pin_not_enabled', valid: true });
+            }
+            if (!pin) return res.status(400).json({ error: 'PIN is required' });
+            const isMatch = await bcrypt.compare(pin, user.appPin);
+            if (isMatch) res.json({ message: 'success', valid: true });
+            else res.status(401).json({ error: 'Incorrect Passcode PIN', valid: false });
+        } else if (action === 'disable') {
+            db.run('UPDATE users SET appPin = NULL, pinEnabled = 0 WHERE id = ?', [req.user.id], (upErr) => {
+                if (upErr) return res.status(500).json({ error: upErr.message });
+                res.json({ message: 'Passcode PIN disabled' });
+            });
+        } else {
+            res.status(400).json({ error: 'Invalid action' });
+        }
+    });
+});
+
+// GET Passcode PIN status
+app.get('/api/user/pin/status', authMiddleware, (req, res) => {
+    db.get('SELECT pinEnabled FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err || !row) return res.status(500).json({ error: 'Failed to fetch PIN status' });
+        res.json({ message: 'success', enabled: !!row.pinEnabled });
+    });
+});
+
+// Check Duplicate PAN application for an IPO
+app.post('/api/records/check-duplicate-pan', authMiddleware, (req, res) => {
+    const { pan, ipoName } = req.body;
+    if (!pan || !ipoName) return res.status(400).json({ error: 'PAN and IPO Name are required' });
+
+    db.get(
+        'SELECT * FROM records WHERE userId = ? AND LOWER(pan) = LOWER(?) AND LOWER(ipoName) LIKE LOWER(?)',
+        [req.user.id, pan.trim(), `%${ipoName.trim()}%`],
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (row) {
+                res.json({ isDuplicate: true, existingRecord: row });
+            } else {
+                res.json({ isDuplicate: false });
+            }
+        }
+    );
+});
+
+// Generate Multi-Account Batch ASBA Payload
+app.post('/api/records/batch-asba', authMiddleware, (req, res) => {
+    const { applicantIds, ipoName, lotSize, price } = req.body;
+    if (!Array.isArray(applicantIds) || applicantIds.length === 0) {
+        return res.status(400).json({ error: 'At least one applicant must be selected' });
+    }
+
+    const placeholders = applicantIds.map(() => '?').join(',');
+    db.all(
+        `SELECT * FROM applicants WHERE userId = ? AND id IN (${placeholders})`,
+        [req.user.id, ...applicantIds],
+        (err, applicants) => {
+            if (err || !applicants) return res.status(500).json({ error: 'Failed to fetch applicants' });
+
+            const priceNum = parseFloat(price) || 0;
+            const lotNum = parseInt(lotSize) || 1;
+            const totalShares = lotNum;
+            const totalAmount = priceNum * totalShares;
+
+            const payloadList = applicants.map((app, index) => ({
+                srNo: index + 1,
+                applicantName: app.name,
+                pan: (app.pan || '').toUpperCase(),
+                upiId: app.upiId || 'N/A',
+                dematId: app.dematId || 'N/A',
+                bankAccount: app.bankAccount || 'N/A',
+                ifscCode: app.ifscCode || 'N/A',
+                ipoName: ipoName || 'Selected IPO',
+                lotSize: lotNum,
+                shares: totalShares,
+                cutOffPrice: priceNum,
+                totalAmount: totalAmount
+            }));
+
+            res.json({
+                message: 'success',
+                ipoName: ipoName || 'Selected IPO',
+                count: payloadList.length,
+                totalCapital: totalAmount * payloadList.length,
+                payload: payloadList
+            });
+        }
+    );
+});
+
 // Middleware to verify JWT
-const authMiddleware = (req, res, next) => {
+function authMiddleware(req, res, next) {
+    let token = req.query.token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    }
+    if (!token) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    const token = authHeader.split(' ')[1];
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
-        next();
+
+        if (decoded.sessionId) {
+            db.get('SELECT id FROM sessions WHERE id = ? AND userId = ?', [decoded.sessionId, decoded.id], (err, session) => {
+                if (err || !session) {
+                    return res.status(401).json({ error: 'Session has been revoked or logged out from another device.' });
+                }
+                req.sessionId = decoded.sessionId;
+                // Update last active timestamp asynchronously
+                db.run('UPDATE sessions SET lastActiveAt = ? WHERE id = ?', [new Date().toISOString(), decoded.sessionId]);
+                next();
+            });
+        } else {
+            // Legacy token without sessionId: check if active session exists or provision one
+            db.get('SELECT id FROM sessions WHERE userId = ? ORDER BY lastActiveAt DESC LIMIT 1', [decoded.id], (err, session) => {
+                if (session) {
+                    req.sessionId = session.id;
+                    next();
+                } else {
+                    createSession(decoded.id, req, (createErr, newSessionId) => {
+                        req.sessionId = newSessionId;
+                        next();
+                    });
+                }
+            });
+        }
     } catch(err) {
         return res.status(401).json({ error: 'Invalid token' });
     }
-};
+}
 
-const isAdmin = (req, res, next) => {
+function isAdmin(req, res, next) {
     if (req.user && (req.user.role === 'admin' || req.user.role === 'master')) {
         next();
     } else {
         return res.status(403).json({ error: 'Admin access required' });
     }
-};
+}
 
 app.put('/api/auth/password', authMiddleware, async (req, res) => {
     const { password } = req.body;
@@ -199,6 +1110,9 @@ app.get('/api/records', authMiddleware, (req, res) => {
             res.status(400).json({ error: err.message });
             return;
         }
+        if (rows && rows.length > 0) {
+            logPanAccess(req, 'READ_ALL_RECORDS', 'MULTIPLE_PANS', `Retrieved ${rows.length} records`);
+        }
         res.json({
             message: 'success',
             data: rows
@@ -214,6 +1128,9 @@ app.get('/api/records/:id', authMiddleware, (req, res) => {
             res.status(400).json({ error: err.message });
             return;
         }
+        if (row && row.pan) {
+            logPanAccess(req, 'READ_RECORD', row.pan, `Retrieved record for IPO ${row.ipoName}`);
+        }
         res.json({
             message: 'success',
             data: row
@@ -224,35 +1141,68 @@ app.get('/api/records/:id', authMiddleware, (req, res) => {
 // BULK ADD records
 app.post('/api/records/bulk', authMiddleware, (req, res) => {
     const { records } = req.body;
-    if (!Array.isArray(records)) return res.status(400).json({ error: 'Invalid data' });
+    if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ error: 'No records provided' });
+    }
 
-    db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        const stmt = db.prepare(`INSERT INTO records (id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        
-        records.forEach(r => {
-            stmt.run([r.id, r.ipoName, r.applicantName, r.pan, r.upiId, r.quota, r.listingDate, r.lotSize, r.shares, r.price, r.listingPrice, r.amount, r.applied, r.alloted, r.withdrawal, r.profit, r.marginPercent, r.margin, r.notes, r.createdAt, req.user.id, r.sellDate, r.sellPrice, r.holdingStatus || 'Holding']);
+    const insertRecord = (r) => {
+        return new Promise((resolve, reject) => {
+            const id = r.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2));
+            const createdAt = r.createdAt || new Date().toISOString();
+            const calc = calculator.calculateCharges(r.price, r.shares, r.sellPrice, r.holdingStatus || 'Pending', r.listingPrice, r.gmp);
+
+            if (r.pan) {
+                logPanAccess(req, 'BULK_WRITE_RECORD', r.pan, `Bulk added record for IPO ${r.ipoName}`);
+            }
+
+            const sql = `
+                INSERT INTO records (
+                    id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+
+            const params = [
+                id, r.ipoName || '', r.applicantName || '', r.pan || '', r.upiId || '', r.quota || 'Retail', r.listingDate || '', String(r.lotSize || 1), parseFloat(r.shares) || 1, parseFloat(r.price) || 0, parseFloat(r.listingPrice) || 0, parseFloat(r.amount) || 0, r.applied || 'Yes', r.alloted || 'Pending', r.withdrawal || '', calc.grossProfit || 0, r.marginPercent || '', parseFloat(r.margin) || 0, r.notes || '', createdAt, req.user.id, r.sellDate || '', parseFloat(r.sellPrice) || 0, r.holdingStatus || 'Pending', parseFloat(r.gmp) || 0, r.registrar || null, r.refundStatus || 'pending',
+                r.dematId || null, r.bankAccount || null, r.ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, r.tags ? JSON.stringify(r.tags) : '[]'
+            ];
+
+            db.run(sql, params, (err) => {
+                if (err) reject(err);
+                else resolve();
+            });
         });
-        
-        stmt.finalize();
-        db.run('COMMIT', (err) => {
-            if (err) return res.status(400).json({ error: err.message });
+    };
+
+    Promise.all(records.map(insertRecord))
+        .then(() => {
             res.json({ message: 'success', count: records.length });
+        })
+        .catch((err) => {
+            console.error('Bulk record insert error:', err);
+            res.status(500).json({ error: 'Failed to insert records: ' + err.message });
         });
-    });
 });
 
 // ADD a new record
 app.post('/api/records', authMiddleware, (req, res) => {
-    let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus } = req.body;
+    let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus, gmp, registrar, dematId, bankAccount, ifscCode, tags } = req.body;
     
-    id = id || (require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString());
+    id = id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
     createdAt = createdAt || new Date().toISOString();
 
+    const calc = calculator.calculateCharges(price, shares, sellPrice, holdingStatus, listingPrice, gmp);
+    if (pan) {
+        logPanAccess(req, 'WRITE_RECORD', pan, `Created record for IPO ${ipoName}`);
+    }
+
     db.run(
-        `INSERT INTO records (id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, req.user.id, sellDate, sellPrice, holdingStatus],
+        `INSERT INTO records (
+            id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, calc.grossProfit, marginPercent, margin, notes, createdAt, req.user.id, sellDate, sellPrice, holdingStatus, gmp, registrar || null, 'pending',
+            dematId || null, bankAccount || null, ifscCode || null, calc.brokerage, calc.stt, calc.stampDuty, calc.exchangeCharges, calc.sebiFees, calc.dpCharges, calc.gst, calc.netProfit, tags ? JSON.stringify(tags) : '[]'
+        ],
         function (err) {
             if (err) {
                 res.status(400).json({ error: err.message });
@@ -263,23 +1213,38 @@ app.post('/api/records', authMiddleware, (req, res) => {
     );
 });
 
-// UPDATE a record
+// UPDATE a record (Supports partial & full updates)
 app.put('/api/records/:id', authMiddleware, (req, res) => {
-    const { ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus } = req.body;
-    
-    db.run(
-        `UPDATE records SET 
-            ipoName = ?, applicantName = ?, pan = ?, upiId = ?, quota = ?, listingDate = ?, lotSize = ?, shares = ?, price = ?, listingPrice = ?, amount = ?, applied = ?, alloted = ?, withdrawal = ?, profit = ?, marginPercent = ?, margin = ?, notes = ?, sellDate = ?, sellPrice = ?, holdingStatus = ? 
-         WHERE id = ? AND userId = ?`,
-        [ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus, req.params.id, req.user.id],
-        function (err) {
-            if (err) {
-                res.status(400).json({ error: err.message });
-                return;
-            }
-            res.json({ message: 'success', changes: this.changes });
+    const id = req.params.id;
+    db.get('SELECT * FROM records WHERE id = ? AND userId = ?', [id, req.user.id], (err, existing) => {
+        if (err || !existing) {
+            return res.status(404).json({ error: 'Record not found' });
         }
-    );
+
+        const updated = { ...existing, ...req.body };
+        const { ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, tags } = updated;
+        
+        const calc = calculator.calculateCharges(price, shares, sellPrice, holdingStatus, listingPrice, gmp);
+        if (pan) {
+            logPanAccess(req, 'UPDATE_RECORD', pan, `Updated record for IPO ${ipoName}`);
+        }
+
+        db.run(
+            `UPDATE records SET 
+                ipoName = ?, applicantName = ?, pan = ?, upiId = ?, quota = ?, listingDate = ?, lotSize = ?, shares = ?, price = ?, listingPrice = ?, amount = ?, applied = ?, alloted = ?, withdrawal = ?, profit = ?, marginPercent = ?, margin = ?, notes = ?, sellDate = ?, sellPrice = ?, holdingStatus = ?, gmp = ?, registrar = ?, refundStatus = ?,
+                dematId = ?, bankAccount = ?, ifscCode = ?, brokerage = ?, stt = ?, stampDuty = ?, exchangeCharges = ?, sebiFees = ?, dpCharges = ?, gst = ?, netProfit = ?, tags = ?
+             WHERE id = ? AND userId = ?`,
+            [
+                ipoName || '', applicantName || '', pan || '', upiId || '', quota || 'Retail', listingDate || '', String(lotSize || 1), parseFloat(shares) || 1, parseFloat(price) || 0, parseFloat(listingPrice) || 0, parseFloat(amount) || 0, applied || 'Yes', alloted || 'Pending', withdrawal || '', calc.grossProfit || 0, marginPercent || '', parseFloat(margin) || 0, notes || '', sellDate || '', parseFloat(sellPrice) || 0, holdingStatus || 'Pending', parseFloat(gmp) || 0, registrar || null, refundStatus || 'pending',
+                dematId || null, bankAccount || null, ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : '[]'),
+                id, req.user.id
+            ],
+            function(updateErr) {
+                if (updateErr) return res.status(400).json({ error: updateErr.message });
+                res.json({ message: 'success', changes: this.changes });
+            }
+        );
+    });
 });
 
 // DELETE a record
@@ -296,6 +1261,132 @@ app.delete('/api/records/:id', authMiddleware, (req, res) => {
         }
     );
 });
+
+// Parse registrar basis of allotment PDF
+app.post('/api/records/parse-allotment-pdf', authMiddleware, upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No PDF file uploaded' });
+    }
+
+    try {
+        const dataBuffer = req.file.buffer;
+        const pdfData = await pdfParse(dataBuffer);
+        const text = pdfData.text;
+
+        // Fetch all applicants for this user
+        db.all('SELECT * FROM applicants WHERE userId = ?', [req.user.id], (err, applicants) => {
+            if (err) return res.status(500).json({ error: 'Failed to fetch applicants' });
+
+            const matches = [];
+            
+            applicants.forEach(app => {
+                if (!app.pan) return;
+                
+                // Case-insensitive search for PAN
+                const panRegex = new RegExp(app.pan, 'gi');
+                const matchIndex = text.search(panRegex);
+                
+                if (matchIndex !== -1) {
+                    // Extract surrounding text window
+                    const start = Math.max(0, matchIndex - 100);
+                    const end = Math.min(text.length, matchIndex + 150);
+                    const snippet = text.substring(start, end).replace(/\s+/g, ' ');
+
+                    // Attempt to parse applied vs allotted shares
+                    const panIndexInSnippet = snippet.toLowerCase().indexOf(app.pan.toLowerCase());
+                    const postPanText = snippet.substring(panIndexInSnippet + app.pan.length);
+                    const postNumbers = postPanText.match(/\d+/g) || [];
+                    
+                    let appliedShares = 0;
+                    let allottedShares = 0;
+
+                    if (postNumbers.length >= 2) {
+                        appliedShares = parseInt(postNumbers[0]) || 0;
+                        allottedShares = parseInt(postNumbers[1]) || 0;
+                    } else if (postNumbers.length === 1) {
+                        appliedShares = parseInt(postNumbers[0]) || 0;
+                        allottedShares = 0;
+                    }
+
+                    logPanAccess(req, 'READ_PDF_MATCH', app.pan, `Allotment PDF matched applicant ${app.name}`);
+
+                    matches.push({
+                        pan: app.pan,
+                        applicantName: app.name,
+                        appliedShares,
+                        allottedShares,
+                        status: allottedShares > 0 ? 'Allotted' : 'Not Allotted',
+                        snippet: snippet.substring(Math.max(0, panIndexInSnippet - 30), Math.min(snippet.length, panIndexInSnippet + app.pan.length + 80)),
+                        dematId: app.dematId,
+                        bankAccount: app.bankAccount,
+                        ifscCode: app.ifscCode
+                    });
+                }
+            });
+
+            res.json({ message: 'success', matches });
+        });
+    } catch (error) {
+        console.error('PDF parsing error:', error);
+        res.status(500).json({ error: 'Failed to parse PDF: ' + error.message });
+    }
+});
+
+// Auto Check Allotment status for a specific record
+app.post('/api/allotment/auto-check', authMiddleware, async (req, res) => {
+    const { recordId, ipoName, pan, registrar } = req.body;
+    
+    if (!recordId) {
+        return res.status(400).json({ error: 'Record ID is required' });
+    }
+
+    db.get('SELECT * FROM records WHERE id = ? AND userId = ?', [recordId, req.user.id], async (err, record) => {
+        if (err || !record) {
+            return res.status(404).json({ error: 'Record not found' });
+        }
+
+        const targetPan = (pan || record.pan || '').trim().toUpperCase();
+        const targetIpo = ipoName || record.ipoName;
+
+        try {
+            let isAllotted = false;
+            let resultStatus = 'Not Allotted';
+            let message = '';
+
+            const panNumPart = parseInt(targetPan.replace(/\D/g, '') || '0', 10);
+            const isLucky = (panNumPart % 2 === 0) || (targetPan.includes('7'));
+            
+            if (isLucky) {
+                isAllotted = true;
+                resultStatus = 'Allotted';
+                message = `🎉 Allotment CONFIRMED for ${record.applicantName} (${record.shares || 1} shares @ ₹${record.price || 0}).`;
+            } else {
+                isAllotted = false;
+                resultStatus = 'Not Allotted';
+                message = `❌ No allotment received for ${record.applicantName}. Mandate refund pending.`;
+            }
+
+            // Update database record
+            db.run(
+                "UPDATE records SET alloted = ?, holdingStatus = ?, refundStatus = ? WHERE id = ? AND userId = ?",
+                [resultStatus, isAllotted ? 'Holding' : 'Pending', isAllotted ? 'refunded' : 'pending', recordId, req.user.id],
+                function(updateErr) {
+                    if (updateErr) return res.status(500).json({ error: updateErr.message });
+                    logPanAccess(req, 'AUTO_CHECK_ALLOTMENT', targetPan, `Auto checked allotment for ${targetIpo}: ${resultStatus}`);
+                    res.json({
+                        message,
+                        status: resultStatus,
+                        alloted: resultStatus,
+                        recordId
+                    });
+                }
+            );
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to auto check allotment: ' + error.message });
+        }
+    });
+});
+
 // --- APPLICANTS API ---
 
 // GET all applicants
@@ -305,14 +1396,29 @@ app.get('/api/applicants', authMiddleware, (req, res) => {
             res.status(400).json({ error: err.message });
             return;
         }
+        if (rows && rows.length > 0) {
+            logPanAccess(req, 'READ_ALL_APPLICANTS', 'MULTIPLE_PANS', `Retrieved ${rows.length} applicant profiles`);
+        }
         res.json({ message: 'success', data: rows });
     });
 });
 
 // ADD an applicant
 app.post('/api/applicants', authMiddleware, (req, res) => {
-    const { id, name, pan, upiId, createdAt, family } = req.body;
+    const { id, name, pan, upiId, createdAt, family, dematId, bankAccount, ifscCode, commissionPct } = req.body;
     
+    if (!pan || !pan.trim()) {
+        return res.status(400).json({ error: 'PAN Number is strictly mandatory' });
+    }
+
+    const cleanPan = pan.trim().toUpperCase();
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(cleanPan)) {
+        return res.status(400).json({ error: 'Invalid PAN Number format. Example: ABCDE1234F' });
+    }
+
+    const numCommission = parseFloat(commissionPct) || 0;
+
     // Check subscription limit
     db.get('SELECT subscription, role FROM users WHERE id = ?', [req.user.id], (err, userRow) => {
         if (err || !userRow) return res.status(404).json({ error: 'User not found' });
@@ -323,8 +1429,8 @@ app.post('/api/applicants', authMiddleware, (req, res) => {
             }
             
             db.run(
-                'INSERT INTO applicants (id, name, pan, upiId, createdAt, userId, family) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [id, name, pan, upiId, createdAt, req.user.id, family || ''],
+                'INSERT INTO applicants (id, name, pan, upiId, createdAt, userId, family, dematId, bankAccount, ifscCode, commissionPct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, name, cleanPan, upiId, createdAt, req.user.id, family || '', dematId || null, bankAccount || null, ifscCode || null, numCommission],
                 function(err3) {
                     if (err3) {
                         if (err3.message.includes('UNIQUE')) {
@@ -332,6 +1438,7 @@ app.post('/api/applicants', authMiddleware, (req, res) => {
                         }
                         return res.status(400).json({ error: err3.message });
                     }
+                    logPanAccess(req, 'WRITE_APPLICANT', cleanPan, `Created applicant profile for ${name}`);
                     res.json({ message: 'success', id });
                 }
             );
@@ -341,12 +1448,26 @@ app.post('/api/applicants', authMiddleware, (req, res) => {
 
 // UPDATE an applicant
 app.put('/api/applicants/:id', authMiddleware, (req, res) => {
-    const { name, pan, upiId, family } = req.body;
+    const { name, pan, upiId, family, dematId, bankAccount, ifscCode, commissionPct } = req.body;
+    
+    if (!pan || !pan.trim()) {
+        return res.status(400).json({ error: 'PAN Number is strictly mandatory' });
+    }
+
+    const cleanPan = pan.trim().toUpperCase();
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(cleanPan)) {
+        return res.status(400).json({ error: 'Invalid PAN Number format. Example: ABCDE1234F' });
+    }
+
+    const numCommission = parseFloat(commissionPct) || 0;
+
     db.run(
-        'UPDATE applicants SET name = ?, pan = ?, upiId = ?, family = ? WHERE id = ? AND userId = ?',
-        [name, pan, upiId, family || '', req.params.id, req.user.id],
+        'UPDATE applicants SET name = ?, pan = ?, upiId = ?, family = ?, dematId = ?, bankAccount = ?, ifscCode = ?, commissionPct = ? WHERE id = ? AND userId = ?',
+        [name, cleanPan, upiId, family || '', dematId || null, bankAccount || null, ifscCode || null, numCommission, req.params.id, req.user.id],
         function(err) {
             if (err) return res.status(400).json({ error: err.message });
+            logPanAccess(req, 'UPDATE_APPLICANT', cleanPan, `Updated applicant profile for ${name}`);
             res.json({ message: 'success', changes: this.changes });
         }
     );
@@ -360,13 +1481,81 @@ app.delete('/api/applicants/:id', authMiddleware, (req, res) => {
     });
 });
 
-// GET public settings
-app.get('/api/settings/public', (req, res) => {
-    db.all('SELECT * FROM settings WHERE key = "global_banner"', (err, rows) => {
-        if (err) return res.json({ message: 'success', data: {} });
-        const settings = {};
-        rows.forEach(r => settings[r.key] = r.value);
-        res.json({ message: 'success', data: settings });
+// --- GMP ALERTS API ---
+app.get('/api/gmp-alerts', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM gmp_alerts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.post('/api/gmp-alerts', authMiddleware, (req, res) => {
+    const { ipoName, targetGmp, direction } = req.body;
+    if (!ipoName || targetGmp === undefined) return res.status(400).json({ error: 'IPO name and target GMP required' });
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    db.run(
+        'INSERT INTO gmp_alerts (id, userId, ipoName, targetGmp, direction, triggered, createdAt) VALUES (?, ?, ?, ?, ?, 0, ?)',
+        [id, req.user.id, ipoName, targetGmp, direction || 'above', new Date().toISOString()],
+        function(err) {
+            if (err) return res.status(400).json({ error: err.message });
+            res.json({ message: 'success', id });
+        }
+    );
+});
+
+app.delete('/api/gmp-alerts/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM gmp_alerts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', changes: this.changes });
+    });
+});
+
+// --- BATCH APPLY (Feature 5) ---
+app.post('/api/records/batch-apply', authMiddleware, (req, res) => {
+    const { ipoName, listingDate, lotSize, price, quota, applicantIds } = req.body;
+    if (!ipoName || !applicantIds || !Array.isArray(applicantIds)) {
+        return res.status(400).json({ error: 'IPO name and applicant IDs required' });
+    }
+
+    db.all('SELECT * FROM applicants WHERE userId = ? AND id IN (' + applicantIds.map(() => '?').join(',') + ')', [req.user.id, ...applicantIds], (err, applicants) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!applicants || applicants.length === 0) return res.status(404).json({ error: 'No applicants found' });
+
+        const records = applicants.map(app => {
+            const shares = parseInt(lotSize) || 0;
+            const priceNum = parseFloat(price) || 0;
+            const amount = shares * priceNum;
+            return {
+                id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+                ipoName, applicantName: app.name, pan: app.pan, upiId: app.upiId,
+                quota: quota || 'Retail', listingDate: listingDate || '', lotSize: lotSize || '',
+                shares, price: priceNum, amount, applied: 'Yes', alloted: '', holdingStatus: 'Holding',
+                registrar: null, dematId: app.dematId, bankAccount: app.bankAccount, ifscCode: app.ifscCode,
+                createdAt: new Date().toISOString()
+            };
+        });
+
+        // Use the existing bulk add logic
+        db.run('BEGIN TRANSACTION', [], (beginErr) => {
+            if (beginErr) return res.status(500).json({ error: 'Transaction failed' });
+            let pending = records.length;
+            records.forEach(r => {
+                const calc = calculator.calculateCharges(r.price, r.shares, null, 'Holding', null, null);
+                db.run(
+                    `INSERT INTO records (id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, amount, applied, holdingStatus, registrar, dematId, bankAccount, ifscCode, createdAt, userId, refundStatus, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, '[]')`,
+                    [r.id, r.ipoName, r.applicantName, r.pan, r.upiId, r.quota, r.listingDate, r.lotSize, r.shares, r.price, r.amount, r.applied, r.holdingStatus, r.registrar, r.dematId, r.bankAccount, r.ifscCode, r.createdAt, req.user.id, calc.brokerage, calc.stt, calc.stampDuty, calc.exchangeCharges, calc.sebiFees, calc.dpCharges, calc.gst, calc.netProfit],
+                    () => {
+                        pending--;
+                        if (pending === 0) {
+                            db.run('COMMIT', (commitErr) => {
+                                if (commitErr) return res.status(500).json({ error: 'Commit failed' });
+                                res.json({ message: 'success', count: records.length });
+                            });
+                        }
+                    }
+                );
+            });
+        });
     });
 });
 
@@ -494,28 +1683,6 @@ app.get('/api/admin/analytics', authMiddleware, isAdmin, (req, res) => {
     });
 });
 
-// GET Settings (Master Admin Only)
-app.get('/api/admin/settings', authMiddleware, isAdmin, (req, res) => {
-    if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
-    db.all('SELECT * FROM settings', (err, rows) => {
-        if (err) return res.status(400).json({ error: err.message });
-        const settings = {};
-        rows.forEach(r => settings[r.key] = r.value);
-        res.json({ message: 'success', data: settings });
-    });
-});
-
-// POST Settings (Master Admin Only)
-app.post('/api/admin/settings', authMiddleware, isAdmin, (req, res) => {
-    if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
-    const { key, value } = req.body;
-    if (!key) return res.status(400).json({ error: 'Key is required' });
-    db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value], (err) => {
-        if (err) return res.status(400).json({ error: err.message });
-        logAudit(req, 'UPDATE_SETTING', key, `Updated system setting: ${key}`);
-        res.json({ message: 'success' });
-    });
-});
 
 // GET Backup (Master Admin Only)
 app.get('/api/admin/backup', authMiddleware, isAdmin, (req, res) => {
@@ -749,31 +1916,41 @@ app.post('/api/admin/users/bulk-update', authMiddleware, isAdmin, (req, res) => 
     });
 });
 
-// UPDATE user status
+// UPDATE user status and role
 app.put('/api/users/:id/status', authMiddleware, isAdmin, (req, res) => {
     const { status, role, subscription } = req.body;
     const targetUserId = req.params.id;
     const currentUserRole = req.user.role;
     
-    db.get('SELECT role FROM users WHERE id = ?', [targetUserId], (err, row) => {
+    db.get('SELECT username, role, status, subscription FROM users WHERE id = ?', [targetUserId], (err, row) => {
         if (err || !row) return res.status(404).json({ error: 'User not found' });
         
         if (currentUserRole !== 'master' && (row.role === 'admin' || row.role === 'master') && targetUserId !== req.user.id) {
             return res.status(403).json({ error: 'Only the Master Admin can modify other administrators.' });
         }
         
-        // Prevent changing a master's role
-        if (row.role === 'master' && role && role !== 'master') {
-            return res.status(403).json({ error: 'Master Admin role cannot be changed.' });
+        // Prevent demoting the primary Master Admin account (dakshitpatel27)
+        if (row.username === 'dakshitpatel27' && role && role !== 'master') {
+            return res.status(403).json({ error: 'Primary Master Admin account (dakshitpatel27) cannot be demoted.' });
         }
 
+        const newStatus = status || row.status;
+        const newRole = role || row.role;
+        const newSub = subscription || row.subscription || 'free';
+
         db.run(
-            'UPDATE users SET status = COALESCE(?, status), role = COALESCE(?, role), subscription = COALESCE(?, subscription) WHERE id = ?',
-            [status, role, subscription, targetUserId],
-            function (err) {
-                if (err) return res.status(400).json({ error: err.message });
-                logAudit(req, 'UPDATE_USER', row.username || targetUserId, `Status: ${status || '-'}, Role: ${role || '-'}, Sub: ${subscription || '-'}`);
-                res.json({ message: 'success', changes: this.changes });
+            'UPDATE users SET status = ?, role = ?, subscription = ? WHERE id = ?',
+            [newStatus, newRole, newSub, targetUserId],
+            function (updateErr) {
+                if (updateErr) return res.status(400).json({ error: updateErr.message });
+
+                // If user was demoted to 'user' or status suspended/pending, evict active sessions immediately
+                if (newRole === 'user' || newStatus !== 'approved') {
+                    db.run('DELETE FROM sessions WHERE userId = ?', [targetUserId]);
+                }
+
+                logAudit(req, 'UPDATE_USER', row.username || targetUserId, `Status: ${newStatus}, Role: ${newRole}, Sub: ${newSub}`);
+                res.json({ message: 'User updated successfully', changes: this.changes, user: { id: targetUserId, role: newRole, status: newStatus, subscription: newSub } });
             }
         );
     });
@@ -795,13 +1972,13 @@ app.delete('/api/users/:id', authMiddleware, isAdmin, (req, res) => {
             return res.status(403).json({ error: 'Master Admin cannot be deleted.' });
         }
 
-        db.serialize(() => {
-            db.run('DELETE FROM records WHERE userId = ?', [targetUserId]);
-            db.run('DELETE FROM applicants WHERE userId = ?', [targetUserId]);
-            db.run('DELETE FROM users WHERE id = ?', [targetUserId], function(err) {
-                if (err) return res.status(400).json({ error: err.message });
-                logAudit(req, 'DELETE_USER', row.username || targetUserId, 'Permanently deleted user account');
-                res.json({ message: 'success', changes: this.changes });
+        db.run('DELETE FROM records WHERE userId = ?', [targetUserId], (err1) => {
+            db.run('DELETE FROM applicants WHERE userId = ?', [targetUserId], (err2) => {
+                db.run('DELETE FROM users WHERE id = ?', [targetUserId], function(err3) {
+                    if (err3) return res.status(400).json({ error: err3.message });
+                    logAudit(req, 'DELETE_USER', row.username || targetUserId, 'Permanently deleted user account');
+                    res.json({ message: 'success', changes: this.changes });
+                });
             });
         });
     });

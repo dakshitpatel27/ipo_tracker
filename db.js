@@ -41,13 +41,13 @@ const db = {
         
         if (isPostgres) {
             pgPool.query(convertToPgQuery(sql), params)
-                .then(res => callback && callback.call(null, null))
+                .then(res => callback && callback.call({ changes: res.rowCount, lastID: res.rows?.[0]?.id }, null))
                 .catch(err => {
                     // Ignore "column already exists" or similar ALTER TABLE errors gracefully on start
                     if (sql.includes('ALTER TABLE') && err.code === '42701') {
-                        return callback && callback.call(null, null);
+                        return callback && callback.call({ changes: 0 }, null);
                     }
-                    callback && callback.call(null, err);
+                    callback && callback.call({ changes: 0 }, err);
                 });
         } else {
             sqliteDb.run(sql, params, function(err) {
@@ -103,12 +103,34 @@ const initSchema = () => {
         fcmTokens TEXT,
         role TEXT,
         status TEXT,
-        subscription TEXT DEFAULT 'free'
+        subscription TEXT DEFAULT 'free',
+        totpSecret TEXT,
+        totpEnabled INTEGER DEFAULT 0,
+        emailNotifications INTEGER DEFAULT 1,
+        pushNotifications INTEGER DEFAULT 1,
+        inAppNotifications INTEGER DEFAULT 1,
+        gamificationEnabled INTEGER DEFAULT 0,
+        telegramToken TEXT,
+        telegramChatId TEXT,
+        telegramAlerts INTEGER DEFAULT 0,
+        appPin TEXT,
+        pinEnabled INTEGER DEFAULT 0
     )`, () => {
         db.run(`ALTER TABLE users ADD COLUMN fcmTokens TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN role TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN status TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN subscription TEXT DEFAULT 'free'`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN totpSecret TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN totpEnabled INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN emailNotifications INTEGER DEFAULT 1`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN pushNotifications INTEGER DEFAULT 1`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN inAppNotifications INTEGER DEFAULT 1`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN gamificationEnabled INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN telegramToken TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN telegramChatId TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN telegramAlerts INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN appPin TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN pinEnabled INTEGER DEFAULT 0`, () => {});
     });
 
     // 2. Records
@@ -137,12 +159,42 @@ const initSchema = () => {
         sellDate TEXT,
         sellPrice REAL,
         holdingStatus TEXT,
-        gmp REAL
+        gmp REAL,
+        refundStatus TEXT DEFAULT 'pending',
+        registrar TEXT,
+        dematId TEXT,
+        bankAccount TEXT,
+        ifscCode TEXT,
+        brokerage REAL DEFAULT 0,
+        stt REAL DEFAULT 0,
+        stampDuty REAL DEFAULT 0,
+        exchangeCharges REAL DEFAULT 0,
+        sebiFees REAL DEFAULT 0,
+        dpCharges REAL DEFAULT 0,
+        gst REAL DEFAULT 0,
+        netProfit REAL DEFAULT 0,
+        tags TEXT DEFAULT '[]'
     )`, () => {
         db.run(`ALTER TABLE records ADD COLUMN sellDate TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN sellPrice REAL`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN holdingStatus TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN gmp REAL`, () => {});
+        // Feature 10: Refund Tracker
+        db.run(`ALTER TABLE records ADD COLUMN refundStatus TEXT DEFAULT 'pending'`, () => {});
+        // Feature 5: Smart Allotment Check
+        db.run(`ALTER TABLE records ADD COLUMN registrar TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN dematId TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN bankAccount TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN ifscCode TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN brokerage REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN stt REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN stampDuty REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN exchangeCharges REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN sebiFees REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN dpCharges REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN gst REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN netProfit REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN tags TEXT DEFAULT '[]'`, () => {});
     });
 
     // 3. Applicants
@@ -153,9 +205,17 @@ const initSchema = () => {
         upiId TEXT,
         createdAt TEXT,
         userId TEXT,
-        family TEXT
+        family TEXT,
+        dematId TEXT,
+        bankAccount TEXT,
+        ifscCode TEXT,
+        commissionPct REAL DEFAULT 0
     )`, () => {
         db.run(`ALTER TABLE applicants ADD COLUMN family TEXT`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN dematId TEXT`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN bankAccount TEXT`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN ifscCode TEXT`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN commissionPct REAL DEFAULT 0`, () => {});
     });
     
     // 4. Notifications
@@ -165,9 +225,11 @@ const initSchema = () => {
         body TEXT,
         userId TEXT,
         sentAt TEXT,
-        status TEXT,
+        status TEXT DEFAULT 'unread',
         error TEXT
-    )`);
+    )`, () => {
+        db.run(`ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'unread'`, () => {});
+    });
 
     // 5. Settings
     db.run(`CREATE TABLE IF NOT EXISTS settings (
@@ -178,12 +240,19 @@ const initSchema = () => {
     // 6. Audit Logs
     db.run(`CREATE TABLE IF NOT EXISTS audit_logs (
         id TEXT PRIMARY KEY,
-        userId TEXT,
-        username TEXT,
+        adminId TEXT,
+        adminUsername TEXT,
         action TEXT,
+        target TEXT,
         details TEXT,
-        timestamp TEXT
-    )`);
+        createdAt TEXT
+    )`, () => {
+        // Migrate existing tables that may have old column names
+        db.run(`ALTER TABLE audit_logs ADD COLUMN adminId TEXT`, () => {});
+        db.run(`ALTER TABLE audit_logs ADD COLUMN adminUsername TEXT`, () => {});
+        db.run(`ALTER TABLE audit_logs ADD COLUMN target TEXT`, () => {});
+        db.run(`ALTER TABLE audit_logs ADD COLUMN createdAt TEXT`, () => {});
+    });
 
     // 7. Email Templates
     db.run(`CREATE TABLE IF NOT EXISTS email_templates (
@@ -193,6 +262,39 @@ const initSchema = () => {
         bodyHtml TEXT,
         createdAt TEXT,
         updatedAt TEXT
+    )`);
+
+    // 8. Notifications Log
+    db.run(`CREATE TABLE IF NOT EXISTS notifications_log (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        body TEXT,
+        sentAt TEXT,
+        recipientCount INTEGER,
+        status TEXT,
+        type TEXT
+    )`);
+
+    // 9. Active Sessions Table
+    // 10. GMP Alerts
+    db.run(`CREATE TABLE IF NOT EXISTS gmp_alerts (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        ipoName TEXT,
+        targetGmp REAL,
+        direction TEXT DEFAULT 'above',
+        triggered INTEGER DEFAULT 0,
+        createdAt TEXT
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        deviceAgent TEXT,
+        ipAddress TEXT,
+        createdAt TEXT,
+        lastActiveAt TEXT,
+        token TEXT
     )`);
 };
 

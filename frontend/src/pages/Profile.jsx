@@ -44,14 +44,18 @@ const Profile = () => {
               <span className="flex items-center gap-1 text-secondary bg-black/40 px-3 py-1 rounded-full border border-border">
                 {user?.email}
               </span>
-              <span className={`flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-bold tracking-widest uppercase ${user?.role === 'admin' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                {user?.role === 'admin' ? <Shield size={14} /> : <User size={14} />} {user?.role}
+              <span className={`flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-bold tracking-widest uppercase ${user?.role === 'master' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : user?.role === 'admin' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                {(user?.role === 'admin' || user?.role === 'master') ? <Shield size={14} /> : <User size={14} />} {user?.role}
               </span>
               <span className="flex items-center gap-1 px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 text-xs font-bold tracking-widest uppercase">
                 <CheckCircle size={14} /> Active
               </span>
+              <span className={`flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-bold tracking-widest uppercase ${user?.subscription === 'pro' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
+                {user?.subscription === 'pro' ? '⭐ Pro Plan' : '🆓 Free Plan'}
+              </span>
             </div>
           </div>
+
         </div>
 
         <div className="max-w-md space-y-6">

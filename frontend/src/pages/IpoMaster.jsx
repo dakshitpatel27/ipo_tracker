@@ -1,14 +1,94 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, TrendingUp } from 'lucide-react';
+import { ExternalLink, TrendingUp, TrendingDown, Star, Scale, Send, Calculator, Bell, History } from 'lucide-react';
+import CountdownBadge from '../components/ui/CountdownBadge';
+import PageLoader from '../components/ui/PageLoader';
+import CompareDrawer from '../components/ui/CompareDrawer';
+import QuickApplyModal from '../components/ui/QuickApplyModal';
+import InvestmentCalculator from '../components/ui/InvestmentCalculator';
+import SubscriptionBar from '../components/ui/SubscriptionBar';
+import GmpAlertModal from '../components/ui/GmpAlertModal';
+import HistoricalIpoTable from '../components/ui/HistoricalIpoTable';
+import AutomatedIpoFormModal from '../components/ui/AutomatedIpoFormModal';
+import IpoScoreBadge from '../components/ui/IpoScoreBadge';
+
+// ─── Feature 6: GMP Sparkline ──────────────────────────────────
+const GmpSparkline = ({ trends }) => {
+  if (!trends || trends.length < 2) return null;
+
+  const values = trends
+    .slice(0, 10)
+    .reverse()
+    .map(t => parseFloat((t.gmp || '0').replace(/[^\d.-]/g, '')))
+    .filter(v => !isNaN(v));
+
+  if (values.length < 2) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 75, H = 24;
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const isRising = values[values.length - 1] >= values[0];
+  const color = isRising ? '#22c55e' : '#ef4444';
+
+  return (
+    <div className="flex items-center gap-1 mt-0.5">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+      </svg>
+      {isRising
+        ? <TrendingUp size={11} className="text-emerald-400" />
+        : <TrendingDown size={11} className="text-rose-400" />}
+    </div>
+  );
+};
 
 const IpoMaster = () => {
   const [ipos, setIpos] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Filters
+
+  // Filters & Tabs
   const [statusFilter, setStatusFilter] = useState('LIVE');
-  const [typeFilter, setTypeFilter] = useState('MAINBOARD');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [activeViewTab, setActiveViewTab] = useState('live'); // 'live' | 'historical'
+
+  // Watchlist
+  const [watchlist, setWatchlist] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ipo_watchlist') || '[]'); }
+    catch { return []; }
+  });
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+
+  // Feature 1: Compare State
+  const [compareIpos, setCompareIpos] = useState([]);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
+
+  // Feature 3: Alert State
+  const [alertIpoName, setAlertIpoName] = useState(null);
+
+  // Feature 5: Batch Apply State
+  const [batchApplyIpo, setBatchApplyIpo] = useState(null);
+
+  // Feature 7: Calculator State
+  const [calcIpo, setCalcIpo] = useState(null);
+
+  // Automated 2-Part Form State
+  const [isAutoFormOpen, setIsAutoFormOpen] = useState(false);
 
   useEffect(() => {
     async function fetchIpos() {
@@ -27,187 +107,372 @@ const IpoMaster = () => {
     fetchIpos();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('ipo_watchlist', JSON.stringify(watchlist));
+  }, [watchlist]);
+
+  const toggleWatchlist = (ipoName) => {
+    setWatchlist(prev =>
+      prev.includes(ipoName) ? prev.filter(n => n !== ipoName) : [...prev, ipoName]
+    );
+  };
+
+  const toggleCompare = (ipo) => {
+    setCompareIpos(prev => {
+      const exists = prev.some(item => item.name === ipo.name);
+      if (exists) return prev.filter(item => item.name !== ipo.name);
+      if (prev.length >= 3) return prev;
+      return [...prev, ipo];
+    });
+  };
+
   const filteredIpos = useMemo(() => {
     return ipos.filter(ipo => {
-      const matchStatus = statusFilter === 'ALL' || (ipo.status && ipo.status.toUpperCase() === statusFilter);
+      const ipoStatus = (ipo.status || '').toUpperCase();
+      let matchStatus = statusFilter === 'ALL';
+      if (!matchStatus) {
+        if (statusFilter === 'LISTED') {
+          matchStatus = ipoStatus === 'LISTED' || ipoStatus === 'CLOSED';
+        } else {
+          matchStatus = ipoStatus === statusFilter;
+        }
+      }
       const matchType = typeFilter === 'ALL' || (ipo.type && ipo.type.toUpperCase() === typeFilter.toUpperCase());
-      return matchStatus && matchType;
+      const matchWatchlist = !showWatchlistOnly || watchlist.includes(ipo.name);
+      return matchStatus && matchType && matchWatchlist;
     });
-  }, [ipos, statusFilter, typeFilter]);
+  }, [ipos, statusFilter, typeFilter, showWatchlistOnly, watchlist]);
+
+  // Feature 6: Listed/Historical IPOs
+  const historicalIpos = useMemo(() => {
+    return ipos.filter(i => {
+      const s = (i.status || '').toUpperCase();
+      return s === 'LISTED' || s === 'CLOSED';
+    });
+  }, [ipos]);
 
   return (
     <div className="space-y-6 h-full flex flex-col">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Live IPO Master</h1>
-          <p className="text-sm text-secondary">Real-time upcoming IPOs and GMP fetched from FinAPI.</p>
+          <h1 className="page-title">Live IPO Master & Market Desk</h1>
+          <p className="page-subtitle">Real-time GMP, subscription metrics, and automated decision tools.</p>
         </div>
-        
-        {/* Filters */}
-        <div className="flex gap-3">
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="input-field appearance-none bg-black/40 py-1.5 px-3 text-sm"
-          >
-            <option value="ALL">All Status</option>
-            <option value="LIVE">Live</option>
-            <option value="UPCOMING">Upcoming</option>
-            <option value="LISTED">Listed / Closed</option>
-          </select>
 
-          <select 
-            value={typeFilter} 
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="input-field appearance-none bg-black/40 py-1.5 px-3 text-sm"
+        {/* Action Controls */}
+        <div className="flex flex-wrap gap-2.5 items-center">
+          {/* Main Tab Switcher */}
+          <div className="tab-switcher">
+            <button
+              onClick={() => setActiveViewTab('live')}
+              className={`tab-item ${activeViewTab === 'live' ? 'active' : ''}`}
+            >
+              Live & Upcoming ({ipos.length})
+            </button>
+            <button
+              onClick={() => setActiveViewTab('historical')}
+              className={`tab-item flex items-center gap-1 ${activeViewTab === 'historical' ? 'active' : ''}`}
+            >
+              <History size={13} /> Historical Performance ({historicalIpos.length})
+            </button>
+          </div>
+
+          {/* Automated 2-Part IPO Form Trigger */}
+          <button
+            onClick={() => setIsAutoFormOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-md shadow-indigo-500/20 transition-all"
           >
-            <option value="ALL">All Types</option>
-            <option value="MAINBOARD">Mainboard</option>
-            <option value="SME">SME</option>
-          </select>
+            ⚡ Automated 2-Part Form
+          </button>
+
+          {/* Watchlist Toggle */}
+          <button
+            onClick={() => setShowWatchlistOnly(!showWatchlistOnly)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border transition-all ${
+              showWatchlistOnly
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                : 'btn-outline'
+            }`}
+          >
+            <Star size={14} fill={showWatchlistOnly ? 'currentColor' : 'none'} />
+            Watchlist {watchlist.length > 0 && `(${watchlist.length})`}
+          </button>
+
+          {/* Feature 1: Compare Button */}
+          {compareIpos.length > 0 && (
+            <button
+              onClick={() => setIsCompareOpen(true)}
+              className="btn-primary flex items-center gap-1.5 animate-bounce"
+            >
+              <Scale size={14} /> Compare ({compareIpos.length})
+            </button>
+          )}
+
+          {activeViewTab === 'live' && (
+            <>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="input-field py-1.5 px-2.5 text-xs w-auto"
+              >
+                <option value="ALL">All Status</option>
+                <option value="LIVE">Live Now</option>
+                <option value="UPCOMING">Upcoming</option>
+                <option value="LISTED">Listed / Closed</option>
+              </select>
+
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="input-field py-1.5 px-2.5 text-xs w-auto"
+              >
+                <option value="ALL">All Types</option>
+                <option value="MAINBOARD">Mainboard</option>
+                <option value="SME">SME</option>
+              </select>
+            </>
+          )}
         </div>
       </div>
 
+      {/* Main Content Area */}
       <div className="flex-1 overflow-auto custom-scrollbar">
-        {loading ? <div className="text-center text-emerald-500 py-10">Fetching live market data...</div> : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loading ? (
+          <PageLoader text="Fetching live market metrics..." />
+        ) : activeViewTab === 'historical' ? (
+          /* Feature 6: Historical Performance View */
+          <div className="glass-card p-5">
+            <HistoricalIpoTable listedIpos={historicalIpos} />
+          </div>
+        ) : (
+          /* Live Cards Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredIpos.map(ipo => {
-              const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp;
+              const gmpTrends = ipo.greyMarketPremium?.gmpTrends || [];
+              const gmpStr = gmpTrends?.[0]?.gmp;
               let gmp = gmpStr || 'N/A';
               let gmpPercent = '';
               const isPositive = gmpStr && !gmpStr.includes('-');
               const isNA = gmp === 'N/A';
-              
+              const isWatched = watchlist.includes(ipo.name);
+              const isComparing = compareIpos.some(c => c.name === ipo.name);
+
               let smartTag = null;
               let expectedProfit = 0;
+              let upperPrice = 0;
+              let lotNum = 15;
+
               if (gmpStr && ipo.priceRange) {
                 const gmpNum = parseFloat(gmpStr.replace(/[^\d.-]/g, ''));
                 const priceParts = ipo.priceRange.split('–');
-                const upperPrice = parseFloat(priceParts[priceParts.length - 1].replace(/[^\d.]/g, ''));
-                
-                if (!isNaN(gmpNum) && !isNaN(upperPrice) && upperPrice > 0) {
+                upperPrice = parseFloat(priceParts[priceParts.length - 1].replace(/[^\d.]/g, '')) || 0;
+
+                if (!isNaN(gmpNum) && upperPrice > 0) {
                   const pctNum = ((gmpNum / upperPrice) * 100);
-                  gmpPercent = `(${pctNum.toFixed(1)}%)`;
+                  gmpPercent = `${pctNum.toFixed(1)}%`;
                   if (!gmp.startsWith('₹')) gmp = `₹${gmp}`;
 
-                  // Compute expected profit
                   const lotStr = ipo.lotSize || ipo.lot;
-                  const lotNum = lotStr ? parseInt(lotStr.replace(/[^\d]/g, '')) : NaN;
-                  if (!isNaN(lotNum)) {
-                    expectedProfit = Math.round(gmpNum * lotNum);
-                  }
+                  lotNum = lotStr ? parseInt(lotStr.replace(/[^\d]/g, '')) : 15;
+                  expectedProfit = Math.round(gmpNum * lotNum);
 
-                  // Determine Smart Tag
                   if (pctNum > 30) {
-                    smartTag = { label: '💎 Strong Apply', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+                    smartTag = { label: '💎 Strong Apply', color: 'badge-emerald' };
                   } else if (pctNum > 10) {
-                    smartTag = { label: '👍 Apply', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+                    smartTag = { label: '👍 Moderate Apply', color: 'badge-indigo' };
                   } else if (pctNum > 0) {
-                    smartTag = { label: '⚠️ Risky', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+                    smartTag = { label: '⚠️ High Risk', color: 'badge-amber' };
                   } else {
-                    smartTag = { label: '⛔ Avoid', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
+                    smartTag = { label: '⛔ Avoid', color: 'badge-rose' };
                   }
                 }
               }
 
-              const gmpColor = isNA ? 'text-gray-400' : (isPositive ? 'text-emerald-400' : 'text-rose-400');
+              const gmpColor = isNA ? 'text-zinc-400' : (isPositive ? 'text-emerald-400' : 'text-rose-400');
               const link = ipo.detailsUrl || ipo.url || '#';
+              const ipoStatus = (ipo.status || '').toUpperCase();
 
               return (
-                <motion.div 
-                  key={ipo.name} 
-                  initial={{ opacity: 0, y: 20 }} 
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="glass-card p-5 flex flex-col gap-4 relative overflow-hidden"
+                <motion.div
+                  key={ipo.name}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card glass-card-hover p-5 flex flex-col gap-4 relative overflow-hidden"
                 >
-                  <div className={`absolute top-0 right-0 p-2 text-xs font-bold rounded-bl-lg ${
-                    ipo.status?.toUpperCase() === 'LIVE' ? 'bg-emerald-500/20 text-emerald-400' : 
-                    ipo.status?.toUpperCase() === 'UPCOMING' ? 'bg-blue-500/20 text-blue-400' :
-                    'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {ipo.status || 'Upcoming'}
+                  {/* Status & Compare Badge Header */}
+                  <div className="flex items-center justify-between">
+                    <span className={`badge ${
+                      ipoStatus === 'LIVE' ? 'badge-emerald' :
+                      ipoStatus === 'UPCOMING' ? 'badge-blue' :
+                      'badge-gray'
+                    }`}>
+                      <span className="status-dot live" />
+                      {ipo.status || 'Upcoming'}
+                    </span>
+
+                    <button
+                      onClick={() => toggleCompare(ipo)}
+                      className={`text-[0.65rem] font-bold px-2 py-0.5 rounded border transition-all ${
+                        isComparing
+                          ? 'bg-indigo-600 text-white border-indigo-500'
+                          : 'bg-black/30 text-zinc-400 border-zinc-700 hover:text-white'
+                      }`}
+                    >
+                      {isComparing ? '✓ Comparing' : '+ Compare'}
+                    </button>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white pr-16 flex flex-wrap items-center gap-2">
-                      {ipo.name}
-                      {smartTag && (
-                        <span className={`text-[10px] uppercase px-2 py-0.5 rounded border ${smartTag.color}`}>
-                          {smartTag.label}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-sm text-gray-400">{ipo.type || 'Mainboard'}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-secondary text-xs uppercase">Price Band</p>
-                      <p className="font-medium text-gray-200">{ipo.priceRange || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-secondary text-xs uppercase">Lot Size</p>
-                      <p className="font-medium text-gray-200">{ipo.lotSize || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-secondary text-xs uppercase">Open - Close</p>
-                      <p className="font-medium text-gray-200 text-xs">
-                        {ipo.schedule?.startDate || '-'} to {ipo.schedule?.endDate || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-secondary text-xs uppercase flex items-center gap-1">
-                        GMP 
-                        {expectedProfit > 0 && <span className="text-emerald-400 font-bold ml-1">+₹{expectedProfit.toLocaleString()}</span>}
-                        {expectedProfit < 0 && <span className="text-rose-400 font-bold ml-1">-₹{Math.abs(expectedProfit).toLocaleString()}</span>}
-                      </p>
-                      <p className={`font-bold flex items-center gap-1 ${gmpColor}`}>
-                        {!isNA && <TrendingUp size={14} />} 
-                        {gmp} 
-                        {gmpPercent && <span className="text-[11px] opacity-80">{gmpPercent}</span>}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-3 border-t border-border mt-auto flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs font-semibold text-secondary uppercase">Subscription: <span className="text-emerald-400 ml-1">{ipo.subscriptionNumbers?.total?.subscription || ipo.subscription?.total || 'N/A'}</span></p>
-                      {link !== '#' && (
-                        <a href={link} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide">
-                          Details <ExternalLink size={12} />
-                        </a>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-2 text-[10px] text-center">
-                      <div className="bg-black/20 border border-white/5 rounded py-1.5">
-                        <p className="text-secondary font-medium mb-0.5">QIB</p>
-                        <p className="text-gray-200 font-bold">{ipo.subscriptionNumbers?.institutional?.subscription || ipo.subscription?.qib || '-'}</p>
-                      </div>
-                      <div className="bg-black/20 border border-white/5 rounded py-1.5">
-                        <p className="text-secondary font-medium mb-0.5">NII</p>
-                        <p className="text-gray-200 font-bold">{ipo.subscriptionNumbers?.nii?.subscription || ipo.subscription?.nii || '-'}</p>
-                      </div>
-                      <div className="bg-black/20 border border-white/5 rounded py-1.5">
-                        <p className="text-secondary font-medium mb-0.5">RETAIL</p>
-                        <p className="text-gray-200 font-bold">{ipo.subscriptionNumbers?.retail?.subscription || ipo.subscription?.retail || '-'}</p>
+
+                  {/* Header: Title + Watchlist */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-white truncate leading-tight">
+                        {ipo.name}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-xs text-zinc-400">{ipo.type || 'Mainboard'}</span>
+                        <IpoScoreBadge gmp={gmpStr} price={upperPrice} qibSub={ipo.subscription?.qib} retailSub={ipo.subscription?.retail} />
+                        {smartTag && <span className={`badge ${smartTag.color}`}>{smartTag.label}</span>}
                       </div>
                     </div>
+
+                    <button
+                      onClick={() => toggleWatchlist(ipo.name)}
+                      className={`p-1.5 rounded transition-all shrink-0 ${
+                        isWatched ? 'text-amber-400 bg-amber-500/10' : 'text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10'
+                      }`}
+                      title={isWatched ? 'Starred' : 'Add to Watchlist'}
+                    >
+                      <Star size={16} fill={isWatched ? 'currentColor' : 'none'} />
+                    </button>
+                  </div>
+
+                  {/* Countdown badges */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {ipoStatus === 'LIVE' && ipo.schedule?.endDate && (
+                      <CountdownBadge targetDate={ipo.schedule.endDate} label="Closes" variant="close" />
+                    )}
+                    {ipoStatus === 'UPCOMING' && ipo.schedule?.startDate && (
+                      <CountdownBadge targetDate={ipo.schedule.startDate} label="Opens" variant="open" />
+                    )}
+                    {ipo.schedule?.listingDate && (
+                      <CountdownBadge targetDate={ipo.schedule.listingDate} label="Lists" variant="listing" />
+                    )}
+                  </div>
+
+                  {/* Pricing & GMP Details */}
+                  <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-black/20 border border-[var(--border)] text-xs">
+                    <div>
+                      <span className="section-label">Price Band</span>
+                      <div className="font-mono text-white font-semibold mt-0.5">{ipo.priceRange || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <span className="section-label">Lot Size</span>
+                      <div className="font-mono text-white font-semibold mt-0.5">{ipo.lotSize || ipo.lot || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <span className="section-label">Dates</span>
+                      <div className="text-[0.7rem] text-zinc-300 mt-0.5">
+                        {ipo.schedule?.startDate || '—'} to {ipo.schedule?.endDate || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="section-label">Live GMP</span>
+                      <div className={`font-mono font-bold text-sm flex items-center gap-1 ${gmpColor}`}>
+                        {gmp}
+                        {gmpPercent && <span className="text-[10px] opacity-80">({gmpPercent})</span>}
+                      </div>
+                      <GmpSparkline trends={gmpTrends} />
+                    </div>
+                  </div>
+
+                  {/* Feature 8: Subscription Live Bars */}
+                  <SubscriptionBar subscription={ipo.subscription || { overall: ipo.subscriptionRatio }} />
+
+                  {/* Quick Tool Actions Row */}
+                  <div className="pt-3 border-t border-[var(--border)] mt-auto flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      {/* Feature 5: Batch Apply */}
+                      <button
+                        onClick={() => setBatchApplyIpo(ipo)}
+                        className="btn-outline px-2.5 py-1 text-xs flex items-center gap-1"
+                        title="Apply across family applicants"
+                      >
+                        <Send size={12} /> Apply All
+                      </button>
+
+                      {/* Feature 7: Calculator */}
+                      <button
+                        onClick={() => setCalcIpo({ price: upperPrice || 100, lotSize: lotNum, gmp: parseFloat(gmpStr?.replace(/[^\d.-]/g, '')) || 0 })}
+                        className="btn-ghost p-1.5 text-zinc-400 hover:text-white"
+                        title="Investment Simulator"
+                      >
+                        <Calculator size={14} />
+                      </button>
+
+                      {/* Feature 3: GMP Alert */}
+                      <button
+                        onClick={() => setAlertIpoName(ipo.name)}
+                        className="btn-ghost p-1.5 text-zinc-400 hover:text-indigo-400"
+                        title="Set GMP Alert"
+                      >
+                        <Bell size={14} />
+                      </button>
+                    </div>
+
+                    {link !== '#' && (
+                      <a href={link} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline text-[0.7rem] font-bold flex items-center gap-1">
+                        Details <ExternalLink size={11} />
+                      </a>
+                    )}
                   </div>
                 </motion.div>
               );
             })}
-            
+
             {filteredIpos.length === 0 && (
-              <div className="col-span-full text-center text-secondary py-10">
-                No IPOs match the selected filters.
+              <div className="col-span-full text-center text-[var(--text-muted)] py-16">
+                No IPOs found matching the criteria.
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Feature Modals & Drawers */}
+      <CompareDrawer
+        isOpen={isCompareOpen}
+        onClose={() => setIsCompareOpen(false)}
+        ipos={compareIpos}
+      />
+
+      <QuickApplyModal
+        isOpen={!!batchApplyIpo}
+        onClose={() => setBatchApplyIpo(null)}
+        ipo={batchApplyIpo}
+      />
+
+      <InvestmentCalculator
+        isOpen={!!calcIpo}
+        onClose={() => setCalcIpo(null)}
+        defaultPrice={calcIpo?.price}
+        defaultLotSize={calcIpo?.lotSize}
+        defaultGmp={calcIpo?.gmp}
+      />
+
+      <GmpAlertModal
+        isOpen={!!alertIpoName}
+        onClose={() => setAlertIpoName(null)}
+        defaultIpoName={alertIpoName || ''}
+      />
+
+      <AutomatedIpoFormModal
+        isOpen={isAutoFormOpen}
+        onClose={() => setIsAutoFormOpen(false)}
+      />
     </div>
   );
 };
 
 export default IpoMaster;
+

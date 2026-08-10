@@ -3,6 +3,15 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
   plugins: [
     react(),
     VitePWA({
@@ -12,8 +21,8 @@ export default defineConfig({
         name: 'IPO Tracker Terminal Pro',
         short_name: 'IPO Tracker',
         description: 'Manage and track your IPO portfolio seamlessly.',
-        theme_color: '#10b981',
-        background_color: '#020617',
+        theme_color: '#6366f1',
+        background_color: '#09090b',
         display: 'standalone',
         icons: [
           {
@@ -37,3 +46,4 @@ export default defineConfig({
     })
   ],
 })
+

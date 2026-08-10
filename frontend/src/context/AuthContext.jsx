@@ -65,7 +65,8 @@ export const AuthProvider = ({ children }) => {
             console.error('Polling error:', e.message);
           }
         }
-      }, 5000); // Check every 5 seconds
+      }, 60000); // Check every 60 seconds
+
     }
 
     return () => {
@@ -75,10 +76,23 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     const data = await api.login({ username, password });
+    if (data.message === 'require_2fa') {
+      return data;
+    }
     localStorage.setItem('ipo_token', data.token);
     localStorage.setItem('ipo_user', JSON.stringify(data.user));
     setUser(data.user);
     api.setToken(data.token);
+    return data;
+  };
+
+  const login2FA = async (username, token) => {
+    const data = await api.login2FA(username, token);
+    localStorage.setItem('ipo_token', data.token);
+    localStorage.setItem('ipo_user', JSON.stringify(data.user));
+    setUser(data.user);
+    api.setToken(data.token);
+    return data;
   };
 
   const register = async (username, password, email) => {
@@ -103,7 +117,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, subscriptionTiers }}>
+    <AuthContext.Provider value={{ user, login, login2FA, register, logout, loading, subscriptionTiers }}>
       {children}
       
       <AnimatePresence>

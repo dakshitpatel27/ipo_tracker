@@ -1,106 +1,301 @@
-        import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, List, Settings, PieChart, Users, Globe, Shield, LogOut, UserCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import {
+  LayoutDashboard, List, Settings, PieChart, Users,
+  Globe, Shield, LogOut, UserCircle, CalendarDays,
+  TrendingUp, ChevronRight, Bell, Check, Trash
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api';
 import ConfirmModal from '../ui/ConfirmModal';
+const NotificationBell = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = async () => {
+    try {
+      const data = await api.getNotifications();
+      if (Array.isArray(data)) {
+        setNotifications(data);
+        setUnreadCount(data.filter(n => n.status === 'unread').length);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000); // poll every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await api.markAllNotificationsRead();
+      fetchNotifications();
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const handleMarkRead = async (id) => {
+    try {
+      await api.markNotificationRead(id);
+      fetchNotifications();
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await api.deleteNotification(id);
+      fetchNotifications();
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setIsOpen(!isOpen)} 
+        className="relative p-1.5 text-secondary hover:text-white hover:bg-white/5 rounded-lg transition-colors focus:outline-none flex items-center justify-center"
+      >
+        <Bell size={17} />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+        )}
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
+          <div className="absolute left-0 mt-2 w-72 bg-surface-2 border border-border rounded-xl shadow-xl z-[101] overflow-hidden flex flex-col max-h-96">
+            <div className="p-3 border-b border-border flex justify-between items-center bg-surface shrink-0">
+              <span className="font-semibold text-xs text-white">Notifications ({unreadCount})</span>
+              {unreadCount > 0 && (
+                <button onClick={handleMarkAllRead} className="text-[10px] text-emerald-400 hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                  Mark all read
+                </button>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+              {notifications.length === 0 ? (
+                <div className="text-center text-xs text-secondary py-8">Inbox is empty</div>
+              ) : (
+                notifications.map(n => (
+                  <div key={n.id} className={`p-2 rounded-lg border text-left transition-all ${n.status === 'unread' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-transparent border-transparent'}`}>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs text-white font-medium ${n.status === 'unread' ? 'font-bold' : ''}`}>{n.title}</p>
+                        <p className="text-[10px] text-secondary mt-0.5 break-words">{n.body}</p>
+                        <p className="text-[8px] text-secondary mt-1">{new Date(n.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {n.status === 'unread' && (
+                          <button onClick={() => handleMarkRead(n.id)} className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded bg-transparent border-0 cursor-pointer" title="Mark as read">
+                            <Check size={10} />
+                          </button>
+                        )}
+                        <button onClick={() => handleDelete(n.id)} className="p-1 text-secondary hover:text-rose-400 hover:bg-rose-500/10 rounded bg-transparent border-0 cursor-pointer" title="Delete">
+                          <Trash size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
   const { user, logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
-  
-  const navItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { name: 'IPO Records', icon: List, path: '/records' },
-    { name: 'Applicants', icon: Users, path: '/applicants' },
-    { name: 'IPO Master', icon: Globe, path: '/ipo-master' },
-    { name: 'Analytics', icon: PieChart, path: '/analytics' },
-    { name: 'Settings', icon: Settings, path: '/settings' },
+
+  const navSections = [
+    {
+      label: 'Overview',
+      items: [
+        { name: 'Dashboard',    icon: LayoutDashboard, path: '/' },
+        { name: 'Analytics',    icon: PieChart,        path: '/analytics' },
+      ]
+    },
+    {
+      label: 'Management',
+      items: [
+        { name: 'IPO Records',     icon: List,            path: '/records' },
+        { name: 'Applicants',      icon: Users,           path: '/applicants' },
+        { name: 'IPO Master',      icon: Globe,           path: '/ipo-master' },
+        { name: 'Auto Allotment',  icon: Check,           path: '/allotment' },
+        { name: 'Allotted Desk',   icon: TrendingUp,      path: '/allotted' },
+        { name: 'IPO Calendar',    icon: CalendarDays,    path: '/calendar' },
+      ]
+    },
+    {
+      label: 'Account',
+      items: [
+        { name: 'Settings',     icon: Settings,        path: '/settings' },
+      ]
+    },
   ];
 
-  if (user?.role === 'admin' || user?.role === 'master') {
-    navItems.push({ name: 'Admin Panel', icon: Shield, path: '/admin' });
-  }
+  const adminItem = { name: 'Admin Panel', icon: Shield, path: '/admin' };
+
+  const getRoleBadge = () => {
+    if (user?.role === 'master') return { label: 'Master Admin', color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' };
+    if (user?.role === 'admin')  return { label: 'Admin',        color: 'text-violet-400 bg-violet-400/10 border-violet-400/20' };
+    return { label: user?.subscription === 'pro' ? 'Pro' : 'Free', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' };
+  };
+
+  const roleBadge = getRoleBadge();
 
   return (
     <>
       {/* Mobile Backdrop */}
-      {isOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/60 z-30"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-      <motion.aside 
-        initial={{ x: -200, opacity: 0 }}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-30"
+            onClick={() => setIsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.aside
+        initial={{ x: -240, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className={`fixed md:relative top-0 left-0 h-full md:h-auto transition-transform duration-300 w-64 glass-card md:m-4 flex flex-col z-40 overflow-hidden ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+        className={`
+          fixed md:sticky top-0 left-0 h-screen w-64 z-40
+          flex flex-col shrink-0
+          border-r border-[var(--border)]
+          transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+        style={{ background: 'var(--sidebar-bg)', backdropFilter: 'blur(24px)' }}
       >
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-glow-primary flex items-center justify-center text-white relative">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
-                <polyline points="16 7 22 7 22 13"></polyline>
-            </svg>
-            <div className="absolute inset-0 bg-emerald-500 blur-lg opacity-40 rounded-xl"></div>
-          </div>
-          <div>
-            <h1 className="font-bold text-lg text-white leading-tight">{brandName}</h1>
-            <p className="text-xs text-secondary font-medium tracking-wide uppercase">Terminal Pro</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-        {navItems.filter(item => !item.adminOnly || user?.role === 'admin' || user?.role === 'master').map((item, index) => (
-          <NavLink
-            key={index}
-            to={item.path}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                isActive
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-glow'
-                  : 'text-secondary hover:bg-white/5 hover:text-white'
-              }`
-            }
-          >
-            <item.icon size={20} strokeWidth={2.5} />
-            <span className="font-medium text-sm">{item.name}</span>
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="p-4 border-t border-border shrink-0 bg-background/50">
-        <div 
-          onClick={() => navigate('/profile')}
-          className="flex items-center justify-between bg-black/40 p-2 pl-3 rounded-xl border border-border/50 hover:border-emerald-500/30 transition-all group cursor-pointer"
-        >
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-              <UserCircle size={18} />
+        {/* Brand */}
+        <div className="px-4 py-4 border-b border-[var(--border)] shrink-0 flex justify-between items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <TrendingUp size={17} strokeWidth={2.5} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-gray-200 truncate">{user?.username}</div>
-              <div className="text-[10px] text-emerald-500 font-bold tracking-wider">
-                {user?.role === 'master' ? <span className="text-amber-400">MASTER ADMIN</span> : user?.role === 'admin' ? 'ADMINISTRATOR' : 'USER'}
+            <div>
+              <div className="font-bold text-[0.875rem] text-white leading-tight tracking-tight">{brandName}</div>
+              <div className="text-[0.6rem] text-[var(--text-muted)] font-medium tracking-wider uppercase mt-0.5">Portfolio Pro</div>
+            </div>
+          </div>
+          <NotificationBell />
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto custom-scrollbar py-3 px-2.5 space-y-4">
+          {navSections.map(section => (
+            <div key={section.label}>
+              <div className="section-label px-2 mb-1">{section.label}</div>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === '/'}
+                    onClick={() => setIsOpen(false)}
+                    className={({ isActive }) =>
+                      `nav-item group ${isActive ? 'active' : ''}`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon
+                          size={16}
+                          strokeWidth={isActive ? 2.5 : 1.8}
+                          className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-zinc-200 transition-colors'}
+                        />
+                        <span className="flex-1 min-w-0 truncate">{item.name}</span>
+                        {isActive && (
+                          <ChevronRight size={12} className="text-indigo-400/50 shrink-0" />
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
               </div>
             </div>
-          </div>
-          
-          <button 
-            onClick={(e) => { e.stopPropagation(); setShowLogoutConfirm(true); }}
-            className="p-2 text-secondary hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all shrink-0"
-            title="Log Out"
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
-      </div>
-    </motion.aside>
+          ))}
 
-      <ConfirmModal 
+          {/* Admin item */}
+          {(user?.role === 'admin' || user?.role === 'master') && (
+            <div>
+              <div className="section-label px-2 mb-1">System</div>
+              <div className="space-y-0.5">
+                <NavLink
+                  to={adminItem.path}
+                  onClick={() => setIsOpen(false)}
+                  className={({ isActive }) => `nav-item group ${isActive ? 'active' : ''}`}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <adminItem.icon
+                        size={16}
+                        strokeWidth={isActive ? 2.5 : 1.8}
+                        className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-zinc-200 transition-colors'}
+                      />
+                      <span className="flex-1">{adminItem.name}</span>
+                    </>
+                  )}
+                </NavLink>
+              </div>
+            </div>
+          )}
+        </nav>
+
+        {/* User Footer */}
+        <div className="shrink-0 px-2.5 py-3 border-t border-[var(--border)]">
+          <div
+            onClick={() => { navigate('/profile'); setIsOpen(false); }}
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer
+              bg-[var(--surface-2)] border border-[var(--border)]
+              hover:border-indigo-500/30 hover:bg-indigo-500/[0.04]
+              transition-all duration-150 group"
+          >
+            {/* Avatar */}
+            <div className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
+              <UserCircle size={16} />
+            </div>
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="text-[0.78rem] font-semibold text-zinc-200 truncate leading-tight">{user?.username}</div>
+              <div className={`text-[0.58rem] font-bold uppercase tracking-wider mt-0.5 inline-flex items-center px-1.5 py-0.2 rounded border ${roleBadge.color}`}>
+                {roleBadge.label}
+              </div>
+            </div>
+            {/* Logout */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowLogoutConfirm(true); }}
+              className="p-1 text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all shrink-0"
+              title="Log Out"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+      </motion.aside>
+
+      <ConfirmModal
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={logout}

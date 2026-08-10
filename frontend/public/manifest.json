@@ -1,0 +1,17 @@
+{
+  "short_name": "IPO Tracker",
+  "name": "IPO Tracker — Portfolio & Allotment Manager",
+  "description": "Track live IPO GMP, multi-account family applications, allotment status, and capital gains tax.",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#09090b",
+  "theme_color": "#4f46e5",
+  "display": "standalone",
+  "orientation": "portrait"
+}
