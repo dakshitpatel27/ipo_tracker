@@ -126,8 +126,56 @@ console.error = function(...args) {
     originalError.apply(console, args);
 };
 
-app.use(cors());
+// ========== SECURITY HEADERS & CORS MIDDLEWARE ==========
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+    : [];
+
+app.use(cors({
+    origin: function(origin, callback) {
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin) || process.env.VERCEL) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS policy violation: Origin not allowed'));
+        }
+    },
+    credentials: true
+}));
+
 app.use(bodyParser.json());
+
+// In-memory sliding window rate limiter for sensitive authentication endpoints
+const authRateAttempts = new Map();
+function authRateLimiter(maxAttempts = 10, windowMs = 15 * 60 * 1000) {
+    return (req, res, next) => {
+        const ip = getClientIp(req);
+        const now = Date.now();
+        const record = authRateAttempts.get(ip) || { count: 0, resetTime: now + windowMs };
+
+        if (now > record.resetTime) {
+            record.count = 1;
+            record.resetTime = now + windowMs;
+        } else {
+            record.count++;
+        }
+
+        authRateAttempts.set(ip, record);
+
+        if (record.count > maxAttempts) {
+            return res.status(429).json({ error: 'Too many authentication attempts. Please try again in 15 minutes.' });
+        }
+        next();
+    };
+}
 
 // Start background cron jobs (only locally, Vercel uses cron endpoints)
 if (!process.env.VERCEL) {
@@ -143,9 +191,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret123';
+if (!process.env.JWT_SECRET) {
+    console.warn('[SECURITY WARNING] JWT_SECRET environment variable is not set! Using default fallback secret.');
+}
 
 // --- AUTH API ---
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, res) => {
     const { username, password, email } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
@@ -209,7 +260,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
         if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
@@ -253,7 +304,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Complete 2FA Login Flow
-app.post('/api/auth/login/2fa', (req, res) => {
+app.post('/api/auth/login/2fa', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
     const { username, token } = req.body;
     if (!username || !token) {
         return res.status(400).json({ error: 'Username and TOTP token required' });
