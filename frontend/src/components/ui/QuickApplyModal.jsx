@@ -1,30 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, CheckSquare, Square, Zap, ShieldAlert } from 'lucide-react';
+import { X, Users, CheckSquare, Square, Zap, ShieldAlert, Wallet, AlertTriangle } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
 
 export default function QuickApplyModal({ isOpen, onClose, ipo = null, onApplied }) {
   const [applicants, setApplicants] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [bankAccountId, setBankAccountId] = useState('');
   const [quota, setQuota] = useState('Retail');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      fetchApplicants();
+      fetchInitialData();
     }
   }, [isOpen]);
 
-  const fetchApplicants = async () => {
+  const fetchInitialData = async () => {
     try {
-      const data = await api.getApplicants();
-      setApplicants(data || []);
-      // Select all by default
-      if (data && data.length > 0) {
-        setSelectedIds(data.map(a => a.id));
+      const [appData, acctData] = await Promise.all([
+        api.getApplicants(),
+        api.getBankAccounts()
+      ]);
+      setApplicants(appData || []);
+      setBankAccounts(acctData || []);
+      if (appData && appData.length > 0) {
+        setSelectedIds(appData.map(a => a.id));
       }
     } catch (err) {
-      toast.error('Failed to load applicants');
+      toast.error('Failed to load initial data');
     }
   };
 
@@ -89,7 +94,8 @@ export default function QuickApplyModal({ isOpen, onClose, ipo = null, onApplied
         lotSize: ipo.lotSize || '1',
         price: maxPrice,
         quota,
-        applicantIds: selectedIds
+        applicantIds: selectedIds,
+        bankAccountId: bankAccountId || null
       });
       toast.success(`Successfully created ${selectedIds.length} application records for ${ipo.name}!`);
       if (onApplied) onApplied();
@@ -139,20 +145,57 @@ export default function QuickApplyModal({ isOpen, onClose, ipo = null, onApplied
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Quota Category</label>
-            <select
-              value={quota}
-              onChange={(e) => setQuota(e.target.value)}
-              className="input-field bg-[#18181b]"
-            >
-              <option value="Retail">Retail (IND)</option>
-              <option value="sHNI">Small HNI (sHNI)</option>
-              <option value="bHNI">Big HNI (bHNI)</option>
-              <option value="Employee">Employee Quota</option>
-              <option value="Shareholder">Shareholder Quota</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Quota Category</label>
+              <select
+                value={quota}
+                onChange={(e) => setQuota(e.target.value)}
+                className="input-field bg-[#18181b]"
+              >
+                <option value="Retail">Retail (IND)</option>
+                <option value="sHNI">Small HNI (sHNI)</option>
+                <option value="bHNI">Big HNI (bHNI)</option>
+                <option value="Employee">Employee Quota</option>
+                <option value="Shareholder">Shareholder Quota</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
+                <Wallet size={12} className="text-indigo-400" /> Bank Account
+              </label>
+              <select
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+                className="input-field bg-[#18181b]"
+              >
+                <option value="">— No Account Linked —</option>
+                {bankAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.accountName} (₹{parseFloat(acc.balance || 0).toLocaleString('en-IN')})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {bankAccountId && (() => {
+            const selectedAcc = bankAccounts.find(a => a.id === bankAccountId);
+            if (!selectedAcc) return null;
+            const bal = parseFloat(selectedAcc.balance) || 0;
+            const totalRequired = totalAmountPerApp * selectedIds.length;
+            const isLow = totalRequired > bal;
+            return (
+              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border ${
+                isLow ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              }`}>
+                {isLow ? <AlertTriangle size={14} /> : <Wallet size={14} />}
+                <span className="font-semibold">Available: ₹{bal.toLocaleString('en-IN')}</span>
+                {isLow && <span className="text-[10px]">• Total required (₹{totalRequired.toLocaleString('en-IN')}) exceeds balance!</span>}
+              </div>
+            );
+          })()}
 
           {/* Applicant Selection */}
           <div>

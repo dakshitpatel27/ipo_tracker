@@ -7,6 +7,7 @@ import Applicants from './pages/Applicants';
 import IpoMaster from './pages/IpoMaster';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Accounts from './pages/Accounts';
 import Auth from './pages/Auth';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
@@ -24,7 +25,6 @@ import RealtimeNotificationListener from './components/ui/RealtimeNotificationLi
 import TradingTicker from './components/ui/TradingTicker';
 import AnimatedPage from './components/ui/AnimatedPage';
 import MobileBottomNav from './components/layout/MobileBottomNav';
-import PasscodeLockModal from './components/ui/PasscodeLockModal';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (
@@ -49,15 +49,6 @@ function App() {
   const [globalBanner, setGlobalBanner] = useState('');
   const [brandName, setBrandName] = useState('IPO Tracker');
   const [brandColor, setBrandColor] = useState('');
-  const [isLocked, setIsLocked] = useState(false);
-
-  React.useEffect(() => {
-    if (user) {
-      api.getPinStatus().then(enabled => {
-        if (enabled) setIsLocked(true);
-      }).catch(() => {});
-    }
-  }, [user]);
 
   React.useEffect(() => {
     const savedTheme = localStorage.getItem('ipo_theme');
@@ -194,6 +185,7 @@ function App() {
             <Routes location={location} key={location.pathname}>
               <Route path="/"         element={<AnimatedPage><Dashboard /></AnimatedPage>} />
               <Route path="/records"  element={<AnimatedPage><Records /></AnimatedPage>} />
+              <Route path="/accounts" element={<AnimatedPage><Accounts /></AnimatedPage>} />
               <Route path="/applicants" element={<AnimatedPage><Applicants /></AnimatedPage>} />
               <Route path="/ipo-master" element={<AnimatedPage><IpoMaster /></AnimatedPage>} />
               <Route path="/calendar" element={<AnimatedPage><Calendar /></AnimatedPage>} />
@@ -265,7 +257,6 @@ function App() {
       </Toaster>
       <CommandPalette />
       <RealtimeNotificationListener />
-      <PasscodeLockModal isLocked={isLocked} onUnlock={() => setIsLocked(false)} />
     </div>
   );
 }

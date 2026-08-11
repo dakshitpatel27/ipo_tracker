@@ -13,6 +13,13 @@ import { useAuth } from '../context/AuthContext';
 import InsightCard from '../components/ui/InsightCard';
 import AllotmentPredictor from '../components/ui/AllotmentPredictor';
 import AllotmentOddsCalculator from '../components/ui/AllotmentOddsCalculator';
+import BenchmarkRadar from '../components/ui/BenchmarkRadar';
+import PreOpenCalculator from '../components/ui/PreOpenCalculator';
+import AnchorLockupCalendar from '../components/ui/AnchorLockupCalendar';
+import KostakCalculator from '../components/ui/KostakCalculator';
+import ShareableGainCard from '../components/ui/ShareableGainCard';
+import TraderBadges from '../components/ui/TraderBadges';
+import ThemeCustomizer from '../components/ui/ThemeCustomizer';
 import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
 import { getRecordProfit } from '../utils/profitCalculator';
@@ -479,6 +486,13 @@ const Dashboard = () => {
 
       {/* Advanced AI & Reserve Planner Widgets */}
       <div className="space-y-6">
+        <TraderBadges />
+        <ShareableGainCard ipoName="Swiggy / Mainboard IPO" profit={18500} returnPct={124.5} applicant="Primary" />
+        <ThemeCustomizer />
+        <PreOpenCalculator issuePrice={390} gmp={115} lotSize={38} />
+        <AnchorLockupCalendar ipoName="Swiggy / Mainboard IPO" listingDate="2026-08-01" />
+        <KostakCalculator />
+        <BenchmarkRadar records={records} />
         <AllotmentOddsCalculator />
         <AllotmentPredictor ipoName="Live Swiggy / Mainboard IPO" retailSub={14.8} qibSub={52.1} niiSub={31.4} issuePrice={390} expectedGmp={115} />
         <FundReservePlanner applicantsCount={3} />

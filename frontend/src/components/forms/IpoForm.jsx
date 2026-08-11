@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Loader2, Wallet, AlertTriangle } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
 
@@ -25,6 +25,7 @@ const DEFAULT_FORM = {
   dematId: '',
   bankAccount: '',
   ifscCode: '',
+  bankAccountId: '',
 };
 
 const getChargesBreakdown = (data) => {
@@ -81,6 +82,7 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState(DEFAULT_FORM);
 
   const [applicants, setApplicants] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loadingFinAPI, setLoadingFinAPI] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState(null);
 
@@ -121,7 +123,16 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
         console.error('Failed to load applicants:', err);
       }
     }
+    async function loadBankAccounts() {
+      try {
+        const data = await api.getBankAccounts();
+        if (data) setBankAccounts(data);
+      } catch(err) {
+        console.error('Failed to load bank accounts:', err);
+      }
+    }
     loadApplicants();
+    loadBankAccounts();
   }, []);
 
 
@@ -291,6 +302,39 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
             <option value="Shareholder">Shareholder</option>
             <option value="Employee">Employee</option>
           </select>
+        </div>
+
+        {/* Bank Account Selection */}
+        <div className="space-y-2 col-span-1 md:col-span-2">
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider flex items-center gap-1.5">
+            <Wallet size={12} className="text-indigo-400" /> Bank Account (for balance tracking)
+          </label>
+          <select name="bankAccountId" value={formData.bankAccountId || ''} onChange={handleChange} className="input-field appearance-none bg-black/40">
+            <option value="">— No Account Linked —</option>
+            {bankAccounts.map(acc => (
+              <option key={acc.id} value={acc.id}>
+                {acc.accountName} ({acc.bankName}) — ₹{parseFloat(acc.balance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+              </option>
+            ))}
+          </select>
+          {formData.bankAccountId && (() => {
+            const selectedAcc = bankAccounts.find(a => a.id === formData.bankAccountId);
+            if (!selectedAcc) return null;
+            const bal = parseFloat(selectedAcc.balance) || 0;
+            const amt = parseFloat(formData.amount) || 0;
+            const isLow = amt > 0 && amt > bal;
+            return (
+              <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border ${
+                isLow 
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' 
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              }`}>
+                {isLow ? <AlertTriangle size={12} /> : <Wallet size={12} />}
+                <span className="font-semibold">Available: ₹{bal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+                {isLow && <span className="text-[10px]">• IPO amount exceeds balance!</span>}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Row 3 */}

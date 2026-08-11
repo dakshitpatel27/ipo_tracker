@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, FileSpreadsheet, Users, DollarSign, CheckSquare, Square } from 'lucide-react';
+import { X, Copy, Check, FileSpreadsheet, Users, DollarSign, CheckSquare, Square, Wallet, AlertTriangle } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
 
 export default function BatchAsbaModal({ isOpen, onClose }) {
   const [applicants, setApplicants] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [selectedApplicantIds, setSelectedApplicantIds] = useState([]);
+  const [bankAccountId, setBankAccountId] = useState('');
   const [ipoName, setIpoName] = useState('');
   const [lotSize, setLotSize] = useState('1');
   const [price, setPrice] = useState('100');
@@ -15,20 +17,23 @@ export default function BatchAsbaModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      fetchApplicants();
+      fetchInitialData();
     }
   }, [isOpen]);
 
-  const fetchApplicants = async () => {
+  const fetchInitialData = async () => {
     try {
-      const data = await api.getApplicants();
-      setApplicants(data || []);
-      // Select all by default
-      if (data && data.length > 0) {
-        setSelectedApplicantIds(data.map(a => a.id));
+      const [appData, acctData] = await Promise.all([
+        api.getApplicants(),
+        api.getBankAccounts()
+      ]);
+      setApplicants(appData || []);
+      setBankAccounts(acctData || []);
+      if (appData && appData.length > 0) {
+        setSelectedApplicantIds(appData.map(a => a.id));
       }
     } catch (e) {
-      toast.error('Failed to load applicants');
+      toast.error('Failed to load applicants or accounts');
     }
   };
 
@@ -113,7 +118,7 @@ export default function BatchAsbaModal({ isOpen, onClose }) {
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          <form onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white/[0.02] p-4 rounded-xl border border-white/5">
+          <form onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white/[0.02] p-4 rounded-xl border border-white/5">
             <div>
               <label className="block text-xs font-semibold text-white/80 mb-1">Target IPO Name</label>
               <input
@@ -146,7 +151,24 @@ export default function BatchAsbaModal({ isOpen, onClose }) {
                 className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
-            <div className="md:col-span-3 flex justify-end">
+            <div>
+              <label className="block text-xs font-semibold text-white/80 mb-1 flex items-center gap-1">
+                <Wallet size={12} className="text-indigo-400" /> Bank Account
+              </label>
+              <select
+                value={bankAccountId}
+                onChange={e => setBankAccountId(e.target.value)}
+                className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">— Select Account —</option>
+                {bankAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.accountName} (₹{parseFloat(acc.balance || 0).toLocaleString('en-IN')})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-4 flex justify-end">
               <button
                 type="submit"
                 disabled={loading}

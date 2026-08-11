@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, List, CheckCircle2, Users, Settings } from 'lucide-react';
+import { LayoutDashboard, List, CheckCircle2, Wallet, Settings } from 'lucide-react';
 
 export default function MobileBottomNav() {
   const location = useLocation();
@@ -8,8 +8,8 @@ export default function MobileBottomNav() {
   const navItems = [
     { path: '/', label: 'Home', icon: LayoutDashboard },
     { path: '/records', label: 'Records', icon: List },
+    { path: '/accounts', label: 'Accounts', icon: Wallet },
     { path: '/allotted', label: 'Allotted', icon: CheckCircle2 },
-    { path: '/applicants', label: 'Applicants', icon: Users },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 

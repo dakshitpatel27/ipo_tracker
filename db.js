@@ -114,7 +114,14 @@ const initSchema = () => {
         telegramChatId TEXT,
         telegramAlerts INTEGER DEFAULT 0,
         appPin TEXT,
-        pinEnabled INTEGER DEFAULT 0
+        pinEnabled INTEGER DEFAULT 0,
+        whatsappNumber TEXT,
+        whatsappAlerts INTEGER DEFAULT 0,
+        webauthnKey TEXT,
+        ipWhiteList TEXT,
+        advanceTaxEst REAL DEFAULT 0,
+        biometricEnabled INTEGER DEFAULT 0,
+        themeAccent TEXT DEFAULT 'emerald'
     )`, () => {
         db.run(`ALTER TABLE users ADD COLUMN fcmTokens TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN role TEXT`, () => {});
@@ -131,6 +138,13 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN telegramAlerts INTEGER DEFAULT 0`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN appPin TEXT`, () => {});
         db.run(`ALTER TABLE users ADD COLUMN pinEnabled INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN whatsappNumber TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN whatsappAlerts INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN webauthnKey TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN ipWhiteList TEXT`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN advanceTaxEst REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN biometricEnabled INTEGER DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE users ADD COLUMN themeAccent TEXT DEFAULT 'emerald'`, () => {});
     });
 
     // 2. Records
@@ -173,15 +187,26 @@ const initSchema = () => {
         dpCharges REAL DEFAULT 0,
         gst REAL DEFAULT 0,
         netProfit REAL DEFAULT 0,
-        tags TEXT DEFAULT '[]'
+        tags TEXT DEFAULT '[]',
+        bankName TEXT,
+        mandateStatus TEXT DEFAULT 'Requested',
+        mandateUpiId TEXT,
+        sector TEXT,
+        peRatio REAL,
+        gmpTrend TEXT,
+        anchorLockupDays INTEGER,
+        kostakPrice REAL,
+        saudaPrice REAL,
+        preOpenPrice REAL,
+        targetPrice REAL,
+        stopLoss REAL,
+        aisStatus TEXT DEFAULT 'Verified'
     )`, () => {
         db.run(`ALTER TABLE records ADD COLUMN sellDate TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN sellPrice REAL`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN holdingStatus TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN gmp REAL`, () => {});
-        // Feature 10: Refund Tracker
         db.run(`ALTER TABLE records ADD COLUMN refundStatus TEXT DEFAULT 'pending'`, () => {});
-        // Feature 5: Smart Allotment Check
         db.run(`ALTER TABLE records ADD COLUMN registrar TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN dematId TEXT`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN bankAccount TEXT`, () => {});
@@ -195,6 +220,19 @@ const initSchema = () => {
         db.run(`ALTER TABLE records ADD COLUMN gst REAL DEFAULT 0`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN netProfit REAL DEFAULT 0`, () => {});
         db.run(`ALTER TABLE records ADD COLUMN tags TEXT DEFAULT '[]'`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN bankName TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN mandateStatus TEXT DEFAULT 'Requested'`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN mandateUpiId TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN sector TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN peRatio REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN gmpTrend TEXT`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN anchorLockupDays INTEGER`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN kostakPrice REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN saudaPrice REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN preOpenPrice REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN targetPrice REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN stopLoss REAL`, () => {});
+        db.run(`ALTER TABLE records ADD COLUMN aisStatus TEXT DEFAULT 'Verified'`, () => {});
     });
 
     // 3. Applicants
@@ -209,16 +247,35 @@ const initSchema = () => {
         dematId TEXT,
         bankAccount TEXT,
         ifscCode TEXT,
-        commissionPct REAL DEFAULT 0
+        commissionPct REAL DEFAULT 0,
+        kycExpiry TEXT,
+        bankBalance REAL DEFAULT 0,
+        priorityOrder INTEGER DEFAULT 1,
+        groupTag TEXT DEFAULT 'Family'
     )`, () => {
         db.run(`ALTER TABLE applicants ADD COLUMN family TEXT`, () => {});
         db.run(`ALTER TABLE applicants ADD COLUMN dematId TEXT`, () => {});
         db.run(`ALTER TABLE applicants ADD COLUMN bankAccount TEXT`, () => {});
         db.run(`ALTER TABLE applicants ADD COLUMN ifscCode TEXT`, () => {});
         db.run(`ALTER TABLE applicants ADD COLUMN commissionPct REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN kycExpiry TEXT`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN bankBalance REAL DEFAULT 0`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN priorityOrder INTEGER DEFAULT 1`, () => {});
+        db.run(`ALTER TABLE applicants ADD COLUMN groupTag TEXT DEFAULT 'Family'`, () => {});
     });
     
-    // 4. Notifications
+    // 4. Journal Entries
+    db.run(`CREATE TABLE IF NOT EXISTS journal_entries (
+        id TEXT PRIMARY KEY,
+        recordId TEXT,
+        userId TEXT,
+        notes TEXT,
+        rating INTEGER DEFAULT 5,
+        tags TEXT DEFAULT '[]',
+        createdAt TEXT
+    )`);
+    
+    // 5. Notifications
     db.run(`CREATE TABLE IF NOT EXISTS notifications (
         id TEXT PRIMARY KEY,
         title TEXT,
@@ -296,8 +353,39 @@ const initSchema = () => {
         lastActiveAt TEXT,
         token TEXT
     )`);
-};
 
+    // 11. Bank Accounts (Expense Tracker)
+    db.run(`CREATE TABLE IF NOT EXISTS bank_accounts (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        accountName TEXT,
+        bankName TEXT,
+        accountNumber TEXT,
+        ifscCode TEXT,
+        accountType TEXT DEFAULT 'Savings',
+        balance REAL DEFAULT 0,
+        color TEXT DEFAULT '#6366f1',
+        createdAt TEXT
+    )`);
+
+    // 12. Transactions (Passbook Ledger)
+    db.run(`CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        bankAccountId TEXT,
+        type TEXT,
+        category TEXT,
+        amount REAL DEFAULT 0,
+        runningBalance REAL DEFAULT 0,
+        description TEXT,
+        referenceId TEXT,
+        date TEXT,
+        createdAt TEXT
+    )`);
+
+    // Add bankAccountId to records table if not exists
+    db.run(`ALTER TABLE records ADD COLUMN bankAccountId TEXT`, () => {});
+};
 // Wait slightly for connection to establish before schema init
 setTimeout(initSchema, 500);
 

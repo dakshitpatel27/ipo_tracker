@@ -118,102 +118,102 @@ const TelegramSettingsForm = () => {
   );
 };
 
-const PinSettingsForm = () => {
-  const [pinEnabled, setPinEnabled] = useState(false);
-  const [newPin, setNewPin] = useState('');
+const WhatsappSettingsForm = () => {
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappAlerts, setWhatsappAlerts] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
-    async function loadPinStatus() {
+    async function loadWhatsapp() {
       try {
-        const enabled = await api.getPinStatus();
-        setPinEnabled(enabled);
+        const settings = await api.getWhatsappSettings();
+        if (settings) {
+          setWhatsappNumber(settings.whatsappNumber || '');
+          setWhatsappAlerts(!!settings.whatsappAlerts);
+        }
       } catch (e) {}
     }
-    loadPinStatus();
+    loadWhatsapp();
   }, []);
 
-  const handleSetPin = async (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      toast.error('PIN must be exactly 4 digits');
-      return;
-    }
     setLoading(true);
     try {
-      await api.setPin(newPin);
-      setPinEnabled(true);
-      setNewPin('');
-      toast.success('🔒 4-Digit Security Passcode PIN enabled!');
+      await api.saveWhatsappSettings({ whatsappNumber, whatsappAlerts });
+      toast.success('💬 WhatsApp alert settings saved!');
     } catch (err) {
-      toast.error(err.message || 'Failed to set PIN');
+      toast.error(err.message || 'Failed to save WhatsApp settings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDisablePin = async () => {
-    setLoading(true);
+  const handleTest = async () => {
+    if (!whatsappNumber) {
+      toast.error('Please enter your WhatsApp phone number first');
+      return;
+    }
+    setTesting(true);
     try {
-      await api.disablePin();
-      setPinEnabled(false);
-      toast.success('Security PIN lock disabled');
+      await api.testWhatsapp(whatsappNumber);
+      toast.success('📲 Test alert sent to your WhatsApp number!');
     } catch (err) {
-      toast.error(err.message || 'Failed to disable PIN');
+      toast.error(err.message || 'WhatsApp test failed');
     } finally {
-      setLoading(false);
+      setTesting(false);
     }
   };
 
   return (
-    <div className="p-4 bg-black/20 border border-border rounded-xl space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-white text-sm">4-Digit Security Passcode PIN</h3>
-          <p className="text-xs text-secondary mt-0.5">Require a 4-digit PIN on app launch or tab focus to protect sensitive financial records.</p>
-        </div>
-        <div>
-          {pinEnabled ? (
-            <span className="badge badge-emerald">PIN Active</span>
-          ) : (
-            <span className="badge badge-gray">PIN Disabled</span>
-          )}
-        </div>
+    <form onSubmit={handleSave} className="bg-black/20 p-4 rounded-xl border border-border space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-emerald-400 font-bold text-xs">💬 WhatsApp Instant Gateway</span>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-white/80 mb-1">WhatsApp Mobile Number (with country code)</label>
+        <input
+          type="text"
+          placeholder="e.g. +919876543210"
+          value={whatsappNumber}
+          onChange={e => setWhatsappNumber(e.target.value)}
+          className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+        />
       </div>
 
-      {pinEnabled ? (
-        <div className="flex items-center justify-between pt-2 border-t border-border/50">
-          <span className="text-xs text-white/70">Your application is protected with a 4-digit passcode PIN.</span>
-          <button
-            onClick={handleDisablePin}
-            disabled={loading}
-            className="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-semibold transition-colors"
-          >
-            {loading ? 'Disabling...' : 'Disable PIN Lock'}
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSetPin} className="flex items-center gap-3 pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between pt-2">
+        <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
           <input
-            type="password"
-            maxLength={4}
-            placeholder="Set 4-Digit PIN"
-            value={newPin}
-            onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
-            className="bg-[#09090b] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white text-center font-mono tracking-widest w-36 focus:outline-none focus:border-indigo-500"
+            type="checkbox"
+            checked={whatsappAlerts}
+            onChange={e => setWhatsappAlerts(e.target.checked)}
+            className="rounded border-white/20 bg-transparent text-emerald-500"
           />
+          Enable Instant WhatsApp Alerts for Allotments & Live GMP Swings
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testing}
+            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors"
+          >
+            {testing ? 'Sending...' : 'Test WhatsApp'}
+          </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors"
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
           >
-            {loading ? 'Enabling...' : 'Enable Security PIN'}
+            {loading ? 'Saving...' : 'Save Config'}
           </button>
-        </form>
-      )}
-    </div>
+        </div>
+      </div>
+    </form>
   );
 };
+
 
 const Settings = () => {
   const { user } = useAuth();
@@ -519,11 +519,6 @@ const Settings = () => {
               )}
             </section>
 
-            {/* Passcode PIN Lock Section */}
-            <section className="space-y-4 pt-4 border-t border-border">
-              <h2 className="text-base font-bold text-white border-b border-border pb-2">App Security Passcode PIN Lock</h2>
-              <PinSettingsForm />
-            </section>
 
             {/* Session Management Section */}
             <section className="space-y-4">
@@ -747,6 +742,7 @@ const Settings = () => {
               <p className="text-xs text-secondary">Connect a Telegram Bot to receive instant GMP surges, daily digests, and allotment announcements directly on your Telegram app.</p>
               
               <TelegramSettingsForm />
+              <WhatsappSettingsForm />
             </section>
 
             <div className="pt-6 border-t border-border flex justify-end">

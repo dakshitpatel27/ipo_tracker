@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import TradingSparkline from '../components/ui/TradingSparkline';
 import confetti from 'canvas-confetti';
 import Trading3DCard from '../components/ui/Trading3DCard';
+import AsbaOpportunityLoss from '../components/ui/AsbaOpportunityLoss';
+import FamilyProfitLedger from '../components/ui/FamilyProfitLedger';
 import { getRecordProfit } from '../utils/profitCalculator';
 
 export default function AllottedPortfolio() {
@@ -193,18 +195,32 @@ export default function AllottedPortfolio() {
               <span className="text-xl font-black font-mono text-amber-400">
                 ₹{(totalRealizedProfit > 0 ? totalRealizedProfit * 0.20 : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </span>
-              <button
-                onClick={() => window.open('/api/reports/ca-tax-audit-pdf?token=' + localStorage.getItem('ipo_token'), '_blank')}
-                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold block mt-1 underline"
-              >
-                🖨️ CA Tax Audit Report
-              </button>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <button
+                  onClick={() => window.open('/api/reports/ca-tax-audit-pdf?token=' + localStorage.getItem('ipo_token'), '_blank')}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold block underline"
+                >
+                  🖨️ CA Audit PDF
+                </button>
+                <button
+                  onClick={() => window.open('/api/reports/itr2-json?token=' + localStorage.getItem('ipo_token'), '_blank')}
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold block underline"
+                >
+                  📑 ITR-2 JSON
+                </button>
+              </div>
             </div>
             <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <ShieldCheck size={20} />
             </div>
           </div>
         </Trading3DCard>
+      </div>
+
+      {/* ASBA Interest Opportunity Loss & Family Settlement Widgets */}
+      <div className="space-y-4">
+        <AsbaOpportunityLoss />
+        <FamilyProfitLedger records={records} applicants={applicants} />
       </div>
 
       {/* Tabs Header */}

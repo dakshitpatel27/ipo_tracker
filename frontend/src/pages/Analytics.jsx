@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Target, TrendingUp, Users, Trophy, Printer, Crown, Download } from 'lucide-react';
 import PageLoader from '../components/ui/PageLoader';
+import ApplicantHeatmap from '../components/ui/ApplicantHeatmap';
+import TaxHarvestingPlanner from '../components/ui/TaxHarvestingPlanner';
 import { getRecordProfit } from '../utils/profitCalculator';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#8b5cf6'];
@@ -210,7 +212,8 @@ const Analytics = () => {
         )}
       </motion.div>
 
-      {/* ─── Charts Row ─────────────────────────────────────────────────────── */}
+      {/* Family Allotment Heatmap */}
+      <ApplicantHeatmap />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-6 h-96 flex flex-col">
           <h3 className="text-lg font-bold text-white mb-4">Profit by Applicant</h3>
@@ -301,6 +304,9 @@ const Analytics = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Tax Loss Harvesting Assistant */}
+      <TaxHarvestingPlanner records={records} />
 
       {/* ─── Feature 7: Print-only Full Table ──────────────────────────────── */}
       <div className="hidden print:block mt-8">

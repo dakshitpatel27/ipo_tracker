@@ -810,5 +810,123 @@ export const api = {
       body: JSON.stringify(payload)
     });
     return parseResponse(res);
+  },
+
+  // --- WhatsApp API ---
+  async getWhatsappSettings() {
+    const res = await fetch(`${API_URL}/user/whatsapp`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  async saveWhatsappSettings(payload) {
+    const res = await fetch(`${API_URL}/user/whatsapp`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async testWhatsapp(phone) {
+    const res = await fetch(`${API_URL}/webhooks/whatsapp/test`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ phone })
+    });
+    return parseResponse(res);
+  },
+
+  // --- Family Heatmap API ---
+  async getFamilyHeatmap() {
+    const res = await fetch(`${API_URL}/analytics/family-heatmap`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  // --- Mandate Status API ---
+  async updateMandateStatus(recordId, payload) {
+    const res = await fetch(`${API_URL}/records/${recordId}/mandate`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  // --- Advance Tax API ---
+  async getAdvanceTax() {
+    const res = await fetch(`${API_URL}/analytics/advance-tax`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  // --- Journal API ---
+  async getJournalEntries() {
+    const res = await fetch(`${API_URL}/journal`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  async saveJournalEntry(payload) {
+    const res = await fetch(`${API_URL}/journal`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  // --- Bank Accounts API ---
+  async getBankAccounts() {
+    const res = await fetch(`${API_URL}/bank-accounts`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data || [];
+  },
+
+  async addBankAccount(payload) {
+    const res = await fetch(`${API_URL}/bank-accounts`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async updateBankAccount(id, payload) {
+    const res = await fetch(`${API_URL}/bank-accounts/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async deleteBankAccount(id) {
+    const res = await fetch(`${API_URL}/bank-accounts/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  // --- Transactions Passbook API ---
+  async getTransactions(bankAccountId, category, limit) {
+    let url = `${API_URL}/transactions?`;
+    if (bankAccountId) url += `bankAccountId=${bankAccountId}&`;
+    if (category) url += `category=${category}&`;
+    if (limit) url += `limit=${limit}&`;
+    const res = await fetch(url, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data || [];
+  },
+
+  async addTransaction(payload) {
+    const res = await fetch(`${API_URL}/transactions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
   }
 };

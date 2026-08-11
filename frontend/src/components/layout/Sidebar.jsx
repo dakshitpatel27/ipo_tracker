@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, List, Settings, PieChart, Users,
   Globe, Shield, LogOut, UserCircle, CalendarDays,
-  TrendingUp, ChevronRight, Bell, Check, Trash
+  TrendingUp, ChevronRight, Bell, Check, Trash, Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
@@ -134,6 +134,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
       label: 'Management',
       items: [
         { name: 'IPO Records',     icon: List,            path: '/records' },
+        { name: 'Accounts',        icon: Wallet,          path: '/accounts' },
         { name: 'Applicants',      icon: Users,           path: '/applicants' },
         { name: 'IPO Master',      icon: Globe,           path: '/ipo-master' },
         { name: 'Auto Allotment',  icon: Check,           path: '/allotment' },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Zap, Users, CheckCircle2, ChevronRight, ChevronLeft, ShieldCheck, Calculator } from 'lucide-react';
+import { X, Zap, Users, CheckCircle2, ChevronRight, ChevronLeft, ShieldCheck, Calculator, Wallet, AlertTriangle } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
 
@@ -7,8 +7,10 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
   const [step, setStep] = useState(1); // Step 1: Select IPO & Applicants | Step 2: Bidding & Lots
   const [ipos, setIpos] = useState([]);
   const [applicants, setApplicants] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [selectedIpo, setSelectedIpo] = useState(null);
   const [selectedApplicantIds, setSelectedApplicantIds] = useState([]);
+  const [bankAccountId, setBankAccountId] = useState('');
   const [lots, setLots] = useState(1);
   const [quota, setQuota] = useState('Retail');
   const [loading, setLoading] = useState(false);
@@ -23,12 +25,14 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [appData, ipoRes] = await Promise.all([
+      const [appData, acctData, ipoRes] = await Promise.all([
         api.getApplicants(),
+        api.getBankAccounts(),
         fetch('https://finapi.upvaly.com/api/ipo').then(r => r.json()).catch(() => ({ data: [] }))
       ]);
 
       setApplicants(appData || []);
+      setBankAccounts(acctData || []);
       const liveIpos = (ipoRes.data || []).filter(i => (i.status || '').toUpperCase() === 'LIVE' || (i.status || '').toUpperCase() === 'UPCOMING');
       setIpos(liveIpos.length > 0 ? liveIpos : ipoRes.data || []);
       
@@ -105,6 +109,7 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
         bankAccount: app.bankAccount,
         ifscCode: app.ifscCode,
         holdingStatus: 'Pending',
+        bankAccountId: bankAccountId || null,
         gmp: parseFloat((selectedIpo.greyMarketPremium?.gmpTrends?.[0]?.gmp || '0').replace(/[^\d.-]/g, '')) || 0
       }));
 
@@ -283,6 +288,39 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
                   <option value="bHNI">Big HNI (bHNI)</option>
                   <option value="Employee">Employee Quota</option>
                 </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center gap-1.5">
+                  <Wallet size={14} className="text-indigo-400" /> Bank Account (Auto Balance Management)
+                </label>
+                <select
+                  value={bankAccountId}
+                  onChange={e => setBankAccountId(e.target.value)}
+                  className="w-full bg-[#141418] border border-[#27272a] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">— No Account Linked —</option>
+                  {bankAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.accountName} ({acc.bankName}) — ₹{parseFloat(acc.balance || 0).toLocaleString('en-IN')}
+                    </option>
+                  ))}
+                </select>
+                {bankAccountId && (() => {
+                  const selectedAcc = bankAccounts.find(a => a.id === bankAccountId);
+                  if (!selectedAcc) return null;
+                  const bal = parseFloat(selectedAcc.balance) || 0;
+                  const isLow = grandTotalInvestment > bal;
+                  return (
+                    <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border mt-2 ${
+                      isLow ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {isLow ? <AlertTriangle size={14} /> : <Wallet size={14} />}
+                      <span className="font-semibold">Available Balance: ₹{bal.toLocaleString('en-IN')}</span>
+                      {isLow && <span className="text-[10px]">• Total grand mandate (₹{grandTotalInvestment.toLocaleString('en-IN')}) exceeds balance!</span>}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

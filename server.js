@@ -921,6 +921,151 @@ app.get('/api/user/telegram', authMiddleware, (req, res) => {
     });
 });
 
+// ========== BANK ACCOUNTS & EXPENSE TRACKER API ==========
+
+// Helper: record a transaction and update account balance
+function recordTransaction(userId, bankAccountId, type, category, amount, description, referenceId, callback) {
+    const txnId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const now = new Date().toISOString();
+    const amountNum = parseFloat(amount) || 0;
+
+    db.get('SELECT balance FROM bank_accounts WHERE id = ? AND userId = ?', [bankAccountId, userId], (err, account) => {
+        if (err || !account) return callback(new Error('Bank account not found'));
+
+        const currentBalance = parseFloat(account.balance) || 0;
+        const newBalance = type === 'credit' ? currentBalance + amountNum : currentBalance - amountNum;
+
+        db.run('UPDATE bank_accounts SET balance = ? WHERE id = ? AND userId = ?', [newBalance, bankAccountId, userId], (updateErr) => {
+            if (updateErr) return callback(updateErr);
+
+            db.run(
+                'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, referenceId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [txnId, userId, bankAccountId, type, category, amountNum, newBalance, description, referenceId || null, now, now],
+                (insertErr) => {
+                    if (insertErr) return callback(insertErr);
+                    callback(null, { id: txnId, newBalance, amount: amountNum });
+                }
+            );
+        });
+    });
+}
+
+// GET all bank accounts
+app.get('/api/bank-accounts', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST create a new bank account
+app.post('/api/bank-accounts', authMiddleware, (req, res) => {
+    const { accountName, bankName, accountNumber, ifscCode, accountType, balance, color } = req.body;
+    if (!accountName || !bankName) return res.status(400).json({ error: 'Account name and bank name are required' });
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const now = new Date().toISOString();
+    const openingBalance = parseFloat(balance) || 0;
+
+    db.run(
+        'INSERT INTO bank_accounts (id, userId, accountName, bankName, accountNumber, ifscCode, accountType, balance, color, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, req.user.id, accountName, bankName, accountNumber || '', ifscCode || '', accountType || 'Savings', openingBalance, color || '#6366f1', now],
+        function (err) {
+            if (err) return res.status(400).json({ error: err.message });
+
+            // Record opening balance transaction if balance > 0
+            if (openingBalance > 0) {
+                const txnId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+                db.run(
+                    'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, referenceId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [txnId, req.user.id, id, 'credit', 'OPENING_BALANCE', openingBalance, openingBalance, `Opening balance for ${accountName}`, null, now, now]
+                );
+            }
+
+            res.json({ message: 'success', id });
+        }
+    );
+});
+
+// PUT update a bank account
+app.put('/api/bank-accounts/:id', authMiddleware, (req, res) => {
+    const { accountName, bankName, accountNumber, ifscCode, accountType, color } = req.body;
+    db.run(
+        `UPDATE bank_accounts SET 
+            accountName = COALESCE(?, accountName), 
+            bankName = COALESCE(?, bankName), 
+            accountNumber = COALESCE(?, accountNumber), 
+            ifscCode = COALESCE(?, ifscCode), 
+            accountType = COALESCE(?, accountType), 
+            color = COALESCE(?, color) 
+         WHERE id = ? AND userId = ?`,
+        [accountName, bankName, accountNumber, ifscCode, accountType, color, req.params.id, req.user.id],
+        function (err) {
+            if (err) return res.status(400).json({ error: err.message });
+            res.json({ message: 'success', changes: this.changes });
+        }
+    );
+});
+
+// DELETE a bank account (only if no linked records)
+app.delete('/api/bank-accounts/:id', authMiddleware, (req, res) => {
+    db.get('SELECT COUNT(*) as count FROM records WHERE bankAccountId = ? AND userId = ?', [req.params.id, req.user.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (row && row.count > 0) {
+            return res.status(400).json({ error: `Cannot delete: ${row.count} IPO record(s) are linked to this account. Unlink them first.` });
+        }
+        db.run('DELETE FROM transactions WHERE bankAccountId = ? AND userId = ?', [req.params.id, req.user.id], () => {
+            db.run('DELETE FROM bank_accounts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (delErr) {
+                if (delErr) return res.status(400).json({ error: delErr.message });
+                res.json({ message: 'success', changes: this.changes });
+            });
+        });
+    });
+});
+
+// GET transactions (passbook) — optionally filter by bankAccountId
+app.get('/api/transactions', authMiddleware, (req, res) => {
+    const { bankAccountId, category, limit } = req.query;
+    let sql = 'SELECT t.*, ba.accountName, ba.bankName FROM transactions t LEFT JOIN bank_accounts ba ON t.bankAccountId = ba.id WHERE t.userId = ?';
+    const params = [req.user.id];
+
+    if (bankAccountId) {
+        sql += ' AND t.bankAccountId = ?';
+        params.push(bankAccountId);
+    }
+    if (category) {
+        sql += ' AND t.category = ?';
+        params.push(category);
+    }
+    sql += ' ORDER BY t.createdAt DESC';
+    if (limit) {
+        sql += ' LIMIT ?';
+        params.push(parseInt(limit));
+    }
+
+    db.all(sql, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST add a manual transaction (credit/debit)
+app.post('/api/transactions', authMiddleware, (req, res) => {
+    const { bankAccountId, type, category, amount, description } = req.body;
+    if (!bankAccountId || !type || !amount) {
+        return res.status(400).json({ error: 'Bank account, type, and amount are required' });
+    }
+    if (!['credit', 'debit'].includes(type)) {
+        return res.status(400).json({ error: 'Type must be credit or debit' });
+    }
+
+    const cat = category || (type === 'credit' ? 'MANUAL_CREDIT' : 'MANUAL_DEBIT');
+    recordTransaction(req.user.id, bankAccountId, type, cat, amount, description || `Manual ${type}`, null, (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', transaction: result });
+    });
+});
+
 // PIN Passcode Management (Set / Verify / Toggle)
 app.post('/api/user/pin', authMiddleware, async (req, res) => {
     const { action, pin } = req.body;
@@ -1027,6 +1172,179 @@ app.post('/api/records/batch-asba', authMiddleware, (req, res) => {
             });
         }
     );
+});
+
+// --- WhatsApp API ---
+app.post('/api/user/whatsapp', authMiddleware, (req, res) => {
+    const { whatsappNumber, whatsappAlerts } = req.body;
+    db.run(
+        'UPDATE users SET whatsappNumber = ?, whatsappAlerts = ? WHERE id = ?',
+        [whatsappNumber || '', whatsappAlerts ? 1 : 0, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'WhatsApp notification settings saved successfully' });
+        }
+    );
+});
+
+app.get('/api/user/whatsapp', authMiddleware, (req, res) => {
+    db.get('SELECT whatsappNumber, whatsappAlerts FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err || !row) return res.status(500).json({ error: 'Failed to fetch WhatsApp settings' });
+        res.json({ message: 'success', data: row });
+    });
+});
+
+app.post('/api/webhooks/whatsapp/test', authMiddleware, async (req, res) => {
+    const { phone } = req.body;
+    const targetPhone = phone || req.user.whatsappNumber;
+    if (!targetPhone) return res.status(400).json({ error: 'WhatsApp phone number is required' });
+
+    const { sendWhatsAppMessage } = require('./whatsapp');
+    const msg = `🚀 *IPO Tracker Alert Test*\n\nHello! Your WhatsApp alert dispatch is working. You will receive live allotment updates & GMP alerts here.`;
+    const result = await sendWhatsAppMessage(targetPhone, msg);
+    res.json({ message: 'Test message sent', result });
+});
+
+// --- Family Allotment Heatmap API ---
+app.get('/api/analytics/family-heatmap', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        db.all('SELECT * FROM applicants WHERE userId = ?', [req.user.id], (appErr, applicants) => {
+            if (appErr) return res.status(500).json({ error: appErr.message });
+
+            const statsMap = {};
+            (records || []).forEach(r => {
+                const name = (r.applicantName || 'Unknown').trim();
+                if (!statsMap[name]) {
+                    statsMap[name] = {
+                        name,
+                        applied: 0,
+                        allotted: 0,
+                        profit: 0,
+                        banks: {}
+                    };
+                }
+                if (r.applied === 'Yes') {
+                    statsMap[name].applied++;
+                    const isAllotted = r.alloted === 'Yes' || r.alloted === 'Allotted' || parseFloat(r.alloted) > 0;
+                    if (isAllotted) statsMap[name].allotted++;
+                    
+                    const p = parseFloat(r.profit) || 0;
+                    statsMap[name].profit += p;
+
+                    const bank = r.bankName || 'Standard Bank';
+                    if (!statsMap[name].banks[bank]) statsMap[name].banks[bank] = { applied: 0, allotted: 0 };
+                    statsMap[name].banks[bank].applied++;
+                    if (isAllotted) statsMap[name].banks[bank].allotted++;
+                }
+            });
+
+            const heatmapData = Object.values(statsMap).map(item => ({
+                ...item,
+                winRate: item.applied > 0 ? ((item.allotted / item.applied) * 100).toFixed(1) : 0
+            }));
+
+            res.json({ message: 'success', data: heatmapData });
+        });
+    });
+});
+
+// --- UPI Mandate Status Update API ---
+app.put('/api/records/:id/mandate', authMiddleware, (req, res) => {
+    const { mandateStatus, bankName, mandateUpiId } = req.body;
+    db.run(
+        `UPDATE records SET 
+            mandateStatus = COALESCE(?, mandateStatus), 
+            bankName = COALESCE(?, bankName),
+            mandateUpiId = COALESCE(?, mandateUpiId)
+         WHERE id = ? AND userId = ?`,
+        [mandateStatus, bankName, mandateUpiId, req.params.id, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'UPI mandate status updated successfully' });
+        }
+    );
+});
+
+// --- Advance Tax Estimator (Sec 208) API ---
+app.get('/api/analytics/advance-tax', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ? AND holdingStatus = "Sold"', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const { calculateAdvanceTaxInstallments } = require('./taxEngine');
+        
+        let stcgProfit = 0;
+        let ltcgProfit = 0;
+
+        (records || []).forEach(r => {
+            const p = parseFloat(r.profit) || (parseFloat(r.sellPrice) - parseFloat(r.price)) * (parseFloat(r.shares) || 1);
+            if (p > 0) stcgProfit += p;
+        });
+
+        const taxDetails = calculateAdvanceTaxInstallments(stcgProfit, ltcgProfit);
+        res.json({ message: 'success', data: taxDetails });
+    });
+});
+
+// --- Trade Journaling API ---
+app.get('/api/journal', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM journal_entries WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.post('/api/journal', authMiddleware, (req, res) => {
+    const { recordId, notes, rating, tags } = req.body;
+    const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
+    const createdAt = new Date().toISOString();
+
+    db.run(
+        'INSERT INTO journal_entries (id, recordId, userId, notes, rating, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, recordId || '', req.user.id, notes || '', parseInt(rating) || 5, JSON.stringify(tags || []), createdAt],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Journal entry saved successfully', id });
+        }
+    );
+});
+
+// --- ITR-2 Schedule CG Export API (JSON & CSV) ---
+app.get('/api/reports/itr2-json', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ? AND holdingStatus = "Sold"', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const itr2ScheduleCG = {
+            formatVersion: "1.0",
+            assessmentYear: "2025-2026",
+            financialYear: "2024-2025",
+            taxpayerPan: req.user.username,
+            shortTermCapitalGains111A: (records || []).map(r => {
+                const buyAmt = parseFloat(r.amount) || ((parseFloat(r.shares) || 1) * (parseFloat(r.price) || 0));
+                const sellAmt = (parseFloat(r.shares) || 1) * (parseFloat(r.sellPrice) || parseFloat(r.price) || 0);
+                const grossGain = sellAmt - buyAmt;
+                return {
+                    assetType: "Equity Shares (STCG Sec 111A)",
+                    companyName: r.ipoName,
+                    isinCode: "INE000000000",
+                    buyDate: r.createdAt ? r.createdAt.split('T')[0] : '2024-04-01',
+                    sellDate: r.sellDate || '2025-03-31',
+                    quantity: parseFloat(r.shares) || 1,
+                    buyPricePerShare: parseFloat(r.price) || 0,
+                    sellPricePerShare: parseFloat(r.sellPrice) || 0,
+                    totalCostOfAcquisition: buyAmt,
+                    totalFullConsideration: sellAmt,
+                    transferExpenses: parseFloat(r.brokerage || 0) + parseFloat(r.stt || 0),
+                    shortTermCapitalGain: grossGain,
+                    applicableTaxRatePct: 20.0
+                };
+            })
+        };
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="ITR2_Schedule_CG_${Date.now()}.json"`);
+        res.send(JSON.stringify(itr2ScheduleCG, null, 2));
+    });
 });
 
 // Middleware to verify JWT
@@ -1157,18 +1475,30 @@ app.post('/api/records/bulk', authMiddleware, (req, res) => {
 
             const sql = `
                 INSERT INTO records (
-                    id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags, bankAccountId
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             const params = [
                 id, r.ipoName || '', r.applicantName || '', r.pan || '', r.upiId || '', r.quota || 'Retail', r.listingDate || '', String(r.lotSize || 1), parseFloat(r.shares) || 1, parseFloat(r.price) || 0, parseFloat(r.listingPrice) || 0, parseFloat(r.amount) || 0, r.applied || 'Yes', r.alloted || 'Pending', r.withdrawal || '', calc.grossProfit || 0, r.marginPercent || '', parseFloat(r.margin) || 0, r.notes || '', createdAt, req.user.id, r.sellDate || '', parseFloat(r.sellPrice) || 0, r.holdingStatus || 'Pending', parseFloat(r.gmp) || 0, r.registrar || null, r.refundStatus || 'pending',
-                r.dematId || null, r.bankAccount || null, r.ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, r.tags ? JSON.stringify(r.tags) : '[]'
+                r.dematId || null, r.bankAccount || null, r.ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, r.tags ? JSON.stringify(r.tags) : '[]', r.bankAccountId || null
             ];
 
             db.run(sql, params, (err) => {
-                if (err) reject(err);
-                else resolve();
+                if (err) return reject(err);
+
+                // Auto-debit if bankAccountId is present and status is applied/pending
+                const ipoAmount = parseFloat(r.amount) || 0;
+                if (r.bankAccountId && (r.applied === 'Yes' || r.applied === 'Pending') && ipoAmount > 0) {
+                    recordTransaction(
+                        req.user.id, r.bankAccountId, 'debit', 'IPO_BLOCKED',
+                        ipoAmount, `IPO Application: ${r.ipoName} (${r.applicantName})`, id,
+                        (txnErr) => {
+                            if (txnErr) console.error('Bulk auto-debit failed:', txnErr.message);
+                        }
+                    );
+                }
+                resolve();
             });
         });
     };
@@ -1183,9 +1513,90 @@ app.post('/api/records/bulk', authMiddleware, (req, res) => {
         });
 });
 
+// BATCH APPLY API (Quick apply multiple applicants to an IPO)
+app.post('/api/records/batch-apply', authMiddleware, (req, res) => {
+    const { ipoName, listingDate, lotSize, price, quota, applicantIds, bankAccountId } = req.body;
+    if (!ipoName || !Array.isArray(applicantIds) || applicantIds.length === 0) {
+        return res.status(400).json({ error: 'IPO Name and Applicant IDs are required' });
+    }
+
+    const placeholders = applicantIds.map(() => '?').join(',');
+    db.all(
+        `SELECT * FROM applicants WHERE userId = ? AND id IN (${placeholders})`,
+        [req.user.id, ...applicantIds],
+        (err, applicants) => {
+            if (err || !applicants) return res.status(500).json({ error: 'Failed to fetch applicants' });
+
+            const priceNum = parseFloat(price) || 0;
+            const lotNum = parseInt(lotSize) || 1;
+            const totalShares = lotNum;
+            const totalAmount = priceNum * totalShares;
+
+            const recordsToInsert = applicants.map(app => ({
+                ipoName,
+                applicantName: app.name,
+                pan: app.pan || '',
+                upiId: app.upiId || '',
+                quota: quota || 'Retail',
+                listingDate: listingDate || '',
+                lotSize: String(lotNum),
+                shares: totalShares,
+                price: priceNum,
+                amount: totalAmount,
+                applied: 'Yes',
+                alloted: 'Pending',
+                dematId: app.dematId || '',
+                bankAccount: app.bankAccount || '',
+                ifscCode: app.ifscCode || '',
+                holdingStatus: 'Pending',
+                bankAccountId: bankAccountId || null
+            }));
+
+            // Reuse bulk insert logic
+            const insertRecord = (r) => {
+                return new Promise((resolve, reject) => {
+                    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2);
+                    const createdAt = new Date().toISOString();
+                    const calc = calculator.calculateCharges(r.price, r.shares, 0, 'Pending', 0, 0);
+
+                    const sql = `
+                        INSERT INTO records (
+                            id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags, bankAccountId
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+
+                    const params = [
+                        id, r.ipoName, r.applicantName, r.pan, r.upiId, r.quota, r.listingDate, r.lotSize, r.shares, r.price, 0, r.amount, 'Yes', 'Pending', '', calc.grossProfit || 0, '', 0, '', createdAt, req.user.id, '', 0, 'Pending', 0, null, 'pending',
+                        r.dematId || null, r.bankAccount || null, r.ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, '[]', r.bankAccountId || null
+                    ];
+
+                    db.run(sql, params, (insErr) => {
+                        if (insErr) return reject(insErr);
+
+                        if (r.bankAccountId && r.amount > 0) {
+                            recordTransaction(
+                                req.user.id, r.bankAccountId, 'debit', 'IPO_BLOCKED',
+                                r.amount, `Batch IPO Application: ${r.ipoName} (${r.applicantName})`, id,
+                                (txnErr) => {
+                                    if (txnErr) console.error('Batch auto-debit failed:', txnErr.message);
+                                }
+                            );
+                        }
+                        resolve();
+                    });
+                });
+            };
+
+            Promise.all(recordsToInsert.map(insertRecord))
+                .then(() => res.json({ message: 'success', count: recordsToInsert.length }))
+                .catch(bErr => res.status(500).json({ error: bErr.message }));
+        }
+    );
+});
+
 // ADD a new record
 app.post('/api/records', authMiddleware, (req, res) => {
-    let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus, gmp, registrar, dematId, bankAccount, ifscCode, tags } = req.body;
+    let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus, gmp, registrar, dematId, bankAccount, ifscCode, tags, bankAccountId } = req.body;
     
     id = id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
     createdAt = createdAt || new Date().toISOString();
@@ -1197,17 +1608,30 @@ app.post('/api/records', authMiddleware, (req, res) => {
 
     db.run(
         `INSERT INTO records (
-            id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, userId, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, brokerage, stt, stampDuty, exchangeCharges, sebiFees, dpCharges, gst, netProfit, tags, bankAccountId
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, calc.grossProfit, marginPercent, margin, notes, createdAt, req.user.id, sellDate, sellPrice, holdingStatus, gmp, registrar || null, 'pending',
-            dematId || null, bankAccount || null, ifscCode || null, calc.brokerage, calc.stt, calc.stampDuty, calc.exchangeCharges, calc.sebiFees, calc.dpCharges, calc.gst, calc.netProfit, tags ? JSON.stringify(tags) : '[]'
+            dematId || null, bankAccount || null, ifscCode || null, calc.brokerage, calc.stt, calc.stampDuty, calc.exchangeCharges, calc.sebiFees, calc.dpCharges, calc.gst, calc.netProfit, tags ? JSON.stringify(tags) : '[]', bankAccountId || null
         ],
         function (err) {
             if (err) {
                 res.status(400).json({ error: err.message });
                 return;
             }
+
+            // Auto-debit bank account if applied and bankAccountId is set
+            const ipoAmount = parseFloat(amount) || 0;
+            if (bankAccountId && (applied === 'Yes' || applied === 'Pending') && ipoAmount > 0) {
+                recordTransaction(
+                    req.user.id, bankAccountId, 'debit', 'IPO_BLOCKED',
+                    ipoAmount, `IPO Application: ${ipoName} (${applicantName})`, id,
+                    (txnErr) => {
+                        if (txnErr) console.error('Auto-debit failed:', txnErr.message);
+                    }
+                );
+            }
+
             res.json({ message: 'success', id: id });
         }
     );
@@ -1222,7 +1646,7 @@ app.put('/api/records/:id', authMiddleware, (req, res) => {
         }
 
         const updated = { ...existing, ...req.body };
-        const { ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, tags } = updated;
+        const { ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, tags, bankAccountId } = updated;
         
         const calc = calculator.calculateCharges(price, shares, sellPrice, holdingStatus, listingPrice, gmp);
         if (pan) {
@@ -1232,15 +1656,47 @@ app.put('/api/records/:id', authMiddleware, (req, res) => {
         db.run(
             `UPDATE records SET 
                 ipoName = ?, applicantName = ?, pan = ?, upiId = ?, quota = ?, listingDate = ?, lotSize = ?, shares = ?, price = ?, listingPrice = ?, amount = ?, applied = ?, alloted = ?, withdrawal = ?, profit = ?, marginPercent = ?, margin = ?, notes = ?, sellDate = ?, sellPrice = ?, holdingStatus = ?, gmp = ?, registrar = ?, refundStatus = ?,
-                dematId = ?, bankAccount = ?, ifscCode = ?, brokerage = ?, stt = ?, stampDuty = ?, exchangeCharges = ?, sebiFees = ?, dpCharges = ?, gst = ?, netProfit = ?, tags = ?
+                dematId = ?, bankAccount = ?, ifscCode = ?, brokerage = ?, stt = ?, stampDuty = ?, exchangeCharges = ?, sebiFees = ?, dpCharges = ?, gst = ?, netProfit = ?, tags = ?, bankAccountId = ?
              WHERE id = ? AND userId = ?`,
             [
                 ipoName || '', applicantName || '', pan || '', upiId || '', quota || 'Retail', listingDate || '', String(lotSize || 1), parseFloat(shares) || 1, parseFloat(price) || 0, parseFloat(listingPrice) || 0, parseFloat(amount) || 0, applied || 'Yes', alloted || 'Pending', withdrawal || '', calc.grossProfit || 0, marginPercent || '', parseFloat(margin) || 0, notes || '', sellDate || '', parseFloat(sellPrice) || 0, holdingStatus || 'Pending', parseFloat(gmp) || 0, registrar || null, refundStatus || 'pending',
-                dematId || null, bankAccount || null, ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : '[]'),
+                dematId || null, bankAccount || null, ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : '[]'), bankAccountId || null,
                 id, req.user.id
             ],
             function(updateErr) {
                 if (updateErr) return res.status(400).json({ error: updateErr.message });
+
+                // Auto-refund: if allotment changed to "Not Allotted" or "No" or "0", refund blocked amount
+                const acctId = bankAccountId || existing.bankAccountId;
+                const ipoAmount = parseFloat(existing.amount) || 0;
+                const existingAlloted = String(existing.alloted || '');
+                const newAlloted = String(alloted || '');
+                const wasNotAllottedBefore = existingAlloted === '0' || existingAlloted.toLowerCase() === 'no' || existingAlloted.toLowerCase() === 'not allotted';
+                const isNotAllottedNow = newAlloted === '0' || newAlloted.toLowerCase() === 'no' || newAlloted.toLowerCase() === 'not allotted';
+
+                if (acctId && !wasNotAllottedBefore && isNotAllottedNow && ipoAmount > 0) {
+                    recordTransaction(
+                        req.user.id, acctId, 'credit', 'IPO_REFUND',
+                        ipoAmount, `IPO Refund: ${ipoName} (${applicantName}) - Not Allotted`, id,
+                        (txnErr) => {
+                            if (txnErr) console.error('Auto-refund failed:', txnErr.message);
+                        }
+                    );
+                }
+
+                // Auto-refund: if withdrawal changed to "Yes"
+                const wasWithdrawn = existing.withdrawal === 'Yes';
+                const isWithdrawnNow = withdrawal === 'Yes';
+                if (acctId && !wasWithdrawn && isWithdrawnNow && ipoAmount > 0) {
+                    recordTransaction(
+                        req.user.id, acctId, 'credit', 'IPO_REFUND',
+                        ipoAmount, `IPO Withdrawn Refund: ${ipoName} (${applicantName})`, id,
+                        (txnErr) => {
+                            if (txnErr) console.error('Withdrawal refund failed:', txnErr.message);
+                        }
+                    );
+                }
+
                 res.json({ message: 'success', changes: this.changes });
             }
         );
@@ -1249,17 +1705,43 @@ app.put('/api/records/:id', authMiddleware, (req, res) => {
 
 // DELETE a record
 app.delete('/api/records/:id', authMiddleware, (req, res) => {
-    db.run(
-        'DELETE FROM records WHERE id = ? AND userId = ?',
-        [req.params.id, req.user.id],
-        function (err) {
-            if (err) {
-                res.status(400).json({ error: err.message });
-                return;
-            }
-            res.json({ message: 'success', changes: this.changes });
+    // First check if there's a linked bank account to reverse balance
+    db.get('SELECT * FROM records WHERE id = ? AND userId = ?', [req.params.id, req.user.id], (findErr, record) => {
+        if (findErr || !record) {
+            return res.status(404).json({ error: 'Record not found' });
         }
-    );
+
+        db.run(
+            'DELETE FROM records WHERE id = ? AND userId = ?',
+            [req.params.id, req.user.id],
+            function (err) {
+                if (err) {
+                    res.status(400).json({ error: err.message });
+                    return;
+                }
+
+                // Reverse blocked amount if linked to a bank account
+                const acctId = record.bankAccountId;
+                const ipoAmount = parseFloat(record.amount) || 0;
+                const wasApplied = record.applied === 'Yes' || record.applied === 'Pending';
+                const allotedVal = String(record.alloted || '');
+                const wasNotAllotted = allotedVal === '0' || allotedVal.toLowerCase() === 'no' || allotedVal.toLowerCase() === 'not allotted';
+                
+                // Only refund if applied and NOT already refunded (allotted or still pending)
+                if (acctId && wasApplied && !wasNotAllotted && ipoAmount > 0) {
+                    recordTransaction(
+                        req.user.id, acctId, 'credit', 'IPO_CANCELLED',
+                        ipoAmount, `IPO Record Deleted: ${record.ipoName} (${record.applicantName})`, req.params.id,
+                        (txnErr) => {
+                            if (txnErr) console.error('Delete refund failed:', txnErr.message);
+                        }
+                    );
+                }
+
+                res.json({ message: 'success', changes: this.changes });
+            }
+        );
+    });
 });
 
 // Parse registrar basis of allotment PDF
