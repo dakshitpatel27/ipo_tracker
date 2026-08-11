@@ -13,7 +13,7 @@ const REGISTRAR_URLS = {
   'Bigshare': 'https://www.bigshareonline.com/ipo_status.html',
   'Skyline': 'https://www.skylinerta.com/ipo.php',
   'Cameo': 'https://service.cameoindia.com/',
-  'Beetal': 'http://www.beetalfinancial.com/pgipo.aspx',
+  'Beetal': 'https://www.beetalfinancial.com/pgipo.aspx',
   'Maashitla': 'https://maashitla.com/status',
   'Purva': 'https://www.purvashare.com/queries/'
 };
