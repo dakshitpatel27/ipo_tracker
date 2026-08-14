@@ -11,6 +11,10 @@ import GmpAlertModal from '../components/ui/GmpAlertModal';
 import HistoricalIpoTable from '../components/ui/HistoricalIpoTable';
 import AutomatedIpoFormModal from '../components/ui/AutomatedIpoFormModal';
 import IpoScoreBadge from '../components/ui/IpoScoreBadge';
+import AIProspectusSummarizer from '../components/ui/AIProspectusSummarizer';
+import AnchorLockinTracker from '../components/ui/AnchorLockinTracker';
+import LiveSubscriptionHeatmap from '../components/ui/LiveSubscriptionHeatmap';
+import SmeMarketHub from '../components/ui/SmeMarketHub';
 
 // ─── Feature 6: GMP Sparkline ──────────────────────────────────
 const GmpSparkline = ({ trends }) => {
@@ -246,8 +250,16 @@ const IpoMaster = () => {
             <HistoricalIpoTable listedIpos={historicalIpos} />
           </div>
         ) : (
-          /* Live Cards Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="space-y-4">
+            <LiveSubscriptionHeatmap />
+            <AIProspectusSummarizer />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <AnchorLockinTracker />
+              <SmeMarketHub />
+            </div>
+
+            {/* Live Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredIpos.map(ipo => {
               const gmpTrends = ipo.greyMarketPremium?.gmpTrends || [];
               const gmpStr = gmpTrends?.[0]?.gmp;
@@ -435,6 +447,7 @@ const IpoMaster = () => {
                 No IPOs found matching the criteria.
               </div>
             )}
+          </div>
           </div>
         )}
       </div>

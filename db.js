@@ -88,6 +88,53 @@ const db = {
                 callback && callback.call(this, err, row);
             });
         }
+    },
+
+    getColumns: function(tableName, callback) {
+        const cleanTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+        if (isPostgres) {
+            const query = `SELECT column_name FROM information_schema.columns WHERE table_name = $1`;
+            pgPool.query(query, [cleanTable])
+                .then(res => {
+                    const cols = res.rows.map(r => r.column_name);
+                    callback && callback(null, cols);
+                })
+                .catch(err => callback && callback(err, null));
+        } else {
+            const query = `PRAGMA table_info(${cleanTable})`;
+            sqliteDb.all(query, [], (err, rows) => {
+                if (err) return callback && callback(err, null);
+                const cols = (rows || []).map(r => r.name);
+                callback && callback(null, cols);
+            });
+        }
+    },
+
+    addColumn: function(tableName, columnName, columnType, callback) {
+        if (typeof columnType === 'function') {
+            callback = columnType;
+            columnType = 'TEXT';
+        }
+        const cleanTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+        const cleanCol = columnName.replace(/[^a-zA-Z0-9_]/g, '');
+        const type = (columnType || 'TEXT').toUpperCase() === 'REAL' || (columnType || 'TEXT').toUpperCase() === 'NUMERIC' ? (isPostgres ? 'NUMERIC' : 'REAL') : 'TEXT';
+
+        this.getColumns(cleanTable, (err, existingCols) => {
+            if (err) return callback && callback(err);
+            const lowerCols = (existingCols || []).map(c => c.toLowerCase());
+            if (lowerCols.includes(cleanCol.toLowerCase())) {
+                // Column already exists
+                return callback && callback(null, { alreadyExists: true, column: cleanCol });
+            }
+
+            const alterSql = `ALTER TABLE ${cleanTable} ADD COLUMN ${cleanCol} ${type}`;
+            this.run(alterSql, [], (alterErr) => {
+                if (alterErr && !alterErr.message?.includes('duplicate column') && alterErr.code !== '42701') {
+                    return callback && callback(alterErr);
+                }
+                callback && callback(null, { added: true, column: cleanCol, type });
+            });
+        });
     }
 };
 
@@ -385,8 +432,89 @@ const initSchema = () => {
 
     // Add bankAccountId to records table if not exists
     db.run(`ALTER TABLE records ADD COLUMN bankAccountId TEXT`, () => {});
+
+    // 13. Party Ledger (Khatabook Credit/Debit)
+    db.run(`CREATE TABLE IF NOT EXISTS party_ledger (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        applicantId TEXT,
+        recordId TEXT,
+        type TEXT,
+        category TEXT DEFAULT 'MANUAL',
+        amount REAL DEFAULT 0,
+        note TEXT,
+        paymentMode TEXT DEFAULT 'UPI',
+        date TEXT,
+        createdAt TEXT
+    )`);
+
+    // 14. Expenses (Expense Tracker)
+    db.run(`CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        bankAccountId TEXT,
+        amount REAL DEFAULT 0,
+        category TEXT,
+        subcategory TEXT,
+        description TEXT,
+        paymentMode TEXT DEFAULT 'UPI',
+        date TEXT,
+        isRecurring INTEGER DEFAULT 0,
+        tags TEXT DEFAULT '[]',
+        receipt TEXT,
+        createdAt TEXT
+    )`);
+
+    // 15. Budgets (Monthly budget limits per category)
+    db.run(`CREATE TABLE IF NOT EXISTS budgets (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        category TEXT,
+        monthlyLimit REAL DEFAULT 0,
+        createdAt TEXT
+    )`);
+
+    // 16. Import History (Audit log & rollback tracking)
+    db.run(`CREATE TABLE IF NOT EXISTS import_history (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        tableName TEXT,
+        fileName TEXT,
+        importedCount INTEGER DEFAULT 0,
+        addedColumns TEXT DEFAULT '[]',
+        importedRecordIds TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'success',
+        createdAt TEXT
+    )`);
+
+    // 17. Custom Field Metadata (Dynamic schema column manager)
+    db.run(`CREATE TABLE IF NOT EXISTS custom_field_metadata (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        tableName TEXT,
+        columnName TEXT,
+        label TEXT,
+        dataType TEXT DEFAULT 'TEXT',
+        isVisible INTEGER DEFAULT 1,
+        createdAt TEXT
+    )`);
+
+    // 18. Kostak Deals & Subject-to-Sauda Ledger
+    db.run(`CREATE TABLE IF NOT EXISTS kostak_deals (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        ipoName TEXT,
+        applicantName TEXT,
+        lotCount INTEGER DEFAULT 1,
+        ratePerLot REAL DEFAULT 0,
+        totalAmount REAL DEFAULT 0,
+        dealType TEXT DEFAULT 'KOSTAK',
+        status TEXT DEFAULT 'ACTIVE',
+        createdAt TEXT
+    )`);
 };
-// Wait slightly for connection to establish before schema init
+// Initialize schema
+initSchema();
 setTimeout(initSchema, 500);
 
 module.exports = db;

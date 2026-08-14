@@ -29,6 +29,8 @@ const CATEGORY_LABELS = {
   TRANSFER: { label: 'Transfer', color: '#3b82f6', icon: ArrowLeftRight },
   INTEREST: { label: 'Interest', color: '#eab308', icon: TrendingUp },
   SALE_CREDIT: { label: 'Sale Credit', color: '#22c55e', icon: Banknote },
+  EXPENSE: { label: 'Expense', color: '#ec4899', icon: ArrowUpRight },
+  EXPENSE_REFUND: { label: 'Expense Refund', color: '#14b8a6', icon: ArrowDownLeft },
 };
 
 const formatCurrency = (val) => {

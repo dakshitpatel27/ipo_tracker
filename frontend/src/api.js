@@ -803,6 +803,137 @@ export const api = {
     return parseResponse(res);
   },
 
+  // --- SMART IMPORT TOOL API ---
+  async getImportTables() {
+    const res = await fetch(`${API_URL}/import/tables`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async inspectImportFile(tableName, headers, sampleRows) {
+    const res = await fetch(`${API_URL}/import/inspect`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tableName, headers, sampleRows })
+    });
+    return parseResponse(res);
+  },
+
+  async alterImportSchema(tableName, newColumns) {
+    const res = await fetch(`${API_URL}/import/alter-schema`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tableName, newColumns })
+    });
+    return parseResponse(res);
+  },
+
+  async executeSmartImport(tableName, records, fileName, conflictStrategy = 'KEEP_BOTH', addedColumns = []) {
+    const res = await fetch(`${API_URL}/import/execute`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tableName, records, fileName, conflictStrategy, addedColumns })
+    });
+    return parseResponse(res);
+  },
+
+  async getImportHistory() {
+    const res = await fetch(`${API_URL}/import/history`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async undoImportSession(historyId) {
+    const res = await fetch(`${API_URL}/import/history/${historyId}/undo`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  async getCustomFields() {
+    const res = await fetch(`${API_URL}/import/custom-fields`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async updateCustomField(id, data) {
+    const res = await fetch(`${API_URL}/import/custom-fields/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
+  async deleteCustomField(id) {
+    const res = await fetch(`${API_URL}/import/custom-fields/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  // Bank Accounts & Passbook API
+  async getBankAccounts() {
+    const res = await fetch(`${API_URL}/bank-accounts`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async addBankAccount(data) {
+    const res = await fetch(`${API_URL}/bank-accounts`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
+  async updateBankAccount(id, data) {
+    const res = await fetch(`${API_URL}/bank-accounts/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
+  async deleteBankAccount(id) {
+    const res = await fetch(`${API_URL}/bank-accounts/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  async getTransactions(bankAccountId, category) {
+    const query = new URLSearchParams();
+    if (bankAccountId) query.append('bankAccountId', bankAccountId);
+    if (category) query.append('category', category);
+    const res = await fetch(`${API_URL}/transactions?${query.toString()}`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async addTransaction(data) {
+    const res = await fetch(`${API_URL}/transactions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
+  async getKostakDeals() {
+    const res = await fetch(`${API_URL}/kostak`, { headers: getHeaders() });
+    return parseResponse(res);
+  },
+
+  async addKostakDeal(data) {
+    const res = await fetch(`${API_URL}/kostak`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
   async generateBatchAsba(payload) {
     const res = await fetch(`${API_URL}/records/batch-asba`, {
       method: 'POST',
@@ -928,5 +1059,153 @@ export const api = {
       body: JSON.stringify(payload)
     });
     return parseResponse(res);
+  },
+
+  // --- Expense Tracker API ---
+  async getExpenses(filters = {}) {
+    let url = `${API_URL}/expenses?`;
+    if (filters.startDate) url += `startDate=${filters.startDate}&`;
+    if (filters.endDate) url += `endDate=${filters.endDate}&`;
+    if (filters.category) url += `category=${filters.category}&`;
+    if (filters.bankAccountId) url += `bankAccountId=${filters.bankAccountId}&`;
+    if (filters.limit) url += `limit=${filters.limit}&`;
+    const res = await fetch(url, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data || [];
+  },
+
+  async addExpense(payload) {
+    const res = await fetch(`${API_URL}/expenses`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async updateExpense(id, payload) {
+    const res = await fetch(`${API_URL}/expenses/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async deleteExpense(id) {
+    const res = await fetch(`${API_URL}/expenses/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  async getExpenseSummary(month, year) {
+    let url = `${API_URL}/expenses/summary?`;
+    if (month) url += `month=${month}&`;
+    if (year) url += `year=${year}&`;
+    const res = await fetch(url, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  async setBudget(category, monthlyLimit) {
+    const res = await fetch(`${API_URL}/budgets`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ category, monthlyLimit })
+    });
+    return parseResponse(res);
+  },
+
+  async parseReceiptFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${API_URL}/expenses/parse-receipt`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  getMonthlyDigestPdfUrl(month, year) {
+    let url = `${API_URL}/reports/monthly-digest-pdf?`;
+    if (month) url += `month=${month}&`;
+    if (year) url += `year=${year}&`;
+    return url;
+  },
+
+  // --- Khatabook Party Ledger API ---
+  async getPartyLedger(applicantId) {
+    let url = `${API_URL}/party-ledger`;
+    if (applicantId) url += `?applicantId=${applicantId}`;
+    const res = await fetch(url, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data || [];
+  },
+
+  async getPartyLedgerSummary() {
+    const res = await fetch(`${API_URL}/party-ledger/summary`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.summary;
+  },
+
+  async addPartyLedgerEntry(payload) {
+    const res = await fetch(`${API_URL}/party-ledger`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return parseResponse(res);
+  },
+
+  async deletePartyLedgerEntry(id) {
+    const res = await fetch(`${API_URL}/party-ledger/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
+  async sendPartyLedgerReminder(applicantId, phone) {
+    const res = await fetch(`${API_URL}/party-ledger/send-reminder`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ applicantId, phone })
+    });
+    return parseResponse(res);
+  },
+
+  // --- Mandate Escalation & Subscription Odds & iCal API ---
+  async getPendingMandates() {
+    const res = await fetch(`${API_URL}/records/pending-mandates`, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data || [];
+  },
+
+  async sendMandateNudge(id, phone) {
+    const res = await fetch(`${API_URL}/records/${id}/mandate-nudge`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ phone })
+    });
+    return parseResponse(res);
+  },
+
+  async getSubscriptionOdds(ipoName) {
+    let url = `${API_URL}/ipo/subscription-odds`;
+    if (ipoName) url += `?ipoName=${encodeURIComponent(ipoName)}`;
+    const res = await fetch(url, { headers: getHeaders() });
+    const data = await parseResponse(res);
+    return data.data;
+  },
+
+  getICalUrl() {
+    const baseUrl = API_URL.replace(/\/api$/, '') + '/api';
+    return `${baseUrl}/calendar/feed.ics?token=${authToken || ''}`;
   }
 };

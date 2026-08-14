@@ -3,12 +3,14 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, List, Settings, PieChart, Users,
   Globe, Shield, LogOut, UserCircle, CalendarDays,
-  TrendingUp, ChevronRight, Bell, Check, Trash, Wallet
+  TrendingUp, ChevronRight, Bell, Check, Trash, Wallet, BookOpen, Receipt,
+  FileSpreadsheet, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 import ConfirmModal from '../ui/ConfirmModal';
+import SmartImportModal from '../ui/SmartImportModal';
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -120,6 +122,7 @@ const NotificationBell = () => {
 const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
   const { user, logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSmartImport, setShowSmartImport] = useState(false);
   const navigate = useNavigate();
 
   const navSections = [
@@ -135,6 +138,8 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
       items: [
         { name: 'IPO Records',     icon: List,            path: '/records' },
         { name: 'Accounts',        icon: Wallet,          path: '/accounts' },
+        { name: 'Expenses',         icon: Receipt,         path: '/expenses' },
+        { name: 'Party Ledger',    icon: BookOpen,        path: '/party-ledger' },
         { name: 'Applicants',      icon: Users,           path: '/applicants' },
         { name: 'IPO Master',      icon: Globe,           path: '/ipo-master' },
         { name: 'Auto Allotment',  icon: Check,           path: '/allotment' },
@@ -262,6 +267,18 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
               </div>
             </div>
           )}
+
+          {/* Quick Smart Import Action */}
+          <div className="pt-2">
+            <button
+              onClick={() => setShowSmartImport(true)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 transition-all shadow-lg shadow-indigo-500/10 group"
+            >
+              <Sparkles size={15} className="text-indigo-400 group-hover:rotate-12 transition-transform" />
+              <span>Smart Importer</span>
+              <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded uppercase font-bold">New</span>
+            </button>
+          </div>
         </nav>
 
         {/* User Footer */}
@@ -303,6 +320,11 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
         title="Log Out"
         message="Are you sure you want to log out of your session?"
         confirmText="Log Out"
+      />
+
+      <SmartImportModal
+        isOpen={showSmartImport}
+        onClose={() => setShowSmartImport(false)}
       />
     </>
   );

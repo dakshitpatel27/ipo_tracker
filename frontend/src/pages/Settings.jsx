@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, Download, Trash2, ShieldAlert, BellRing, User, Monitor, Key, LogOut, RefreshCw } from 'lucide-react';
+import { Save, Download, Trash2, ShieldAlert, BellRing, User, Monitor, Key, LogOut, RefreshCw, Layers, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import CustomFieldsManager from '../components/ui/CustomFieldsManager';
+import ImportHistoryDrawer from '../components/ui/ImportHistoryDrawer';
+import PasskeyAuth from '../components/ui/PasskeyAuth';
+import ThemeStudio from '../components/ui/ThemeStudio';
 import { useNavigate } from 'react-router-dom';
 
 const TelegramSettingsForm = () => {
@@ -379,6 +383,8 @@ const Settings = () => {
           { id: 'security', label: 'Security & Sessions', icon: ShieldAlert },
           { id: 'preferences', label: 'Display & Theme', icon: User },
           { id: 'notifications', label: 'Alert Channels', icon: BellRing },
+          { id: 'custom_fields', label: 'Custom Fields', icon: Layers },
+          { id: 'import_history', label: 'Import History', icon: Clock },
           { id: 'data', label: 'Account & Data', icon: Trash2 },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -404,6 +410,8 @@ const Settings = () => {
         {/* --- SECURITY TAB --- */}
         {activeTab === 'security' && (
           <div className="space-y-6">
+            <PasskeyAuth />
+
             <section className="space-y-4">
               <h2 className="text-base font-bold text-white border-b border-border pb-2">Two-Factor Authentication (TOTP)</h2>
               <div className="p-4 bg-black/20 border border-border rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -751,6 +759,16 @@ const Settings = () => {
               </button>
             </div>
           </div>
+        )}
+
+        {/* --- CUSTOM FIELDS TAB --- */}
+        {activeTab === 'custom_fields' && (
+          <CustomFieldsManager />
+        )}
+
+        {/* --- IMPORT HISTORY TAB --- */}
+        {activeTab === 'import_history' && (
+          <ImportHistoryDrawer />
         )}
 
         {/* --- ACCOUNT & DATA TAB --- */}

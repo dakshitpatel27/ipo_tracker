@@ -4,14 +4,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, SlidersHorizontal, Trash2, Edit2,
   Upload, Download, ExternalLink, RotateCcw, RefreshCw,
-  ChevronDown, X, FileText, AlertCircle, FileSpreadsheet
+  ChevronDown, X, FileText, AlertCircle, FileSpreadsheet, Sparkles, Trophy
 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import UpgradeModal from '../components/ui/UpgradeModal';
+import SmartImportModal from '../components/ui/SmartImportModal';
+import AllotmentVictoryModal from '../components/ui/AllotmentVictoryModal';
 import IpoForm from '../components/forms/IpoForm';
 import BatchAsbaModal from '../components/forms/BatchAsbaModal';
 import CountdownBadge from '../components/ui/CountdownBadge';
+import MandateTrackerWidget from '../components/ui/MandateTrackerWidget';
+import SubscriptionOddsModal from '../components/ui/SubscriptionOddsModal';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -62,6 +66,10 @@ const Records = () => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [activeTab, setActiveTab] = useState('records');
+  const [isOddsModalOpen, setIsOddsModalOpen] = useState(false);
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
+  const [victoryRecord, setVictoryRecord] = useState(null);
+  const [isVictoryModalOpen, setIsVictoryModalOpen] = useState(false);
   const fileInputRef = useRef(null);
   const filterRef = useRef(null);
 
@@ -329,14 +337,17 @@ const Records = () => {
             {activeTab === 'records' && (
               <div className="flex items-center gap-2">
                 <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
+                <button onClick={() => setIsOddsModalOpen(true)} className="btn-outline border-amber-500/30 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5" title="Live QIB/NII/Retail Subscription Odds">
+                  <span>✨ Live Odds</span>
+                </button>
                 <button onClick={() => setIsBatchAsbaOpen(true)} className="btn-outline flex items-center gap-1.5" title="Generate Multi-Account Batch ASBA Payload">
                   <FileSpreadsheet size={14} className="text-indigo-400" /> Batch ASBA
                 </button>
                 <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5" title="Download CSV Import Template">
                   <FileSpreadsheet size={14} className="text-emerald-400" /> Template
                 </button>
-                <button onClick={() => fileInputRef.current.click()} className="btn-outline flex items-center gap-1.5" title="Import Records from CSV">
-                  <Upload size={14} className="text-indigo-400" /> Import
+                <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10" title="Smart Import Records with Extra Column Detection">
+                  <Sparkles size={14} className="text-indigo-400" /> Smart Import
                 </button>
                 <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5" title="Export Records to CSV">
                   <Download size={14} className="text-amber-400" /> Export
@@ -349,6 +360,9 @@ const Records = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Mandate Tracker Widget */}
+      <MandateTrackerWidget onStatusChange={loadRecords} />
 
       {/* ── Refund Tab ── */}
       <AnimatePresence mode="wait">
@@ -799,6 +813,15 @@ const Records = () => {
                         </td>
                         <td className="text-center">
                           <div className="flex items-center justify-center gap-1">
+                            {(String(record.status || '').toUpperCase() === 'ALLOTTED' || parseFloat(record.alloted) > 0) && (
+                              <button
+                                onClick={() => { setVictoryRecord(record); setIsVictoryModalOpen(true); }}
+                                className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                                title="Generate Shareable Victory Card (PNG / WhatsApp)"
+                              >
+                                <Trophy size={14} />
+                              </button>
+                            )}
                             <a
                               href={getAllotmentUrl(record)}
                               target="_blank"
@@ -888,6 +911,24 @@ const Records = () => {
       <BatchAsbaModal
         isOpen={isBatchAsbaOpen}
         onClose={() => setIsBatchAsbaOpen(false)}
+      />
+
+      <SubscriptionOddsModal
+        isOpen={isOddsModalOpen}
+        onClose={() => setIsOddsModalOpen(false)}
+      />
+
+      <SmartImportModal
+        isOpen={isSmartImportOpen}
+        onClose={() => setIsSmartImportOpen(false)}
+        defaultTable="records"
+        onSuccess={loadRecords}
+      />
+
+      <AllotmentVictoryModal
+        isOpen={isVictoryModalOpen}
+        onClose={() => setIsVictoryModalOpen(false)}
+        record={victoryRecord}
       />
     </div>
   );

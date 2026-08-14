@@ -79,6 +79,7 @@ const CommandPalette = () => {
     { title: 'Go to IPO Records', subtitle: 'Manage listing records and transactions', action: () => navigate('/records'), icon: Terminal, category: 'Navigation' },
     { title: 'Go to Applicants', subtitle: 'Manage family/group applicant profiles', action: () => navigate('/applicants'), icon: User, category: 'Navigation' },
     { title: 'Go to Analytics & Taxes', subtitle: 'Ledger view, tax estimations, and reports', action: () => navigate('/analytics'), icon: Sparkles, category: 'Navigation' },
+    { title: 'Go to Expense Tracker', subtitle: 'Track daily expenses, budgets & spending', action: () => navigate('/expenses'), icon: Compass, category: 'Navigation' },
     { title: 'Go to Settings', subtitle: 'Preferences, 2FA security, and active sessions', action: () => navigate('/settings'), icon: Shield, category: 'Navigation' },
   ];
 

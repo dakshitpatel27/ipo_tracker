@@ -19,6 +19,7 @@ import AnchorLockupCalendar from '../components/ui/AnchorLockupCalendar';
 import KostakCalculator from '../components/ui/KostakCalculator';
 import ShareableGainCard from '../components/ui/ShareableGainCard';
 import TraderBadges from '../components/ui/TraderBadges';
+import AllotmentBadges from '../components/ui/AllotmentBadges';
 import ThemeCustomizer from '../components/ui/ThemeCustomizer';
 import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
@@ -180,6 +181,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+import MandateTrackerWidget from '../components/ui/MandateTrackerWidget';
+
 /* ── Dashboard ── */
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -320,6 +323,9 @@ const Dashboard = () => {
           {syncing ? 'Syncing…' : 'Refresh'}
         </button>
       </motion.div>
+
+      {/* Mandate Escalation Tracker Widget */}
+      <MandateTrackerWidget onStatusChange={load} />
 
       {/* Core Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
@@ -486,6 +492,7 @@ const Dashboard = () => {
 
       {/* Advanced AI & Reserve Planner Widgets */}
       <div className="space-y-6">
+        <AllotmentBadges records={records} />
         <TraderBadges />
         <ShareableGainCard ipoName="Swiggy / Mainboard IPO" profit={18500} returnPct={124.5} applicant="Primary" />
         <ThemeCustomizer />

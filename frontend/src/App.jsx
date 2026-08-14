@@ -14,6 +14,8 @@ import Profile from './pages/Profile';
 import Calendar from './pages/Calendar';
 import AllotmentChecker from './pages/AllotmentChecker';
 import AllottedPortfolio from './pages/AllottedPortfolio';
+import PartyLedger from './pages/PartyLedger';
+import ExpenseTracker from './pages/ExpenseTracker';
 import { useAuth } from './context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast, ToastBar } from 'react-hot-toast';
@@ -25,6 +27,8 @@ import RealtimeNotificationListener from './components/ui/RealtimeNotificationLi
 import TradingTicker from './components/ui/TradingTicker';
 import AnimatedPage from './components/ui/AnimatedPage';
 import MobileBottomNav from './components/layout/MobileBottomNav';
+import OfflineSyncBanner from './components/ui/OfflineSyncBanner';
+import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (
@@ -137,6 +141,9 @@ function App() {
         )}
       </AnimatePresence>
 
+      <OfflineSyncBanner />
+      <PWAInstallPrompt />
+
       {/* Impersonation Banner */}
       {localStorage.getItem('ipo_master_token') && (
         <div className="fixed top-0 left-0 w-full z-[60] bg-indigo-600 text-white text-center py-2 px-4 flex justify-center items-center text-[0.8125rem] font-medium gap-3">
@@ -186,6 +193,8 @@ function App() {
               <Route path="/"         element={<AnimatedPage><Dashboard /></AnimatedPage>} />
               <Route path="/records"  element={<AnimatedPage><Records /></AnimatedPage>} />
               <Route path="/accounts" element={<AnimatedPage><Accounts /></AnimatedPage>} />
+              <Route path="/party-ledger" element={<AnimatedPage><PartyLedger /></AnimatedPage>} />
+              <Route path="/expenses" element={<AnimatedPage><ExpenseTracker /></AnimatedPage>} />
               <Route path="/applicants" element={<AnimatedPage><Applicants /></AnimatedPage>} />
               <Route path="/ipo-master" element={<AnimatedPage><IpoMaster /></AnimatedPage>} />
               <Route path="/calendar" element={<AnimatedPage><Calendar /></AnimatedPage>} />

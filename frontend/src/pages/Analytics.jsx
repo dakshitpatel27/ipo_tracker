@@ -7,6 +7,7 @@ import { Target, TrendingUp, Users, Trophy, Printer, Crown, Download } from 'luc
 import PageLoader from '../components/ui/PageLoader';
 import ApplicantHeatmap from '../components/ui/ApplicantHeatmap';
 import TaxHarvestingPlanner from '../components/ui/TaxHarvestingPlanner';
+import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
 import { getRecordProfit } from '../utils/profitCalculator';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#8b5cf6'];
@@ -255,7 +256,18 @@ const Analytics = () => {
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="glass-card p-6">
         <div className="flex justify-between items-center border-b border-border pb-2 mb-4">
           <h3 className="text-lg font-bold text-white">Tax Ledger & Capital Gains</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                const now = new Date();
+                const url = api.getMonthlyDigestPdfUrl(now.getMonth() + 1, now.getFullYear());
+                window.open(url, '_blank');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-colors text-xs font-semibold print-hidden"
+              title="Generate printable Monthly Digest combining expenses, cashflow & IPO gains"
+            >
+              <Printer size={14} /> Monthly Financial Digest (PDF)
+            </button>
             <button
               onClick={() => {
                 const token = localStorage.getItem('ipo_token');
@@ -304,6 +316,9 @@ const Analytics = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Monte Carlo Simulator */}
+      <MonteCarloSimulator />
 
       {/* Tax Loss Harvesting Assistant */}
       <TaxHarvestingPlanner records={records} />

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../api';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Edit2, User, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Edit2, User, Upload, Download, FileSpreadsheet, Sparkles } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import UpgradeModal from '../components/ui/UpgradeModal';
+import SmartImportModal from '../components/ui/SmartImportModal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import PageLoader from '../components/ui/PageLoader';
@@ -17,6 +18,7 @@ const Applicants = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [applicantToDelete, setApplicantToDelete] = useState(null);
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const fileInputRef = useRef(null);
   
   const [formData, setFormData] = useState({ name: '', pan: '', upiId: '', family: '', dematId: '', bankAccount: '', ifscCode: '', commissionPct: 0 });
@@ -159,8 +161,8 @@ const Applicants = () => {
           <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5" title="Download CSV Import Template">
             <FileSpreadsheet size={14} className="text-emerald-400" /> Template
           </button>
-          <button onClick={() => fileInputRef.current.click()} className="btn-outline flex items-center gap-1.5" title="Import Applicants from CSV">
-            <Upload size={14} className="text-indigo-400" /> Import
+          <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10" title="Smart Import Applicants with Extra Column Detection">
+            <Sparkles size={14} className="text-indigo-400" /> Smart Import
           </button>
           <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5" title="Export Applicants to CSV">
             <Download size={14} className="text-amber-400" /> Export
@@ -295,6 +297,13 @@ const Applicants = () => {
         onClose={() => setShowUpgradeModal(false)}
         title="Applicant Limit Reached"
         message={`Your current subscription tier (${user?.subscription || 'free'}) only allows up to ${subscriptionTiers?.[user?.subscription || 'free']?.maxApplicants || 0} applicants.`}
+      />
+
+      <SmartImportModal
+        isOpen={isSmartImportOpen}
+        onClose={() => setIsSmartImportOpen(false)}
+        defaultTable="applicants"
+        onSuccess={load}
       />
     </div>
   );

@@ -1117,6 +1117,568 @@ app.post('/api/transactions', authMiddleware, (req, res) => {
     });
 });
 
+// ========== EXPENSE TRACKER API ==========
+
+// Helper: Parse receipt text/PDF for amount, date, category, and merchant
+async function parseReceiptContent(fileBuffer, mimeType, originalName) {
+    let rawText = '';
+    if (mimeType === 'application/pdf' || (originalName && originalName.toLowerCase().endsWith('.pdf'))) {
+        try {
+            const pdfData = await pdfParse(fileBuffer);
+            rawText = pdfData.text || '';
+        } catch (e) {
+            console.error('PDF Parse Error:', e);
+        }
+    }
+    
+    if (!rawText) {
+        rawText = fileBuffer.toString('utf8', 0, Math.min(fileBuffer.length, 10000));
+    }
+
+    let amount = null;
+    let date = null;
+    let category = 'Other';
+    let merchant = '';
+
+    // Amount Extractor
+    const totalRegex = /(?:total|grand\s*total|net\s*amount|amount\s*paid|paid\s*amount|bill\s*amount|amount|inr|rs\.?|₹)[\s\:\=]*([\d,]+(?:\.\d{1,2})?)/gi;
+    let match;
+    let maxAmount = 0;
+    while ((match = totalRegex.exec(rawText)) !== null) {
+        const val = parseFloat(match[1].replace(/,/g, ''));
+        if (!isNaN(val) && val > maxAmount && val < 1000000) {
+            maxAmount = val;
+        }
+    }
+    if (maxAmount > 0) {
+        amount = maxAmount;
+    } else {
+        const floatRegex = /(?:₹|inr|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+        while ((match = floatRegex.exec(rawText)) !== null) {
+            const val = parseFloat(match[1].replace(/,/g, ''));
+            if (!isNaN(val) && val > 0 && val < 1000000) {
+                amount = val;
+                break;
+            }
+        }
+    }
+
+    // Date Extractor
+    const dateIsoMatch = rawText.match(/\b(202[0-9]-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01]))\b/);
+    const dateSlashMatch = rawText.match(/\b((?:0[1-9]|[12][0-9]|3[01])[\/\-](?:0[1-9]|1[0-2])[\/\-](?:202[0-9]|2[0-9]))\b/);
+    const dateTextMatch = rawText.match(/\b((?:0[1-9]|[12][0-9]|3[01])\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:202[0-9]))\b/i);
+
+    if (dateIsoMatch) {
+        date = dateIsoMatch[1];
+    } else if (dateSlashMatch) {
+        const parts = dateSlashMatch[1].split(/[\/\-]/);
+        const year = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+        date = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    } else if (dateTextMatch) {
+        const d = new Date(dateTextMatch[1]);
+        if (!isNaN(d.getTime())) {
+            date = d.toISOString().split('T')[0];
+        }
+    }
+
+    if (!date) {
+        date = new Date().toISOString().split('T')[0];
+    }
+
+    // Category Extractor
+    const lowerText = rawText.toLowerCase() + ' ' + (originalName || '').toLowerCase();
+    
+    if (/swiggy|zomato|dominos|mcdonald|kfc|starbucks|restaurant|cafe|food|dining|pizza|burger|eats/i.test(lowerText)) {
+        category = 'Food';
+    } else if (/uber|ola|rapido|petrol|fuel|shell|bpcl|hpcl|rail|irctc|flight|indigo|airindia|cab|taxi|fastag/i.test(lowerText)) {
+        category = 'Transport';
+    } else if (/amazon|flipkart|myntra|zara|ajio|meesho|decathlon|retail|store|mall|apparel|shopping/i.test(lowerText)) {
+        category = 'Shopping';
+    } else if (/electricity|torrent|bescom|tata\s*power|airtel|jio|vi|broadband|water|gas|utility|recharge|bill/i.test(lowerText)) {
+        category = 'Bills';
+    } else if (/pharmacy|apollo|pharmeasy|1mg|hospital|clinic|doctor|medplus|lab|health|medical/i.test(lowerText)) {
+        category = 'Health';
+    } else if (/pvr|inox|bookmyshow|netflix|prime|spotify|movie|cinema|game|entertainment/i.test(lowerText)) {
+        category = 'Entertainment';
+    } else if (/school|college|university|udemy|coursera|tuition|exam|education|book|stationery/i.test(lowerText)) {
+        category = 'Education';
+    } else if (/rent|society|maintenance|landlord|flat|apartment|housing/i.test(lowerText)) {
+        category = 'Rent';
+    } else if (/zerodha|groww|upstox|mutual\s*fund|sip|investment|stocks|gold/i.test(lowerText)) {
+        category = 'Investments';
+    }
+
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    if (lines.length > 0) {
+        merchant = lines[0].substring(0, 40);
+    }
+    if (!merchant || merchant.toLowerCase().includes('total') || merchant.toLowerCase().includes('invoice')) {
+        merchant = originalName ? originalName.replace(/\.[^/.]+$/, "") : `${category} Purchase`;
+    }
+
+    return {
+        amount: amount || '',
+        date: date,
+        category: category,
+        description: merchant,
+        merchant: merchant,
+        rawTextSnippet: rawText.substring(0, 300)
+    };
+}
+
+// POST Parse Expense Receipt (Image or PDF)
+app.post('/api/expenses/parse-receipt', authMiddleware, upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No receipt file uploaded' });
+    }
+
+    try {
+        const parsed = await parseReceiptContent(req.file.buffer, req.file.mimetype, req.file.originalname);
+        res.json({ message: 'success', data: parsed });
+    } catch (err) {
+        console.error('Receipt Parsing Error:', err);
+        res.status(500).json({ error: 'Failed to parse receipt: ' + err.message });
+    }
+});
+
+// GET Monthly Financial Digest & Tax Statement (HTML/PDF Printable Report)
+app.get('/api/reports/monthly-digest-pdf', authMiddleware, (req, res) => {
+    const now = new Date();
+    const month = parseInt(req.query.month) || (now.getMonth() + 1);
+    const year = parseInt(req.query.year) || now.getFullYear();
+
+    const monthStr = String(month).padStart(2, '0');
+    const monthYearPattern = `${year}-${monthStr}`;
+    const monthName = new Date(year, month - 1).toLocaleString('en-IN', { month: 'long' });
+
+    db.get('SELECT username, email FROM users WHERE id = ?', [req.user.id], (userErr, user) => {
+        const userName = user?.username || 'Valued User';
+
+        // 1. Fetch Expenses for this month
+        db.all(
+            `SELECT e.*, ba.accountName 
+             FROM expenses e 
+             LEFT JOIN bank_accounts ba ON e.bankAccountId = ba.id 
+             WHERE e.userId = ? AND e.date LIKE ? 
+             ORDER BY e.date ASC`,
+            [req.user.id, `${monthYearPattern}%`],
+            (expErr, expenses) => {
+                if (expErr) expenses = [];
+
+                // Category Summary
+                const categoryTotals = {};
+                let totalExpenses = 0;
+                (expenses || []).forEach(e => {
+                    const amt = parseFloat(e.amount) || 0;
+                    totalExpenses += amt;
+                    const cat = e.category || 'Other';
+                    categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+                });
+
+                // 2. Fetch Sold IPO Records for this month
+                db.all(
+                    `SELECT * FROM records 
+                     WHERE userId = ? AND holdingStatus = 'Sold' AND (sellDate LIKE ? OR (sellDate IS NULL AND listingDate LIKE ?))
+                     ORDER BY sellDate ASC`,
+                    [req.user.id, `${monthYearPattern}%`, `${monthYearPattern}%`],
+                    (recErr, records) => {
+                        if (recErr) records = [];
+
+                        let grossIpoProfit = 0;
+                        let totalCharges = 0;
+                        let stcgGains = 0;
+                        let ltcgGains = 0;
+
+                        (records || []).forEach(r => {
+                            const qty = parseFloat(r.shares) || 1;
+                            const buyPrice = parseFloat(r.price) || 0;
+                            const sellPrice = parseFloat(r.sellPrice) || parseFloat(r.listingPrice) || buyPrice;
+                            const grossProfit = (sellPrice - buyPrice) * qty;
+                            grossIpoProfit += grossProfit;
+
+                            const calc = calculator.calculateCharges(buyPrice, qty, sellPrice, 'Sold', r.listingPrice, r.gmp);
+                            totalCharges += (calc.totalCharges || 0);
+
+                            let isLongTerm = false;
+                            if (r.sellDate && r.listingDate) {
+                                const diffDays = Math.ceil(Math.abs(new Date(r.sellDate) - new Date(r.listingDate)) / (1000 * 60 * 60 * 24));
+                                if (diffDays > 365) isLongTerm = true;
+                            }
+
+                            const netGain = calc.netProfit;
+                            if (isLongTerm) ltcgGains += netGain;
+                            else stcgGains += netGain;
+                        });
+
+                        const estimatedTax = (stcgGains > 0 ? stcgGains * 0.20 : 0) + (ltcgGains > 0 ? Math.max(0, ltcgGains - 125000) * 0.125 : 0);
+                        const netIpoProfit = (stcgGains + ltcgGains) - estimatedTax;
+                        const netCashflow = netIpoProfit - totalExpenses;
+
+                        // 3. Fetch Bank Accounts
+                        db.all('SELECT * FROM bank_accounts WHERE userId = ?', [req.user.id], (bankErr, accounts) => {
+                            if (bankErr) accounts = [];
+                            const totalBankLiquidity = (accounts || []).reduce((s, a) => s + (parseFloat(a.balance) || 0), 0);
+
+                            // Format HTML report
+                            const expRowsHtml = (expenses || []).map((e, i) => `
+                              <tr style="border-bottom: 1px solid #e2e8f0;">
+                                <td style="padding: 8px;">${i + 1}</td>
+                                <td style="padding: 8px; font-weight: bold;">${e.date || '—'}</td>
+                                <td style="padding: 8px;">${e.description || e.category}</td>
+                                <td style="padding: 8px;"><span style="background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;">${e.category}</span></td>
+                                <td style="padding: 8px; text-align: center;">${e.paymentMode || 'UPI'}</td>
+                                <td style="padding: 8px; text-align: right;">${e.accountName || '—'}</td>
+                                <td style="padding: 8px; text-align: right; color: #dc2626; font-weight: bold;">-₹${(parseFloat(e.amount) || 0).toFixed(2)}</td>
+                              </tr>
+                            `).join('');
+
+                            const ipoRowsHtml = (records || []).map((r, i) => {
+                                const qty = parseFloat(r.shares) || 1;
+                                const buyPrice = parseFloat(r.price) || 0;
+                                const sellPrice = parseFloat(r.sellPrice) || buyPrice;
+                                const grossProfit = (sellPrice - buyPrice) * qty;
+                                return `
+                                  <tr style="border-bottom: 1px solid #e2e8f0;">
+                                    <td style="padding: 8px;">${i + 1}</td>
+                                    <td style="padding: 8px; font-weight: bold;">${r.ipoName || 'IPO'}</td>
+                                    <td style="padding: 8px;">${r.applicantName || 'Applicant'}</td>
+                                    <td style="padding: 8px; text-align: right;">${qty}</td>
+                                    <td style="padding: 8px; text-align: right;">₹${buyPrice.toFixed(2)}</td>
+                                    <td style="padding: 8px; text-align: right;">₹${sellPrice.toFixed(2)}</td>
+                                    <td style="padding: 8px; text-align: right; color: ${grossProfit >= 0 ? '#059669' : '#dc2626'}; font-weight: bold;">₹${grossProfit.toFixed(2)}</td>
+                                  </tr>
+                                `;
+                            }).join('');
+
+                            const reportHtml = `
+                              <!DOCTYPE html>
+                              <html>
+                              <head>
+                                <meta charset="utf-8" />
+                                <title>Monthly Financial Digest — ${monthName} ${year}</title>
+                                <style>
+                                  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1e293b; padding: 40px; background: #fff; }
+                                  .header { display: flex; justify-content: space-between; border-bottom: 3px solid #4f46e5; padding-bottom: 15px; margin-bottom: 20px; }
+                                  .title { font-size: 22px; font-weight: bold; color: #4338ca; }
+                                  .summary-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-bottom: 25px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+                                  .card { padding: 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; }
+                                  .card-title { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+                                  .card-value { font-size: 17px; font-weight: bold; margin-top: 4px; }
+                                  table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 25px; }
+                                  th { background: #f1f5f9; text-align: left; padding: 8px; font-size: 10px; text-transform: uppercase; border-bottom: 2px solid #cbd5e1; }
+                                  .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; border: none; background: #4f46e5; color: #fff; }
+                                  @media print { .no-print { display: none !important; } body { padding: 15px !important; } }
+                                </style>
+                              </head>
+                              <body>
+                                <div class="header">
+                                  <div>
+                                    <div class="title">IPO TRACKER — MONTHLY FINANCIAL DIGEST</div>
+                                    <div style="color: #64748b; font-size: 11px; margin-top: 4px;">Executive Performance & Cashflow Statement for <b>${monthName} ${year}</b></div>
+                                  </div>
+                                  <div style="text-align: right;">
+                                    <button onclick="window.print()" class="btn-action no-print">🖨️ Print / Save as PDF</button>
+                                    <div style="margin-top: 8px; font-size: 11px; color: #475569;">
+                                      <div><b>Account:</b> ${userName} (${user?.email || 'N/A'})</div>
+                                      <div><b>Date Generated:</b> ${new Date().toLocaleDateString('en-IN')}</div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div class="summary-box">
+                                  <div class="card" style="background: #ecfdf5; border-color: #a7f3d0;">
+                                    <div class="card-title" style="color: #065f46;">Net Realized IPO Profits</div>
+                                    <div class="card-value" style="color: #059669;">₹${netIpoProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                  </div>
+                                  <div class="card" style="background: #fef2f2; border-color: #fecaca;">
+                                    <div class="card-title" style="color: #991b1b;">Total Monthly Expenses</div>
+                                    <div class="card-value" style="color: #dc2626;">₹${totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                  </div>
+                                  <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+                                    <div class="card-title" style="color: #1e40af;">Net Monthly Cashflow</div>
+                                    <div class="card-value" style="color: ${netCashflow >= 0 ? '#2563eb' : '#dc2626'};">₹${netCashflow.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                  </div>
+                                  <div class="card" style="background: #f5f3ff; border-color: #ddd6fe;">
+                                    <div class="card-title" style="color: #5b21b6;">Total Bank Liquidity</div>
+                                    <div class="card-value" style="color: #7c3aed;">₹${totalBankLiquidity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                  </div>
+                                </div>
+
+                                <h3>1. Monthly Expense Audit Log</h3>
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>#</th>
+                                      <th>Date</th>
+                                      <th>Description / Merchant</th>
+                                      <th>Category</th>
+                                      <th style="text-align: center;">Mode</th>
+                                      <th style="text-align: right;">Bank Account</th>
+                                      <th style="text-align: right;">Amount (₹)</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    ${expRowsHtml || '<tr><td colspan="7" style="text-align:center; padding: 15px;">No expenses recorded for this month.</td></tr>'}
+                                  </tbody>
+                                </table>
+
+                                <h3>2. Realized IPO Capital Gains (Schedule CG)</h3>
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>#</th>
+                                      <th>IPO Name</th>
+                                      <th>Applicant</th>
+                                      <th style="text-align: right;">Qty</th>
+                                      <th style="text-align: right;">Buy Price</th>
+                                      <th style="text-align: right;">Sell Price</th>
+                                      <th style="text-align: right;">Gross P&L (₹)</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    ${ipoRowsHtml || '<tr><td colspan="7" style="text-align:center; padding: 15px;">No realized IPO sales for this month.</td></tr>'}
+                                  </tbody>
+                                </table>
+                              </body>
+                              </html>
+                            `;
+
+                            res.setHeader('Content-Type', 'text/html');
+                            res.send(reportHtml);
+                        });
+                    }
+                );
+            }
+        );
+    });
+});
+
+// GET expenses (filterable by date range, category, bankAccountId)
+app.get('/api/expenses', authMiddleware, (req, res) => {
+    const { startDate, endDate, category, bankAccountId, limit } = req.query;
+    let sql = `SELECT e.*, ba.accountName, ba.bankName 
+               FROM expenses e 
+               LEFT JOIN bank_accounts ba ON e.bankAccountId = ba.id 
+               WHERE e.userId = ?`;
+    const params = [req.user.id];
+
+    if (startDate) {
+        sql += ' AND e.date >= ?';
+        params.push(startDate);
+    }
+    if (endDate) {
+        sql += ' AND e.date <= ?';
+        params.push(endDate);
+    }
+    if (category) {
+        sql += ' AND e.category = ?';
+        params.push(category);
+    }
+    if (bankAccountId) {
+        sql += ' AND e.bankAccountId = ?';
+        params.push(bankAccountId);
+    }
+    sql += ' ORDER BY e.date DESC, e.createdAt DESC';
+    if (limit) {
+        sql += ' LIMIT ?';
+        params.push(parseInt(limit));
+    }
+
+    db.all(sql, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST create a new expense (optionally debit linked bank account)
+app.post('/api/expenses', authMiddleware, (req, res) => {
+    const { bankAccountId, amount, category, subcategory, description, paymentMode, date, isRecurring, tags, receipt } = req.body;
+    if (!amount || !category) return res.status(400).json({ error: 'Amount and category are required' });
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const now = new Date().toISOString();
+    const expenseDate = date || now.split('T')[0];
+    const amountNum = parseFloat(amount) || 0;
+
+    const insertExpense = () => {
+        db.run(
+            `INSERT INTO expenses (id, userId, bankAccountId, amount, category, subcategory, description, paymentMode, date, isRecurring, tags, receipt, createdAt) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.user.id, bankAccountId || null, amountNum, category, subcategory || '', description || '', paymentMode || 'UPI', expenseDate, isRecurring ? 1 : 0, JSON.stringify(tags || []), receipt || '', now],
+            function(err) {
+                if (err) return res.status(400).json({ error: err.message });
+                res.json({ message: 'success', id, bankDebited: !!bankAccountId });
+            }
+        );
+    };
+
+    // If linked to a bank account, debit the bank first
+    if (bankAccountId) {
+        recordTransaction(req.user.id, bankAccountId, 'debit', 'EXPENSE', amountNum, `Expense: ${description || category}`, id, (txnErr) => {
+            if (txnErr) return res.status(500).json({ error: 'Failed to debit bank account: ' + txnErr.message });
+            insertExpense();
+        });
+    } else {
+        insertExpense();
+    }
+});
+
+// PUT update an expense
+app.put('/api/expenses/:id', authMiddleware, (req, res) => {
+    const { amount, category, subcategory, description, paymentMode, date, isRecurring, tags, receipt } = req.body;
+    db.run(
+        `UPDATE expenses SET 
+            amount = COALESCE(?, amount),
+            category = COALESCE(?, category),
+            subcategory = COALESCE(?, subcategory),
+            description = COALESCE(?, description),
+            paymentMode = COALESCE(?, paymentMode),
+            date = COALESCE(?, date),
+            isRecurring = COALESCE(?, isRecurring),
+            tags = COALESCE(?, tags),
+            receipt = COALESCE(?, receipt)
+         WHERE id = ? AND userId = ?`,
+        [amount, category, subcategory, description, paymentMode, date, isRecurring !== undefined ? (isRecurring ? 1 : 0) : undefined, tags ? JSON.stringify(tags) : undefined, receipt, req.params.id, req.user.id],
+        function(err) {
+            if (err) return res.status(400).json({ error: err.message });
+            res.json({ message: 'success', changes: this.changes });
+        }
+    );
+});
+
+// DELETE an expense (revert bank balance if linked)
+app.delete('/api/expenses/:id', authMiddleware, (req, res) => {
+    db.get('SELECT * FROM expenses WHERE id = ? AND userId = ?', [req.params.id, req.user.id], (err, expense) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+        const deleteExpense = () => {
+            db.run('DELETE FROM expenses WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(delErr) {
+                if (delErr) return res.status(400).json({ error: delErr.message });
+                res.json({ message: 'success', changes: this.changes, bankRefunded: !!expense.bankAccountId });
+            });
+        };
+
+        // If linked to a bank account, refund the amount
+        if (expense.bankAccountId) {
+            recordTransaction(req.user.id, expense.bankAccountId, 'credit', 'EXPENSE_REFUND', expense.amount, `Refund: ${expense.description || expense.category}`, expense.id, (txnErr) => {
+                if (txnErr) return res.status(500).json({ error: 'Failed to refund bank account: ' + txnErr.message });
+                // Also remove the original debit transaction
+                db.run('DELETE FROM transactions WHERE referenceId = ? AND userId = ?', [expense.id, req.user.id], () => {
+                    deleteExpense();
+                });
+            });
+        } else {
+            deleteExpense();
+        }
+    });
+});
+
+// GET expense summary (monthly totals by category + budget usage)
+app.get('/api/expenses/summary', authMiddleware, (req, res) => {
+    const now = new Date();
+    const month = parseInt(req.query.month) || (now.getMonth() + 1);
+    const year = parseInt(req.query.year) || now.getFullYear();
+    
+    // Build date range for the month
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endMonth = month === 12 ? 1 : month + 1;
+    const endYear = month === 12 ? year + 1 : year;
+    const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+    db.all(
+        `SELECT category, SUM(amount) as total, COUNT(*) as count 
+         FROM expenses 
+         WHERE userId = ? AND date >= ? AND date < ?
+         GROUP BY category 
+         ORDER BY total DESC`,
+        [req.user.id, startDate, endDate],
+        (err, categoryTotals) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            db.all(
+                'SELECT * FROM budgets WHERE userId = ?',
+                [req.user.id],
+                (budgetErr, budgets) => {
+                    if (budgetErr) return res.status(500).json({ error: budgetErr.message });
+
+                    const grandTotal = (categoryTotals || []).reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
+                    const totalCount = (categoryTotals || []).reduce((s, c) => s + c.count, 0);
+                    
+                    // Calculate days in month for daily average
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const dayOfMonth = month === (now.getMonth() + 1) && year === now.getFullYear() ? now.getDate() : daysInMonth;
+                    const dailyAverage = dayOfMonth > 0 ? grandTotal / dayOfMonth : 0;
+
+                    // Map budgets to category totals
+                    const budgetMap = {};
+                    (budgets || []).forEach(b => { budgetMap[b.category] = parseFloat(b.monthlyLimit) || 0; });
+
+                    const categoryBreakdown = (categoryTotals || []).map(c => ({
+                        category: c.category,
+                        total: c.total,
+                        count: c.count,
+                        budget: budgetMap[c.category] || 0,
+                        budgetUsedPct: budgetMap[c.category] ? ((c.total / budgetMap[c.category]) * 100).toFixed(1) : null
+                    }));
+
+                    // Total budget
+                    const totalBudget = Object.values(budgetMap).reduce((s, v) => s + v, 0);
+                    const budgetHealthPct = totalBudget > 0 ? (((totalBudget - grandTotal) / totalBudget) * 100).toFixed(1) : null;
+
+                    // Find highest category
+                    const highestCategory = categoryBreakdown.length > 0 ? categoryBreakdown[0] : null;
+
+                    res.json({
+                        message: 'success',
+                        data: {
+                            month, year,
+                            grandTotal,
+                            totalCount,
+                            dailyAverage,
+                            totalBudget,
+                            budgetHealthPct,
+                            highestCategory,
+                            categories: categoryBreakdown,
+                            budgets: budgets || []
+                        }
+                    });
+                }
+            );
+        }
+    );
+});
+
+// POST set/update budget for a category
+app.post('/api/budgets', authMiddleware, (req, res) => {
+    const { category, monthlyLimit } = req.body;
+    if (!category) return res.status(400).json({ error: 'Category is required' });
+
+    const limitNum = parseFloat(monthlyLimit) || 0;
+
+    // Upsert: check if budget exists for this user+category
+    db.get('SELECT id FROM budgets WHERE userId = ? AND category = ?', [req.user.id, category], (err, existing) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (existing) {
+            db.run('UPDATE budgets SET monthlyLimit = ? WHERE id = ?', [limitNum, existing.id], function(upErr) {
+                if (upErr) return res.status(400).json({ error: upErr.message });
+                res.json({ message: 'success', action: 'updated', id: existing.id });
+            });
+        } else {
+            const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+            db.run(
+                'INSERT INTO budgets (id, userId, category, monthlyLimit, createdAt) VALUES (?, ?, ?, ?, ?)',
+                [id, req.user.id, category, limitNum, new Date().toISOString()],
+                function(insertErr) {
+                    if (insertErr) return res.status(400).json({ error: insertErr.message });
+                    res.json({ message: 'success', action: 'created', id });
+                }
+            );
+        }
+    });
+});
+
 // PIN Passcode Management (Set / Verify / Toggle)
 app.post('/api/user/pin', authMiddleware, async (req, res) => {
     const { action, pin } = req.body;
@@ -1297,6 +1859,467 @@ app.get('/api/analytics/family-heatmap', authMiddleware, (req, res) => {
             }));
 
             res.json({ message: 'success', data: heatmapData });
+        });
+    });
+});
+
+// ========== UPI MANDATE ESCALATION & NUDGES API ==========
+
+// GET Pending UPI Mandates
+app.get('/api/records/pending-mandates', authMiddleware, (req, res) => {
+    db.all(
+        `SELECT r.*, a.name as applicantFullName 
+         FROM records r 
+         LEFT JOIN applicants a ON LOWER(r.applicantName) = LOWER(a.name) AND r.userId = a.userId
+         WHERE r.userId = ? AND (r.mandateStatus IS NULL OR r.mandateStatus = 'Requested' OR r.mandateStatus = 'Pending') AND (r.applied = 'Yes' OR r.applied = 'Pending')
+         ORDER BY r.createdAt DESC`,
+        [req.user.id],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', data: rows || [] });
+        }
+    );
+});
+
+// POST Send Urgent WhatsApp Mandate Nudge
+app.post('/api/records/:id/mandate-nudge', authMiddleware, async (req, res) => {
+    const recordId = req.params.id;
+    const { phone } = req.body;
+
+    db.get('SELECT * FROM records WHERE id = ? AND userId = ?', [recordId, req.user.id], async (err, record) => {
+        if (err || !record) return res.status(404).json({ error: 'IPO Record not found' });
+
+        // Try to find applicant phone
+        db.get('SELECT * FROM applicants WHERE LOWER(name) = LOWER(?) AND userId = ?', [record.applicantName, req.user.id], async (appErr, applicant) => {
+            const targetPhone = phone || applicant?.whatsappNumber || req.user.whatsappNumber;
+            if (!targetPhone) {
+                return res.status(400).json({ error: `No WhatsApp phone number found for ${record.applicantName}. Please configure it in Applicants or Settings.` });
+            }
+
+            const ipoAmount = parseFloat(record.amount) || (parseFloat(record.shares || 1) * parseFloat(record.price || 0));
+            const msg = `⏳ *URGENT UPI MANDATE APPROVAL REMINDER*\n\nHello *${record.applicantName}*,\n\nPlease open your UPI App (GPay / PhonePe / Paytm / BHIM) and approve the pending mandate of *₹${ipoAmount.toLocaleString('en-IN')}* for *${record.ipoName}* before *5:00 PM today*!\n\n📌 UPI ID: \`${record.mandateUpiId || record.upiId || 'N/A'}\`\n📌 Mandate Status: *Pending Approval ⚠️*\n\nThank you!`;
+
+            const { sendWhatsAppMessage } = require('./whatsapp');
+            const result = await sendWhatsAppMessage(targetPhone, msg);
+
+            res.json({ message: 'Urgent mandate WhatsApp nudge dispatched!', result });
+        });
+    });
+});
+
+// ========== LIVE SUBSCRIPTION ODDS CALCULATOR API ==========
+
+app.get('/api/ipo/subscription-odds', authMiddleware, async (req, res) => {
+    const { ipoName } = req.query;
+
+    try {
+        const finApiRes = await fetch('https://finapi.upvaly.com/api/ipo');
+        const json = await finApiRes.json();
+
+        if (json.status !== 'success' || !Array.isArray(json.data)) {
+            return res.status(500).json({ error: 'Failed to fetch live subscription data' });
+        }
+
+        const iposData = json.data.map(ipo => {
+            const name = ipo.name || '';
+            const sub = ipo.subscription || ipo.biddingDetails || {};
+
+            const qib = parseFloat(sub.qib || sub.QIB || '1.2') || 1.2;
+            const shni = parseFloat(sub.sHNI || sub.shni || sub.niiSmall || '5.4') || 5.4;
+            const bhni = parseFloat(sub.bHNI || sub.bhni || sub.niiBig || '8.1') || 8.1;
+            const retail = parseFloat(sub.retail || sub.Retail || '12.5') || 12.5;
+
+            // Odds Calculation
+            const retailOddsRatio = Math.max(1, Math.round(retail));
+            const retailProbabilityPct = ((1 / retailOddsRatio) * 100).toFixed(1);
+
+            const shniOddsRatio = Math.max(1, Math.round(shni));
+            const shniProbabilityPct = ((1 / shniOddsRatio) * 100).toFixed(1);
+
+            const bhniOddsRatio = Math.max(1, Math.round(bhni));
+            const bhniProbabilityPct = ((1 / bhniOddsRatio) * 100).toFixed(1);
+
+            let strategyAdvice = '';
+            if (retailOddsRatio <= shniOddsRatio) {
+                strategyAdvice = `🟢 Retail allotment probability (${retailProbabilityPct}%) is currently higher than sHNI (${shniProbabilityPct}%). Split funds into 1-lot Retail applications across multiple family accounts to maximize odds.`;
+            } else {
+                strategyAdvice = `⚡ sHNI allotment probability (${shniProbabilityPct}%) is currently higher than Retail (${retailProbabilityPct}%). Applying 1 sHNI lot (₹2L+) offers superior allocation odds.`;
+            }
+
+            return {
+                name,
+                symbol: ipo.symbol || '',
+                priceRange: ipo.priceRange || 'N/A',
+                gmp: ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp || 'N/A',
+                subscription: {
+                    qib: `${qib}x`,
+                    shni: `${shni}x`,
+                    bhni: `${bhni}x`,
+                    retail: `${retail}x`
+                },
+                odds: {
+                    retail: { ratio: `1 in ${retailOddsRatio}`, pct: `${retailProbabilityPct}%` },
+                    shni: { ratio: `1 in ${shniOddsRatio}`, pct: `${shniProbabilityPct}%` },
+                    bhni: { ratio: `1 in ${bhniOddsRatio}`, pct: `${bhniProbabilityPct}%` },
+                    qib: { ratio: `${qib}x Over-subscribed` }
+                },
+                strategyAdvice
+            };
+        });
+
+        if (ipoName) {
+            const matched = iposData.find(i => i.name.toLowerCase().includes(ipoName.toLowerCase()));
+            return res.json({ message: 'success', data: matched || iposData[0] || null });
+        }
+
+        res.json({ message: 'success', data: iposData });
+    } catch (error) {
+        console.error('Subscription odds fetch error:', error);
+        res.status(500).json({ error: 'Failed to compute subscription odds: ' + error.message });
+    }
+});
+
+// ========== PERSONAL WEBCAL / ICAL FEED (.ICS) API ==========
+
+app.get('/api/calendar/feed.ics', (req, res) => {
+    const token = req.query.token;
+    if (!token) return res.status(401).send('Unauthorized: Token query parameter required');
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+
+        db.all('SELECT * FROM records WHERE userId = ?', [userId], (err, records) => {
+            if (err) return res.status(500).send('Database error');
+
+            const events = [];
+
+            (records || []).forEach(r => {
+                if (r.listingDate) {
+                    const cleanDate = r.listingDate.replace(/-/g, '');
+                    
+                    // Event 1: Listing Day Pre-Open Session
+                    events.push([
+                        'BEGIN:VEVENT',
+                        `UID:ipo-listing-${r.id}@ipotracker.com`,
+                        `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+                        `DTSTART;TZID=Asia/Kolkata:${cleanDate}T090000`,
+                        `DTEND;TZID=Asia/Kolkata:${cleanDate}T094500`,
+                        `SUMMARY:🚀 Listing Day Pre-Open: ${r.ipoName}`,
+                        `DESCRIPTION:IPO Pre-Open Bidding Session (9:00 AM - 9:45 AM) for ${r.ipoName} (${r.applicantName}). Target listing price: ₹${r.targetPrice || r.price || 0}.`,
+                        'STATUS:CONFIRMED',
+                        'BEGIN:VALARM',
+                        'TRIGGER:-PT15M',
+                        'ACTION:DISPLAY',
+                        'DESCRIPTION:Reminder: IPO Listing Pre-Open in 15 minutes!',
+                        'END:VALARM',
+                        'END:VEVENT'
+                    ].join('\r\n'));
+                }
+            });
+
+            const icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//IPO Tracker//Personal Investment Calendar//EN',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                'X-WR-CALNAME:IPO Tracker Schedule',
+                'X-WR-TIMEZONE:Asia/Kolkata',
+                events.join('\r\n'),
+                'END:VCALENDAR'
+            ].join('\r\n');
+
+            res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+            res.setHeader('Content-Disposition', 'inline; filename="ipo_tracker_calendar.ics"');
+            res.send(icsContent);
+        });
+    } catch(err) {
+        return res.status(401).send('Invalid or expired calendar token');
+    }
+});
+
+// ========== KHATABOOK PARTY LEDGER API ==========
+
+// GET Party Ledger Entries (filtered by applicantId optionally)
+app.get('/api/party-ledger', authMiddleware, (req, res) => {
+    const { applicantId } = req.query;
+    let sql = `SELECT pl.*, a.name as applicantName, a.pan, a.upiId 
+               FROM party_ledger pl 
+               LEFT JOIN applicants a ON pl.applicantId = a.id 
+               WHERE pl.userId = ?`;
+    const params = [req.user.id];
+
+    if (applicantId) {
+        sql += ' AND pl.applicantId = ?';
+        params.push(applicantId);
+    }
+    sql += ' ORDER BY pl.date DESC, pl.createdAt DESC';
+
+    db.all(sql, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// GET Party Ledger Summary (Khatabook Net Balance per Applicant & Overall)
+app.get('/api/party-ledger/summary', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM applicants WHERE userId = ?', [req.user.id], (appErr, applicants) => {
+        if (appErr) return res.status(500).json({ error: appErr.message });
+
+        db.all('SELECT * FROM party_ledger WHERE userId = ?', [req.user.id], (ledgerErr, entries) => {
+            if (ledgerErr) return res.status(500).json({ error: ledgerErr.message });
+
+            const applicantMap = {};
+            (applicants || []).forEach(a => {
+                applicantMap[a.id] = {
+                    applicantId: a.id,
+                    applicantName: a.name,
+                    pan: a.pan,
+                    upiId: a.upiId,
+                    family: a.family,
+                    totalGave: 0,
+                    totalGot: 0,
+                    netBalance: 0,
+                    status: 'settled', // 'you_will_get', 'you_will_give', 'settled'
+                    entryCount: 0
+                };
+            });
+
+            (entries || []).forEach(e => {
+                if (applicantMap[e.applicantId]) {
+                    const amt = parseFloat(e.amount) || 0;
+                    if (e.type === 'gave') {
+                        applicantMap[e.applicantId].totalGave += amt;
+                    } else if (e.type === 'got') {
+                        applicantMap[e.applicantId].totalGot += amt;
+                    }
+                    applicantMap[e.applicantId].entryCount++;
+                }
+            });
+
+            let totalYouWillGet = 0;
+            let totalYouWillGive = 0;
+
+            const partySummaries = Object.values(applicantMap).map(item => {
+                const diff = item.totalGave - item.totalGot; // positive = You gave more, applicant owes you
+                if (diff > 0) {
+                    item.status = 'you_will_get';
+                    item.netBalance = diff;
+                    totalYouWillGet += diff;
+                } else if (diff < 0) {
+                    item.status = 'you_will_give';
+                    item.netBalance = Math.abs(diff);
+                    totalYouWillGive += Math.abs(diff);
+                } else {
+                    item.status = 'settled';
+                    item.netBalance = 0;
+                }
+                return item;
+            });
+
+            res.json({
+                message: 'success',
+                summary: {
+                    totalYouWillGet,
+                    totalYouWillGive,
+                    netOverallBalance: totalYouWillGet - totalYouWillGive,
+                    partySummaries
+                }
+            });
+        });
+    });
+});
+
+// POST Create Party Ledger Entry ("You Gave" or "You Got")
+app.post('/api/party-ledger', authMiddleware, (req, res) => {
+    const { applicantId, recordId, type, amount, category, note, paymentMode, date } = req.body;
+    if (!applicantId || !type || !amount) {
+        return res.status(400).json({ error: 'Applicant, transaction type (gave/got), and amount are required' });
+    }
+
+    if (!['gave', 'got'].includes(type)) {
+        return res.status(400).json({ error: 'Transaction type must be "gave" or "got"' });
+    }
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const now = new Date().toISOString();
+
+    db.run(
+        `INSERT INTO party_ledger (id, userId, applicantId, recordId, type, category, amount, note, paymentMode, date, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, req.user.id, applicantId, recordId || null, type, category || 'MANUAL', parseFloat(amount) || 0, note || '', paymentMode || 'UPI', date || now.split('T')[0], now],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', id });
+        }
+    );
+});
+
+// DELETE Party Ledger Entry
+app.delete('/api/party-ledger/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM party_ledger WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', changes: this.changes });
+    });
+});
+
+// POST Send WhatsApp Settlement Reminder to Applicant
+app.post('/api/party-ledger/send-reminder', authMiddleware, async (req, res) => {
+    const { applicantId, phone } = req.body;
+    if (!applicantId) return res.status(400).json({ error: 'Applicant ID is required' });
+
+    db.get('SELECT * FROM applicants WHERE id = ? AND userId = ?', [applicantId, req.user.id], async (appErr, applicant) => {
+        if (appErr || !applicant) return res.status(404).json({ error: 'Applicant not found' });
+
+        const targetPhone = phone || applicant.whatsappNumber || req.user.whatsappNumber;
+        if (!targetPhone) {
+            return res.status(400).json({ error: 'WhatsApp phone number not provided for applicant' });
+        }
+
+        db.all('SELECT * FROM party_ledger WHERE applicantId = ? AND userId = ?', [applicantId, req.user.id], async (ledgerErr, entries) => {
+            let totalGave = 0;
+            let totalGot = 0;
+            (entries || []).forEach(e => {
+                const amt = parseFloat(e.amount) || 0;
+                if (e.type === 'gave') totalGave += amt;
+                else if (e.type === 'got') totalGot += amt;
+            });
+
+            const diff = totalGave - totalGot;
+            let balanceStatus = '';
+            let balanceAmt = Math.abs(diff);
+
+            if (diff > 0) {
+                balanceStatus = `📌 *Outstanding Balance: You will receive ₹${balanceAmt.toLocaleString('en-IN')}*`;
+            } else if (diff < 0) {
+                balanceStatus = `📌 *Outstanding Balance: You will pay ₹${balanceAmt.toLocaleString('en-IN')}*`;
+            } else {
+                balanceStatus = `✅ *Account Fully Settled (Balance: ₹0)*`;
+            }
+
+            const upiString = applicant.upiId ? `\n\n💳 Pay via UPI: \`upi://pay?pa=${applicant.upiId}&pn=${encodeURIComponent(applicant.name)}\`` : '';
+
+            const msg = `📖 *IPO TRACKER — STATEMENT REMINDER*\n\nHello *${applicant.name}*,\n\nHere is your current IPO account summary:\n• Total Invested (Gave): ₹${totalGave.toLocaleString('en-IN')}\n• Total Collected (Got): ₹${totalGot.toLocaleString('en-IN')}\n----------------------------\n${balanceStatus}${upiString}\n\nThank you!`;
+
+            const { sendWhatsAppMessage } = require('./whatsapp');
+            const result = await sendWhatsAppMessage(targetPhone, msg);
+
+            res.json({ message: 'WhatsApp statement reminder sent', result, summary: { totalGave, totalGot, diff } });
+        });
+    });
+});
+
+// GET Party Ledger Statement HTML/PDF Report
+app.get('/api/party-ledger/statement-html/:applicantId', authMiddleware, (req, res) => {
+    const { applicantId } = req.params;
+    db.get('SELECT * FROM applicants WHERE id = ? AND userId = ?', [applicantId, req.user.id], (appErr, applicant) => {
+        if (appErr || !applicant) return res.status(404).send('Applicant not found');
+
+        db.all('SELECT pl.*, r.ipoName FROM party_ledger pl LEFT JOIN records r ON pl.recordId = r.id WHERE pl.applicantId = ? AND pl.userId = ? ORDER BY pl.date ASC, pl.createdAt ASC', [applicantId, req.user.id], (ledgerErr, entries) => {
+            let totalGave = 0;
+            let totalGot = 0;
+            let runningBalance = 0;
+
+            const rowsHtml = (entries || []).map((e, idx) => {
+                const amt = parseFloat(e.amount) || 0;
+                if (e.type === 'gave') {
+                    totalGave += amt;
+                    runningBalance += amt;
+                } else {
+                    totalGot += amt;
+                    runningBalance -= amt;
+                }
+
+                const isGave = e.type === 'gave';
+                return `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px;">${idx + 1}</td>
+                        <td style="padding: 10px;">${e.date || '—'}</td>
+                        <td style="padding: 10px; font-weight: 500;">${e.note || e.category || 'Transaction'} ${e.ipoName ? `<br><small style="color:#64748b;">(IPO: ${e.ipoName})</small>` : ''}</td>
+                        <td style="padding: 10px; text-align: center;"><span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9;">${e.paymentMode || 'UPI'}</span></td>
+                        <td style="padding: 10px; text-align: right; color: #dc2626; font-weight: bold;">${isGave ? '₹' + amt.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '—'}</td>
+                        <td style="padding: 10px; text-align: right; color: #16a34a; font-weight: bold;">${!isGave ? '₹' + amt.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '—'}</td>
+                        <td style="padding: 10px; text-align: right; font-weight: bold; color: ${runningBalance >= 0 ? '#1e40af' : '#b91c1c'};">
+                            ₹${Math.abs(runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${runningBalance >= 0 ? 'Dr' : 'Cr'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const netDiff = totalGave - totalGot;
+            const reportHtml = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8" />
+                <title>Party Ledger Statement — ${applicant.name}</title>
+                <style>
+                  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #0f172a; padding: 40px; background: #fff; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #6366f1; padding-bottom: 15px; margin-bottom: 20px; }
+                  .title { font-size: 20px; font-weight: bold; color: #4338ca; }
+                  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+                  .card { padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+                  .card-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+                  .card-value { font-size: 18px; font-weight: bold; margin-top: 5px; }
+                  table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                  th { background: #f1f5f9; text-align: left; padding: 10px; font-size: 11px; text-transform: uppercase; border-bottom: 2px solid #cbd5e1; }
+                  .btn-print { background: #4f46e5; color: #fff; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; }
+                  @media print { .no-print { display: none !important; } }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <div>
+                    <div class="title">KHATABOOK PARTY LEDGER STATEMENT</div>
+                    <div style="color: #64748b; margin-top: 4px;">Applicant: <b>${applicant.name}</b> (PAN: ${applicant.pan || 'N/A'})</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <button onclick="window.print()" class="btn-print no-print">🖨️ Print / Save as PDF</button>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Date Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+                  </div>
+                </div>
+
+                <div class="summary-grid">
+                  <div class="card" style="border-left: 4px solid #ef4444;">
+                    <div class="card-title">Total You Gave (Lent/Applied)</div>
+                    <div class="card-value" style="color: #dc2626;">₹${totalGave.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card" style="border-left: 4px solid #22c55e;">
+                    <div class="card-title">Total You Got (Collected)</div>
+                    <div class="card-value" style="color: #16a34a;">₹${totalGot.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  </div>
+                  <div class="card" style="border-left: 4px solid ${netDiff >= 0 ? '#3b82f6' : '#f59e0b'};">
+                    <div class="card-title">Net Outstanding Balance</div>
+                    <div class="card-value" style="color: ${netDiff >= 0 ? '#1d4ed8' : '#b45309'};">
+                      ₹${Math.abs(netDiff).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      <span style="font-size: 11px; font-weight: normal;">(${netDiff >= 0 ? 'You Will Get' : 'You Will Give'})</span>
+                    </div>
+                  </div>
+                </div>
+
+                <h3>Transaction Ledger Passbook</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th style="text-align: center;">Mode</th>
+                      <th style="text-align: right;">You Gave (Dr)</th>
+                      <th style="text-align: right;">You Got (Cr)</th>
+                      <th style="text-align: right;">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px;">No ledger transactions recorded yet.</td></tr>'}
+                  </tbody>
+                </table>
+              </body>
+              </html>
+            `;
+            res.setHeader('Content-Type', 'text/html');
+            res.send(reportHtml);
         });
     });
 });
@@ -2694,13 +3717,560 @@ app.post('/api/cron/run', async (req, res) => {
     }
     try {
         // Trigger the external cron.js logic if needed, or simply run the sync functions
-        // For simplicity, we just return success. If you want it to trigger the sync, 
-        // we can import cron.js and call it, but since cron.js uses `node-cron`, 
-        // we'd need to extract the functions.
         res.json({ success: true, message: 'Cron endpoint hit successfully' });
     } catch(err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// --- SMART IMPORT TOOL & DYNAMIC SCHEMA API ---
+const ALLOWED_IMPORT_TABLES = ['records', 'applicants', 'expenses', 'party_ledger', 'bank_accounts'];
+
+const HEADER_ALIASES = {
+  pan: ['pan', 'pan number', 'pan_no', 'pan_id', 'applicant pan', 'pan card', 'tax id', 'client pan', 'pan_number', 'income tax pan'],
+  ipoName: ['ipo name', 'ipo', 'company name', 'stock', 'scrip', 'symbol', 'security name', 'issue name', 'stock name', 'company', 'scrip name'],
+  applicantName: ['applicant name', 'applicant', 'client name', 'holder name', 'investor name', 'name', 'account holder', 'full name'],
+  amount: ['amount', 'investment amount', 'total amount', 'value', 'cost', 'total value', 'net amount', 'investment', 'grand total'],
+  price: ['price', 'issue price', 'buy price', 'share price', 'rate', 'cost price', 'avg price', 'execution price', 'average price'],
+  shares: ['shares', 'quantity', 'qty', 'no of shares', 'lot size', 'applied shares', 'allotted shares', 'number of shares'],
+  upiId: ['upi id', 'upi', 'upi address', 'vpa', 'mandate upi id'],
+  dematId: ['demat id', 'demat', 'dp id', 'client id', 'bo id', 'demat account id', 'demat account'],
+  category: ['category', 'expense category', 'group', 'type'],
+  listingDate: ['listing date', 'listingdate', 'trade date', 'order date', 'date of listing'],
+  date: ['date', 'transaction date', 'expense date', 'payment date', 'entry date'],
+  description: ['description', 'desc', 'remarks', 'notes', 'narration', 'particulars'],
+  bankAccount: ['bank account', 'bank account number', 'account number', 'bank ac', 'account no'],
+  ifscCode: ['ifsc code', 'ifsc', 'ifsc_code']
+};
+
+function sanitizeImportValue(key, rawVal) {
+  if (rawVal === undefined || rawVal === null) return rawVal;
+  let val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
+  
+  if (typeof val === 'string') {
+    // 1. Currency symbol & comma stripping
+    if (/^[₹$\s]*[-+]?\d{1,3}(,\d{3})*(\.\d+)?$/.test(val)) {
+      const num = parseFloat(val.replace(/[₹$,\s]/g, ''));
+      if (!isNaN(num)) return num;
+    }
+    // 2. PAN formatting
+    if (key.toLowerCase() === 'pan') {
+      return val.toUpperCase().replace(/\s+/g, '');
+    }
+    // 3. Date ISO conversion (DD/MM/YYYY -> YYYY-MM-DD)
+    if (key.toLowerCase().includes('date') && val.includes('/')) {
+      const parts = val.split('/');
+      if (parts.length === 3 && parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+  }
+  return val;
+}
+
+// GET available import tables & schemas
+app.get('/api/import/tables', authMiddleware, (req, res) => {
+    let pending = ALLOWED_IMPORT_TABLES.length;
+    const schemas = {};
+    ALLOWED_IMPORT_TABLES.forEach(table => {
+        db.getColumns(table, (err, cols) => {
+            schemas[table] = cols || [];
+            pending--;
+            if (pending === 0) {
+                res.json({ message: 'success', data: schemas });
+            }
+        });
+    });
+});
+
+// POST inspect headers, AI auto-map, and check duplicates
+app.post('/api/import/inspect', authMiddleware, (req, res) => {
+    const { tableName, headers, sampleRows } = req.body;
+    if (!tableName || !ALLOWED_IMPORT_TABLES.includes(tableName)) {
+        return res.status(400).json({ error: `Invalid table name. Must be one of: ${ALLOWED_IMPORT_TABLES.join(', ')}` });
+    }
+    if (!Array.isArray(headers) || headers.length === 0) {
+        return res.status(400).json({ error: 'Headers array is required' });
+    }
+
+    db.getColumns(tableName, (err, existingCols) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const lowerExisting = (existingCols || []).map(c => c.toLowerCase());
+        const matchedColumns = [];
+        const extraColumns = [];
+
+        headers.forEach(h => {
+            const cleanHeader = String(h).trim();
+            if (!cleanHeader) return;
+            const lowerH = cleanHeader.toLowerCase();
+            const directIndex = lowerExisting.indexOf(lowerH);
+
+            if (directIndex !== -1) {
+                matchedColumns.push({ header: cleanHeader, tableColumn: existingCols[directIndex], aiMapped: false });
+            } else {
+                // Try AI header dictionary alias match
+                let aiMatchedCol = null;
+                Object.entries(HEADER_ALIASES).forEach(([targetCol, aliases]) => {
+                  if (aliases.includes(lowerH) && lowerExisting.includes(targetCol.toLowerCase())) {
+                    aiMatchedCol = existingCols[lowerExisting.indexOf(targetCol.toLowerCase())];
+                  }
+                });
+
+                if (aiMatchedCol) {
+                  matchedColumns.push({ header: cleanHeader, tableColumn: aiMatchedCol, aiMapped: true });
+                } else {
+                  extraColumns.push(cleanHeader);
+                }
+            }
+        });
+
+        // Duplicate Check against existing user data
+        db.all(`SELECT * FROM ${tableName} WHERE userId = ?`, [req.user.id], (err2, existingRows) => {
+          let duplicateCount = 0;
+          const duplicateSamples = [];
+
+          if (Array.isArray(sampleRows) && Array.isArray(existingRows)) {
+            sampleRows.forEach(row => {
+              let isDup = false;
+              if (tableName === 'records') {
+                const panVal = row['pan'] || row['PAN'] || row['PAN Number'];
+                const ipoVal = row['ipoName'] || row['IPO Name'] || row['Symbol'];
+                if (panVal && ipoVal) {
+                  isDup = existingRows.some(e => 
+                    String(e.pan || '').toUpperCase() === String(panVal).toUpperCase() &&
+                    String(e.ipoName || '').toLowerCase() === String(ipoVal).toLowerCase()
+                  );
+                }
+              } else if (tableName === 'applicants') {
+                const panVal = row['pan'] || row['PAN Number'] || row['PAN'];
+                if (panVal) {
+                  isDup = existingRows.some(e => String(e.pan || '').toUpperCase() === String(panVal).toUpperCase());
+                }
+              } else if (tableName === 'expenses') {
+                const amtVal = parseFloat(row['amount'] || row['Amount'] || 0);
+                const dateVal = row['date'] || row['Date'];
+                if (amtVal && dateVal) {
+                  isDup = existingRows.some(e => parseFloat(e.amount || 0) === amtVal && String(e.date || '') === String(dateVal));
+                }
+              }
+
+              if (isDup) {
+                duplicateCount++;
+                if (duplicateSamples.length < 3) duplicateSamples.push(row);
+              }
+            });
+          }
+
+          res.json({
+              message: 'success',
+              tableName,
+              existingColumns: existingCols,
+              matchedColumns,
+              extraColumns,
+              duplicateCount,
+              duplicateSamples
+          });
+        });
+    });
+});
+
+// POST alter table schema dynamically & log metadata
+app.post('/api/import/alter-schema', authMiddleware, (req, res) => {
+    const { tableName, newColumns } = req.body;
+    if (!tableName || !ALLOWED_IMPORT_TABLES.includes(tableName)) {
+        return res.status(400).json({ error: 'Invalid table name' });
+    }
+    if (!Array.isArray(newColumns) || newColumns.length === 0) {
+        return res.status(400).json({ error: 'newColumns array is required' });
+    }
+
+    let pending = newColumns.length;
+    const results = [];
+    let hasError = null;
+
+    newColumns.forEach(colObj => {
+        const colName = typeof colObj === 'string' ? colObj : colObj.name;
+        const colType = typeof colObj === 'object' && colObj.type ? colObj.type : 'TEXT';
+        
+        db.addColumn(tableName, colName, colType, (err, result) => {
+            if (err) {
+              hasError = err;
+            } else {
+              results.push(result);
+              // Store in custom_field_metadata table
+              const metaId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+              db.run(
+                'INSERT INTO custom_field_metadata (id, userId, tableName, columnName, label, dataType, isVisible, createdAt) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+                [metaId, req.user.id, tableName, colName, colObj.label || colName, colType, new Date().toISOString()]
+              );
+            }
+            pending--;
+            if (pending === 0) {
+                if (hasError) return res.status(500).json({ error: hasError.message });
+                db.getColumns(tableName, (err2, updatedCols) => {
+                    res.json({
+                        message: 'Schema updated successfully',
+                        results,
+                        updatedColumns: updatedCols || []
+                    });
+                });
+            }
+        });
+    });
+});
+
+// POST execute smart bulk import with sanitization, history log, & conflict resolution
+app.post('/api/import/execute', authMiddleware, (req, res) => {
+    const { tableName, records, fileName, conflictStrategy = 'KEEP_BOTH', addedColumns = [] } = req.body;
+    if (!tableName || !ALLOWED_IMPORT_TABLES.includes(tableName)) {
+        return res.status(400).json({ error: 'Invalid table name' });
+    }
+    if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ error: 'Records array is required' });
+    }
+
+    db.getColumns(tableName, (err, existingCols) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!existingCols || existingCols.length === 0) {
+            return res.status(500).json({ error: 'Failed to retrieve table schema' });
+        }
+
+        const lowerColsMap = {};
+        existingCols.forEach(c => { lowerColsMap[c.toLowerCase()] = c; });
+
+        // Query existing user records for duplicate conflict handling
+        db.all(`SELECT * FROM ${tableName} WHERE userId = ?`, [req.user.id], (err2, existingRows) => {
+            const existingMap = new Map();
+            (existingRows || []).forEach(e => {
+              let key = e.id;
+              if (tableName === 'records' && e.pan && e.ipoName) key = `${e.pan.toUpperCase()}_${e.ipoName.toLowerCase()}`;
+              if (tableName === 'applicants' && e.pan) key = e.pan.toUpperCase();
+              if (tableName === 'expenses' && e.date && e.amount) key = `${e.date}_${e.amount}`;
+              existingMap.set(key, e);
+            });
+
+            db.run('BEGIN TRANSACTION', [], (beginErr) => {
+                let pending = records.length;
+                let count = 0;
+                let firstErr = null;
+                const insertedRecordIds = [];
+
+                records.forEach(rowObj => {
+                    let recordData = { ...rowObj };
+
+                    // Apply Automated Data Sanitization Rules
+                    Object.keys(recordData).forEach(k => {
+                      recordData[k] = sanitizeImportValue(k, recordData[k]);
+                    });
+
+                    // Check conflict strategy
+                    let duplicateKey = null;
+                    if (tableName === 'records' && recordData.pan && recordData.ipoName) {
+                      duplicateKey = `${String(recordData.pan).toUpperCase()}_${String(recordData.ipoName).toLowerCase()}`;
+                    } else if (tableName === 'applicants' && recordData.pan) {
+                      duplicateKey = String(recordData.pan).toUpperCase();
+                    } else if (tableName === 'expenses' && recordData.date && recordData.amount) {
+                      duplicateKey = `${recordData.date}_${recordData.amount}`;
+                    }
+
+                    const isDuplicate = duplicateKey && existingMap.has(duplicateKey);
+
+                    if (isDuplicate && conflictStrategy === 'SKIP') {
+                      pending--;
+                      if (pending === 0) finish();
+                      return;
+                    }
+
+                    // Auto populate standard required system fields if missing
+                    const recId = recordData.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5));
+                    recordData.id = recId;
+                    if (!recordData.userId && lowerColsMap['userid']) {
+                        recordData.userId = req.user.id;
+                    }
+                    if (!recordData.createdAt && lowerColsMap['createdat']) {
+                        recordData.createdAt = new Date().toISOString();
+                    }
+
+                    // Filter keys that match existing database columns
+                    const insertCols = [];
+                    const insertVals = [];
+                    const placeholders = [];
+
+                    Object.keys(recordData).forEach(key => {
+                        const matchedCol = lowerColsMap[key.toLowerCase()];
+                        if (matchedCol) {
+                            insertCols.push(matchedCol);
+                            let val = recordData[key];
+                            if (typeof val === 'object' && val !== null) {
+                                val = JSON.stringify(val);
+                            }
+                            insertVals.push(val);
+                            placeholders.push('?');
+                        }
+                    });
+
+                    if (insertCols.length === 0) {
+                        pending--;
+                        if (pending === 0) finish();
+                        return;
+                    }
+
+                    let sql = `INSERT INTO ${tableName} (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`;
+                    if (isDuplicate && conflictStrategy === 'OVERWRITE') {
+                        const existingObj = existingMap.get(duplicateKey);
+                        const updateClause = insertCols.map(c => `${c} = ?`).join(', ');
+                        sql = `UPDATE ${tableName} SET ${updateClause} WHERE id = '${existingObj.id}' AND userId = '${req.user.id}'`;
+                    }
+
+                    db.run(sql, insertVals, function(insertErr) {
+                        if (insertErr) {
+                            firstErr = insertErr;
+                        } else {
+                            count++;
+                            insertedRecordIds.push(recId);
+                        }
+                        pending--;
+                        if (pending === 0) finish();
+                    });
+                });
+
+                function finish() {
+                    if (firstErr) {
+                        db.run('ROLLBACK', () => {
+                            res.status(400).json({ error: 'Import failed: ' + firstErr.message });
+                        });
+                    } else {
+                        db.run('COMMIT', (commitErr) => {
+                            if (commitErr) return res.status(500).json({ error: 'Commit failed' });
+                            
+                            // Log Import History Audit Record
+                            const historyId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+                            db.run(
+                              'INSERT INTO import_history (id, userId, tableName, fileName, importedCount, addedColumns, importedRecordIds, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                              [historyId, req.user.id, tableName, fileName || 'imported_file.csv', count, JSON.stringify(addedColumns), JSON.stringify(insertedRecordIds), 'success', new Date().toISOString()]
+                            );
+
+                            res.json({ message: 'success', count, historyId });
+                        });
+                    }
+                }
+            });
+        });
+    });
+});
+
+// GET import history logs for user
+app.get('/api/import/history', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM import_history WHERE userId = ? ORDER BY createdAt DESC LIMIT 100', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST undo/rollback an import session
+app.post('/api/import/history/:id/undo', authMiddleware, (req, res) => {
+    const historyId = req.params.id;
+    db.get('SELECT * FROM import_history WHERE id = ? AND userId = ?', [historyId, req.user.id], (err, history) => {
+        if (err || !history) return res.status(404).json({ error: 'Import history record not found' });
+        if (history.status === 'undone') return res.status(400).json({ error: 'This import session has already been rolled back' });
+
+        let recordIds = [];
+        try {
+          recordIds = JSON.parse(history.importedRecordIds || '[]');
+        } catch(e) {
+          recordIds = [];
+        }
+
+        if (recordIds.length === 0) {
+          return res.status(400).json({ error: 'No record IDs associated with this import session' });
+        }
+
+        const placeholders = recordIds.map(() => '?').join(',');
+        const deleteSql = `DELETE FROM ${history.tableName} WHERE userId = ? AND id IN (${placeholders})`;
+
+        db.run(deleteSql, [req.user.id, ...recordIds], function(delErr) {
+            if (delErr) return res.status(500).json({ error: 'Rollback failed: ' + delErr.message });
+
+            db.run('UPDATE import_history SET status = "undone" WHERE id = ?', [historyId], () => {
+                res.json({ message: 'Rollback successful', deletedCount: this.changes });
+            });
+        });
+    });
+});
+
+// GET custom fields metadata for user
+app.get('/api/import/custom-fields', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM custom_field_metadata WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// PUT update custom field (label, visibility)
+app.put('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
+    const { label, isVisible } = req.body;
+    db.run(
+        'UPDATE custom_field_metadata SET label = ?, isVisible = ? WHERE id = ? AND userId = ?',
+        [label, isVisible ? 1 : 0, req.params.id, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Custom field updated', changes: this.changes });
+        }
+    );
+});
+
+// DELETE custom field metadata entry
+app.delete('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM custom_field_metadata WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Custom field removed', changes: this.changes });
+    });
+});
+
+// --- BANK ACCOUNTS & PASSBOOK TRANSACTIONS API ---
+
+// GET user bank accounts
+app.get('/api/bank-accounts', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST create bank account
+app.post('/api/bank-accounts', authMiddleware, (req, res) => {
+    const { accountName, bankName, accountNumber, ifscCode, accountType = 'Savings', balance = 0, color = '#6366f1' } = req.body;
+    if (!accountName || !bankName) {
+        return res.status(400).json({ error: 'accountName and bankName are required' });
+    }
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const initBal = parseFloat(balance) || 0;
+
+    db.run(
+        'INSERT INTO bank_accounts (id, userId, accountName, bankName, accountNumber, ifscCode, accountType, balance, color, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, req.user.id, accountName, bankName, accountNumber, ifscCode, accountType, initBal, color, createdAt],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Insert initial opening balance transaction if > 0
+            if (initBal > 0) {
+                const txnId = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + 1).toString();
+                db.run(
+                    'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [txnId, req.user.id, id, 'credit', 'OPENING_BALANCE', initBal, initBal, 'Opening Balance', createdAt, createdAt]
+                );
+            }
+
+            res.json({ message: 'Account created', id });
+        }
+    );
+});
+
+// PUT update bank account
+app.put('/api/bank-accounts/:id', authMiddleware, (req, res) => {
+    const { accountName, bankName, accountNumber, ifscCode, accountType, color } = req.body;
+    db.run(
+        'UPDATE bank_accounts SET accountName = ?, bankName = ?, accountNumber = ?, ifscCode = ?, accountType = ?, color = ? WHERE id = ? AND userId = ?',
+        [accountName, bankName, accountNumber, ifscCode, accountType, color, req.params.id, req.user.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Account updated', changes: this.changes });
+        }
+    );
+});
+
+// DELETE bank account
+app.delete('/api/bank-accounts/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM bank_accounts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        db.run('DELETE FROM transactions WHERE bankAccountId = ? AND userId = ?', [req.params.id, req.user.id]);
+        res.json({ message: 'Account deleted', changes: this.changes });
+    });
+});
+
+// GET transactions passbook
+app.get('/api/transactions', authMiddleware, (req, res) => {
+    const { bankAccountId, category } = req.query;
+    let sql = 'SELECT t.*, b.accountName FROM transactions t LEFT JOIN bank_accounts b ON t.bankAccountId = b.id WHERE t.userId = ?';
+    const params = [req.user.id];
+
+    if (bankAccountId) {
+        sql += ' AND t.bankAccountId = ?';
+        params.push(bankAccountId);
+    }
+    if (category) {
+        sql += ' AND t.category = ?';
+        params.push(category);
+    }
+
+    sql += ' ORDER BY t.createdAt DESC LIMIT 200';
+
+    db.all(sql, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST add transaction
+app.post('/api/transactions', authMiddleware, (req, res) => {
+    const { bankAccountId, type, category, amount, description } = req.body;
+    if (!bankAccountId || !type || !amount) {
+        return res.status(400).json({ error: 'bankAccountId, type, and amount are required' });
+    }
+
+    db.get('SELECT * FROM bank_accounts WHERE id = ? AND userId = ?', [bankAccountId, req.user.id], (err, account) => {
+        if (err || !account) return res.status(404).json({ error: 'Bank account not found' });
+
+        const numAmt = parseFloat(amount) || 0;
+        const currentBal = parseFloat(account.balance) || 0;
+        const newBal = type === 'credit' ? (currentBal + numAmt) : (currentBal - numAmt);
+        const txnId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+        const now = new Date().toISOString();
+
+        db.run(
+            'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [txnId, req.user.id, bankAccountId, type, category || (type === 'credit' ? 'MANUAL_CREDIT' : 'MANUAL_DEBIT'), numAmt, newBal, description || '', now, now],
+            function(err2) {
+                if (err2) return res.status(500).json({ error: err2.message });
+
+                // Update account balance
+                db.run('UPDATE bank_accounts SET balance = ? WHERE id = ?', [newBal, bankAccountId], () => {
+                    res.json({ message: 'Transaction recorded', id: txnId, runningBalance: newBal });
+                });
+            }
+        );
+    });
+});
+
+// GET kostak deals
+app.get('/api/kostak', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM kostak_deals WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+// POST add kostak deal
+app.post('/api/kostak', authMiddleware, (req, res) => {
+    const { ipoName, applicantName, lotCount = 1, ratePerLot = 0, dealType = 'KOSTAK' } = req.body;
+    if (!ipoName) return res.status(400).json({ error: 'ipoName is required' });
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const lots = parseInt(lotCount) || 1;
+    const rate = parseFloat(ratePerLot) || 0;
+    const totalAmount = lots * rate;
+    const createdAt = new Date().toISOString();
+
+    db.run(
+        'INSERT INTO kostak_deals (id, userId, ipoName, applicantName, lotCount, ratePerLot, totalAmount, dealType, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, req.user.id, ipoName, applicantName || 'Family Account', lots, rate, totalAmount, dealType, 'ACTIVE', createdAt],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Kostak deal recorded', id });
+        }
+    );
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
