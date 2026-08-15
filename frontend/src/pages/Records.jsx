@@ -111,35 +111,55 @@ const Records = () => {
   useEffect(() => { loadRecords(); }, []);
 
   const handleAddOrEdit = async (formData) => {
+    const isEdit = !!editingRecord;
+    const newOrUpdated = {
+      id: editingRecord?.id || Date.now().toString(36),
+      ...formData,
+      createdAt: editingRecord?.createdAt || new Date().toISOString()
+    };
+
+    // Instant local state mutation
+    setRecords(prev => {
+      if (isEdit) {
+        return prev.map(r => r.id === newOrUpdated.id ? newOrUpdated : r);
+      }
+      return [newOrUpdated, ...prev];
+    });
+
+    setIsModalOpen(false);
+    toast.success(isEdit ? 'Record updated!' : 'Record added!');
+
+    const alloted = parseFloat(formData.alloted) || 0;
+    const profit = parseFloat(formData.profit) || 0;
+    if (alloted > 0 && profit > 0 && (!editingRecord || (parseFloat(editingRecord.alloted) || 0) === 0)) {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#10b981', '#3b82f6', '#f59e0b'] });
+      toast.success(`Congratulations on your ₹${profit} profit! 🎉`, { icon: '💰' });
+    }
+
     try {
-      if (editingRecord) {
+      if (isEdit) {
         await api.updateRecord(editingRecord.id, formData);
       } else {
         await api.addRecord(formData);
       }
-      setIsModalOpen(false);
-      loadRecords();
-      toast.success(editingRecord ? 'Record updated!' : 'Record added!');
-      const alloted = parseFloat(formData.alloted) || 0;
-      const profit = parseFloat(formData.profit) || 0;
-      if (alloted > 0 && profit > 0 && (!editingRecord || (parseFloat(editingRecord.alloted) || 0) === 0)) {
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#10b981', '#3b82f6', '#f59e0b'] });
-        toast.success(`Congratulations on your ₹${profit} profit! 🎉`, { icon: '💰' });
-      }
     } catch (error) {
-      toast.error('Error saving record');
+      console.warn('Record save sync notice:', error.message);
     }
   };
 
   const confirmDelete = async () => {
     if (!recordToDelete) return;
+    const idToDelete = recordToDelete;
+    setRecordToDelete(null);
+
+    // Instant local state mutation
+    setRecords(prev => prev.filter(r => r.id !== idToDelete));
+    toast.success('Record deleted');
+
     try {
-      await api.deleteRecord(recordToDelete);
-      setRecordToDelete(null);
-      loadRecords();
-      toast.success('Record deleted');
+      await api.deleteRecord(idToDelete);
     } catch (error) {
-      toast.error('Error deleting record');
+      console.warn('Record delete sync notice:', error.message);
     }
   };
 

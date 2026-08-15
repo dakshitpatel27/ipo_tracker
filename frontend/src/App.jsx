@@ -94,7 +94,7 @@ function App() {
         if (Notification.permission === 'granted') {
           new Notification(payload.notification?.title || 'Notification', {
             body: payload.notification?.body,
-            icon: '/vite.svg'
+            icon: '/app-icon.png'
           });
         }
         toast((t) => (
