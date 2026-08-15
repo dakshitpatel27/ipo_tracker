@@ -130,6 +130,16 @@ export const api = {
   register: async (credentials) => api.post('/auth/register', credentials),
   getMe: async () => api.get('/auth/me'),
 
+  async getPublicSettings() {
+    try {
+      const data = await api.get('/settings/public');
+      return data.data || {};
+    } catch (e) {
+      console.warn('Failed to fetch public settings, using defaults:', e.message);
+      return {};
+    }
+  },
+
   async getSessions() {
     const data = await api.get('/sessions');
     return data.data || [];
