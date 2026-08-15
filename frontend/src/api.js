@@ -15,20 +15,45 @@ const getHeaders = () => {
 };
 
 const parseResponse = async (res) => {
-  const text = await res.text();
-  let json;
+  let text = '';
   try {
-    json = JSON.parse(text);
+    text = await res.text();
   } catch (e) {
-    if (!res.ok) {
-      throw new Error(`Server error (${res.status}: ${res.statusText || 'Connection refused'})`);
-    }
-    throw new Error('Invalid JSON response');
+    throw new Error('Failed to read server response');
   }
+
+  let json = {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      if (!res.ok) {
+        throw new Error(`Server Error (${res.status}: ${res.statusText || 'Connection refused'})`);
+      }
+      throw new Error('Server returned non-JSON response');
+    }
+  }
+
   if (!res.ok) {
-    throw new Error(json.error || json.message || `Request failed (${res.status})`);
+    const errorMsg = json.error || json.message || `Request failed with status ${res.status}`;
+    const err = new Error(errorMsg);
+    err.status = res.status;
+    err.data = json;
+    throw err;
   }
   return json;
+};
+
+const safeApiCall = async (fn) => {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!navigator.onLine || err.name === 'TypeError' || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+      console.warn('[Network Error]:', err.message);
+      throw new Error('Network connection error. Please check your internet connection.');
+    }
+    throw err;
+  }
 };
 
 export const saveOfflineMutation = (url, options) => {
@@ -84,22 +109,22 @@ export const syncOfflineMutations = async () => {
 export const api = {
   setToken: (token) => { authToken = token; },
   
-  get: async (endpoint) => {
+  get: async (endpoint) => safeApiCall(async () => {
     const res = await fetch(`${API_URL}${endpoint}`, { headers: getHeaders() });
     return parseResponse(res);
-  },
-  post: async (endpoint, body) => {
+  }),
+  post: async (endpoint, body) => safeApiCall(async () => {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
     return parseResponse(res);
-  },
-  put: async (endpoint, body) => {
+  }),
+  put: async (endpoint, body) => safeApiCall(async () => {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(body) });
     return parseResponse(res);
-  },
-  delete: async (endpoint) => {
+  }),
+  delete: async (endpoint) => safeApiCall(async () => {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'DELETE', headers: getHeaders() });
     return parseResponse(res);
-  },
+  }),
 
   login: async (credentials) => {
     const res = await fetch(`${API_URL}/auth/login`, {

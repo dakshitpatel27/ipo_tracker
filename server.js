@@ -4400,6 +4400,30 @@ app.post('/api/kostak', authMiddleware, (req, res) => {
     );
 });
 
+// Central 404 handler for unknown API endpoints
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Central Express Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error(`[Server Error] ${req.method} ${req.originalUrl}:`, err);
+    const statusCode = err.status || err.statusCode || 500;
+    res.status(statusCode).json({
+        error: err.message || 'Internal Server Error',
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    });
+});
+
+// Process safety handlers for uncaught exceptions and unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Unhandled Promise Rejection]:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[Uncaught Exception]:', err);
+});
+
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {

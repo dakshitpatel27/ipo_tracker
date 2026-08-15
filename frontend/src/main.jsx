@@ -8,21 +8,52 @@ import { AuthProvider } from './context/AuthContext'
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, info: null };
+    this.state = { hasError: false, error: null };
   }
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
   componentDidCatch(error, info) {
-    this.setState({ error, info });
+    console.error('[React Error Boundary Caught Error]:', error, info);
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ color: 'red', padding: '20px', background: 'black', height: '100vh', zIndex: 9999 }}>
-          <h1>Something went wrong.</h1>
-          <pre>{this.state.error && this.state.error.toString()}</pre>
-          <pre>{this.state.info && this.state.info.componentStack}</pre>
+        <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-[#121215] border border-red-500/30 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
+            <div className="w-14 h-14 bg-red-500/10 text-red-400 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20 text-2xl font-bold">
+              ⚠️
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Something went wrong</h2>
+              <p className="text-xs text-secondary mt-1">
+                An unexpected application error occurred. You can reload the page or return to the dashboard.
+              </p>
+            </div>
+
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-left text-xs font-mono text-red-300 break-words max-h-32 overflow-y-auto">
+              {this.state.error ? this.state.error.toString() : 'Unknown Application Error'}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full btn-primary py-2 text-xs font-bold"
+              >
+                🔄 Reload Application
+              </button>
+              
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = '/';
+                }}
+                className="w-full btn-outline py-2 text-xs font-semibold text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
+              >
+                🧹 Clear Local Cache & Reset
+              </button>
+            </div>
+          </div>
         </div>
       );
     }
