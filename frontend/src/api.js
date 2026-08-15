@@ -375,13 +375,25 @@ export const api = {
   },
 
   async deleteFcmToken(id) {
-    const res = await fetch(`${API_URL}/admin/fcm/tokens/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to delete token');
-    return data;
+    try {
+      const res = await fetch(`${API_URL}/admin/fcm/tokens/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      if (res.ok) return await res.json();
+
+      // Fallback POST route
+      const resPost = await fetch(`${API_URL}/admin/fcm/tokens/delete/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ id })
+      });
+      const data = await resPost.json();
+      if (!resPost.ok) throw new Error(data.error || 'Failed to delete token');
+      return data;
+    } catch (e) {
+      throw e;
+    }
   },
 
   async purgeDummyFcmTokens() {

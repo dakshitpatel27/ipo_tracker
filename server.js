@@ -34,13 +34,13 @@ function logPanAccess(req, action, targetPan, details) {
     const userId = req.user.id;
     const username = req.user.username;
     const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
-    
-    const maskedPan = targetPan && targetPan.length >= 10 
-        ? targetPan.substring(0, 2) + 'XXXX' + targetPan.substring(6) 
+
+    const maskedPan = targetPan && targetPan.length >= 10
+        ? targetPan.substring(0, 2) + 'XXXX' + targetPan.substring(6)
         : 'N/A';
     const actionText = `PAN_${action}`;
     const detailsText = `${details} (PAN: ${maskedPan})`;
-    
+
     db.run(
         'INSERT INTO audit_logs (id, adminId, adminUsername, action, target, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [logId, userId, username, actionText, 'PAN_DATA', detailsText, new Date().toISOString()]
@@ -124,12 +124,12 @@ function captureLog(type, ...args) {
     if (serverLogs.length > 200) serverLogs.shift();
 }
 
-console.log = function(...args) {
+console.log = function (...args) {
     captureLog('INFO', ...args);
     originalLog.apply(console, args);
 };
 
-console.error = function(...args) {
+console.error = function (...args) {
     captureLog('ERROR', ...args);
     originalError.apply(console, args);
 };
@@ -144,12 +144,12 @@ app.use((req, res, next) => {
     next();
 });
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
 
 app.use(cors({
-    origin: function(origin, callback) {
+    origin: function (origin, callback) {
         if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin) || process.env.VERCEL) {
             callback(null, true);
         } else {
@@ -228,7 +228,7 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
                         }
                         return res.status(400).json({ error: err.message });
                     }
-                    
+
                     if (isFirstUser) {
                         db.run('UPDATE records SET userId = ? WHERE userId IS NULL', [id]);
                         db.run('UPDATE applicants SET userId = ? WHERE userId IS NULL', [id]);
@@ -238,8 +238,8 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
                             if (!adminErr && admins.length > 0) {
                                 const adminTokens = [];
                                 admins.forEach(a => {
-                                    if(a.fcmTokens) {
-                                        try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch(e){}
+                                    if (a.fcmTokens) {
+                                        try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch (e) { }
                                     }
                                 });
                                 if (adminTokens.length > 0) {
@@ -248,7 +248,7 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
                                             tokens: [...new Set(adminTokens)],
                                             notification: { title: 'New User Registration', body: `${username} has registered and is waiting for approval.` }
                                         });
-                                    } catch(e) {}
+                                    } catch (e) { }
                                 }
                             }
                         });
@@ -263,7 +263,7 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
                 }
             );
         });
-    } catch(err) {
+    } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -272,7 +272,7 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
         if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
-        
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -302,7 +302,7 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
 
         createSession(user.id, req, (err, sessionId) => {
             if (err) return res.status(500).json({ error: 'Failed to create session' });
-            
+
             const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
             db.run('UPDATE sessions SET token = ? WHERE id = ?', [token, sessionId]);
 
@@ -350,11 +350,11 @@ app.post('/api/auth/login/2fa', authRateLimiter(10, 15 * 60 * 1000), (req, res) 
 app.post('/api/auth/2fa/setup', authMiddleware, async (req, res) => {
     const secret = totp.generateSecret();
     const encryptedSecret = totp.encrypt(secret);
-    
+
     // Save generated secret (not yet enabled)
     db.run('UPDATE users SET totpSecret = ? WHERE id = ?', [encryptedSecret, req.user.id], async (err) => {
         if (err) return res.status(500).json({ error: 'Failed to generate 2FA secret' });
-        
+
         try {
             const qrCodeLib = require('qrcode');
             const otpauthUrl = `otpauth://totp/IPOWatcher:${req.user.username}?secret=${secret}&issuer=IPOWatcher`;
@@ -377,7 +377,7 @@ app.post('/api/auth/2fa/verify', authMiddleware, (req, res) => {
 
         const decryptedSecret = totp.decrypt(user.totpSecret);
         const isValid = totp.verifyTOTP(token, decryptedSecret);
-        
+
         if (!isValid) {
             return res.status(400).json({ error: 'Invalid TOTP token' });
         }
@@ -400,7 +400,7 @@ app.post('/api/auth/2fa/disable', authMiddleware, (req, res) => {
 
         const decryptedSecret = totp.decrypt(user.totpSecret);
         const isValid = totp.verifyTOTP(token, decryptedSecret);
-        
+
         if (!isValid) {
             return res.status(400).json({ error: 'Invalid TOTP token' });
         }
@@ -430,7 +430,7 @@ app.put('/api/users/notification-preferences', authMiddleware, (req, res) => {
             gamificationEnabled = COALESCE(?, gamificationEnabled)
          WHERE id = ?`,
         [emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'success' });
         }
@@ -445,7 +445,7 @@ function pushRealtimeNotification(userId, payload) {
         const clientSet = sseClients.get(userId);
         const dataStr = `data: ${JSON.stringify(payload)}\n\n`;
         clientSet.forEach(clientRes => {
-            try { clientRes.write(dataStr); } catch(e) {}
+            try { clientRes.write(dataStr); } catch (e) { }
         });
     }
 }
@@ -480,7 +480,7 @@ app.get('/api/notifications/stream', (req, res) => {
                 }
             }
         });
-    } catch(err) {
+    } catch (err) {
         return res.status(401).send('Invalid token');
     }
 });
@@ -526,21 +526,21 @@ app.get('/api/notifications', authMiddleware, (req, res) => {
 });
 
 app.put('/api/notifications/:id/read', authMiddleware, (req, res) => {
-    db.run('UPDATE notifications SET status = \'read\' WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('UPDATE notifications SET status = \'read\' WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success' });
     });
 });
 
 app.put('/api/notifications/read-all', authMiddleware, (req, res) => {
-    db.run('UPDATE notifications SET status = \'read\' WHERE userId = ?', [req.user.id], function(err) {
+    db.run('UPDATE notifications SET status = \'read\' WHERE userId = ?', [req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success' });
     });
 });
 
 app.delete('/api/notifications/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM notifications WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM notifications WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success' });
     });
@@ -559,7 +559,7 @@ app.get('/api/sessions', authMiddleware, (req, res) => {
 
     db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         if (!rows || rows.length === 0) {
             // Auto-create active session if none exist yet
             createSession(req.user.id, req, (createErr, newSessionId) => {
@@ -614,7 +614,7 @@ app.delete('/api/sessions/:id', authMiddleware, (req, res) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
-        db.run('DELETE FROM sessions WHERE id = ?', [req.params.id], function(delErr) {
+        db.run('DELETE FROM sessions WHERE id = ?', [req.params.id], function (delErr) {
             if (delErr) return res.status(500).json({ error: delErr.message });
 
             // If Master Admin revokes another user's session, set user status to 'pending' (requires admin approval to log back in)
@@ -637,7 +637,7 @@ app.post('/api/sessions/logout-all', authMiddleware, (req, res) => {
         db.all('SELECT DISTINCT userId FROM sessions WHERE id != ?', [req.sessionId || ''], (err, rows) => {
             const userIdsToLock = (rows || []).map(r => r.userId).filter(uid => uid !== req.user.id);
 
-            db.run('DELETE FROM sessions WHERE id != ?', [req.sessionId || ''], function(delErr) {
+            db.run('DELETE FROM sessions WHERE id != ?', [req.sessionId || ''], function (delErr) {
                 if (delErr) return res.status(500).json({ error: delErr.message });
 
                 if (userIdsToLock.length > 0) {
@@ -651,7 +651,7 @@ app.post('/api/sessions/logout-all', authMiddleware, (req, res) => {
             });
         });
     } else {
-        db.run('DELETE FROM sessions WHERE userId = ? AND id != ?', [req.user.id, req.sessionId || ''], function(err) {
+        db.run('DELETE FROM sessions WHERE userId = ? AND id != ?', [req.user.id, req.sessionId || ''], function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'success', changes: this.changes });
         });
@@ -701,7 +701,7 @@ app.delete('/api/users/delete-account', authMiddleware, (req, res) => {
 
     db.run('BEGIN TRANSACTION', [], (beginErr) => {
         if (beginErr) return res.status(500).json({ error: 'Failed to delete account' });
-        
+
         db.run('DELETE FROM users WHERE id = ?', [userId], (err1) => {
             db.run('DELETE FROM applicants WHERE userId = ?', [userId], (err2) => {
                 db.run('DELETE FROM records WHERE userId = ?', [userId], (err3) => {
@@ -745,10 +745,10 @@ app.get('/api/reports/itr-tax-export', authMiddleware, (req, res) => {
             const qty = parseFloat(r.shares) || 0;
             const buyPrice = parseFloat(r.price) || 0;
             const sellPrice = parseFloat(r.sellPrice) || 0;
-            
+
             const costOfAcquisition = buyPrice * qty;
             const consideration = sellPrice * qty;
-            
+
             // Deductible transfer charges include Brokerage, STT, Exchange charges, SEBI fees, DP charges, GST
             const stampDuty = parseFloat(r.stampDuty) || 0;
             const brokerage = parseFloat(r.brokerage) || 0;
@@ -757,7 +757,7 @@ app.get('/api/reports/itr-tax-export', authMiddleware, (req, res) => {
             const sebi = parseFloat(r.sebiFees) || 0;
             const dp = parseFloat(r.dpCharges) || 0;
             const gst = parseFloat(r.gst) || 0;
-            
+
             const transferCharges = stampDuty + brokerage + stt + exchange + sebi + dp + gst;
             const netGain = consideration - costOfAcquisition - transferCharges;
 
@@ -770,7 +770,7 @@ app.get('/api/reports/itr-tax-export', authMiddleware, (req, res) => {
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 if (diffDays > 365) isLongTerm = true;
             }
-            
+
             const gainType = isLongTerm ? 'Long Term' : 'Short Term';
             const sectionCode = isLongTerm ? 'Section 112A' : 'Section 111A';
 
@@ -789,7 +789,7 @@ app.get('/api/reports/itr-tax-export', authMiddleware, (req, res) => {
         });
 
         const csvContent = [csvHeaders.join(','), ...csvRows].join('\r\n');
-        
+
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="itr2_schedule_cg_export_${new Date().toISOString().split('T')[0]}.csv"`);
         res.send(csvContent);
@@ -965,7 +965,7 @@ app.post('/api/user/telegram', authMiddleware, (req, res) => {
     db.run(
         'UPDATE users SET telegramToken = ?, telegramChatId = ?, telegramAlerts = ? WHERE id = ?',
         [telegramToken || '', telegramChatId || '', telegramAlerts ? 1 : 0, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Telegram settings saved successfully' });
         }
@@ -991,9 +991,9 @@ app.post('/api/webhooks/telegram/test', authMiddleware, async (req, res) => {
     }
 
     try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
         const testMsg = `🚀 *IPO Tracker Telegram Bot Connected!*\n\nYour Telegram bot interface is online. Try sending commands:\n- \`/status\` - Active IPO applications\n- \`/allotment\` - Allotted portfolio summary\n- \`/gmp\` - Current GMP updates\n- \`/summary\` - Investment overview`;
-        
+
         const url = `https://api.telegram.org/bot${targetToken}/sendMessage`;
         const response = await fetch(url, {
             method: 'POST',
@@ -1003,7 +1003,7 @@ app.post('/api/webhooks/telegram/test', authMiddleware, async (req, res) => {
         const json = await response.json();
         if (!json.ok) throw new Error(json.description || 'Telegram API returned error');
         res.json({ message: 'Telegram test message sent successfully!', result: json });
-    } catch(err) {
+    } catch (err) {
         res.status(400).json({ error: err.message });
     }
 });
@@ -1026,13 +1026,13 @@ app.post('/api/webhooks/telegram', async (req, res) => {
         const botToken = user.telegramToken;
         const sendReply = async (replyText) => {
             try {
-                const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+                const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
                 await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: 'Markdown' })
                 });
-            } catch(e) {
+            } catch (e) {
                 console.error("Failed to send Telegram bot reply:", e.message);
             }
         };
@@ -1265,7 +1265,7 @@ async function parseReceiptContent(fileBuffer, mimeType, originalName) {
             console.error('PDF Parse Error:', e);
         }
     }
-    
+
     if (!rawText) {
         rawText = fileBuffer.toString('utf8', 0, Math.min(fileBuffer.length, 10000));
     }
@@ -1322,7 +1322,7 @@ async function parseReceiptContent(fileBuffer, mimeType, originalName) {
 
     // Category Extractor
     const lowerText = rawText.toLowerCase() + ' ' + (originalName || '').toLowerCase();
-    
+
     if (/swiggy|zomato|dominos|mcdonald|kfc|starbucks|restaurant|cafe|food|dining|pizza|burger|eats/i.test(lowerText)) {
         category = 'Food';
     } else if (/uber|ola|rapido|petrol|fuel|shell|bpcl|hpcl|rail|irctc|flight|indigo|airindia|cab|taxi|fastag/i.test(lowerText)) {
@@ -1640,7 +1640,7 @@ app.post('/api/expenses', authMiddleware, (req, res) => {
             `INSERT INTO expenses (id, userId, bankAccountId, amount, category, subcategory, description, paymentMode, date, isRecurring, tags, receipt, createdAt) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, req.user.id, bankAccountId || null, amountNum, category, subcategory || '', description || '', paymentMode || 'UPI', expenseDate, isRecurring ? 1 : 0, JSON.stringify(tags || []), receipt || '', now],
-            function(err) {
+            function (err) {
                 if (err) return res.status(400).json({ error: err.message });
                 res.json({ message: 'success', id, bankDebited: !!bankAccountId });
             }
@@ -1674,7 +1674,7 @@ app.put('/api/expenses/:id', authMiddleware, (req, res) => {
             receipt = COALESCE(?, receipt)
          WHERE id = ? AND userId = ?`,
         [amount, category, subcategory, description, paymentMode, date, isRecurring !== undefined ? (isRecurring ? 1 : 0) : undefined, tags ? JSON.stringify(tags) : undefined, receipt, req.params.id, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(400).json({ error: err.message });
             res.json({ message: 'success', changes: this.changes });
         }
@@ -1688,7 +1688,7 @@ app.delete('/api/expenses/:id', authMiddleware, (req, res) => {
         if (!expense) return res.status(404).json({ error: 'Expense not found' });
 
         const deleteExpense = () => {
-            db.run('DELETE FROM expenses WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(delErr) {
+            db.run('DELETE FROM expenses WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (delErr) {
                 if (delErr) return res.status(400).json({ error: delErr.message });
                 res.json({ message: 'success', changes: this.changes, bankRefunded: !!expense.bankAccountId });
             });
@@ -1714,7 +1714,7 @@ app.get('/api/expenses/summary', authMiddleware, (req, res) => {
     const now = new Date();
     const month = parseInt(req.query.month) || (now.getMonth() + 1);
     const year = parseInt(req.query.year) || now.getFullYear();
-    
+
     // Build date range for the month
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endMonth = month === 12 ? 1 : month + 1;
@@ -1739,7 +1739,7 @@ app.get('/api/expenses/summary', authMiddleware, (req, res) => {
 
                     const grandTotal = (categoryTotals || []).reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
                     const totalCount = (categoryTotals || []).reduce((s, c) => s + c.count, 0);
-                    
+
                     // Calculate days in month for daily average
                     const daysInMonth = new Date(year, month, 0).getDate();
                     const dayOfMonth = month === (now.getMonth() + 1) && year === now.getFullYear() ? now.getDate() : daysInMonth;
@@ -1796,7 +1796,7 @@ app.post('/api/budgets', authMiddleware, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         if (existing) {
-            db.run('UPDATE budgets SET monthlyLimit = ? WHERE id = ?', [limitNum, existing.id], function(upErr) {
+            db.run('UPDATE budgets SET monthlyLimit = ? WHERE id = ?', [limitNum, existing.id], function (upErr) {
                 if (upErr) return res.status(400).json({ error: upErr.message });
                 res.json({ message: 'success', action: 'updated', id: existing.id });
             });
@@ -1805,7 +1805,7 @@ app.post('/api/budgets', authMiddleware, (req, res) => {
             db.run(
                 'INSERT INTO budgets (id, userId, category, monthlyLimit, createdAt) VALUES (?, ?, ?, ?, ?)',
                 [id, req.user.id, category, limitNum, new Date().toISOString()],
-                function(insertErr) {
+                function (insertErr) {
                     if (insertErr) return res.status(400).json({ error: insertErr.message });
                     res.json({ message: 'success', action: 'created', id });
                 }
@@ -1928,7 +1928,7 @@ app.post('/api/user/whatsapp', authMiddleware, (req, res) => {
     db.run(
         'UPDATE users SET whatsappNumber = ?, whatsappAlerts = ? WHERE id = ?',
         [whatsappNumber || '', whatsappAlerts ? 1 : 0, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'WhatsApp notification settings saved successfully' });
         }
@@ -1957,7 +1957,7 @@ app.post('/api/webhooks/whatsapp/test', authMiddleware, async (req, res) => {
 app.get('/api/analytics/family-heatmap', authMiddleware, (req, res) => {
     db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err, records) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         db.all('SELECT * FROM applicants WHERE userId = ?', [req.user.id], (appErr, applicants) => {
             if (appErr) return res.status(500).json({ error: appErr.message });
 
@@ -1977,7 +1977,7 @@ app.get('/api/analytics/family-heatmap', authMiddleware, (req, res) => {
                     statsMap[name].applied++;
                     const isAllotted = r.alloted === 'Yes' || r.alloted === 'Allotted' || parseFloat(r.alloted) > 0;
                     if (isAllotted) statsMap[name].allotted++;
-                    
+
                     const p = parseFloat(r.profit) || 0;
                     statsMap[name].profit += p;
 
@@ -2132,7 +2132,7 @@ app.get('/api/calendar/feed.ics', (req, res) => {
             (records || []).forEach(r => {
                 if (r.listingDate) {
                     const cleanDate = r.listingDate.replace(/-/g, '');
-                    
+
                     // Event 1: Listing Day Pre-Open Session
                     events.push([
                         'BEGIN:VEVENT',
@@ -2169,7 +2169,7 @@ app.get('/api/calendar/feed.ics', (req, res) => {
             res.setHeader('Content-Disposition', 'inline; filename="ipo_tracker_calendar.ics"');
             res.send(icsContent);
         });
-    } catch(err) {
+    } catch (err) {
         return res.status(401).send('Invalid or expired calendar token');
     }
 });
@@ -2284,7 +2284,7 @@ app.post('/api/party-ledger', authMiddleware, (req, res) => {
         `INSERT INTO party_ledger (id, userId, applicantId, recordId, type, category, amount, note, paymentMode, date, createdAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, req.user.id, applicantId, recordId || null, type, category || 'MANUAL', parseFloat(amount) || 0, note || '', paymentMode || 'UPI', date || now.split('T')[0], now],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'success', id });
         }
@@ -2293,7 +2293,7 @@ app.post('/api/party-ledger', authMiddleware, (req, res) => {
 
 // DELETE Party Ledger Entry
 app.delete('/api/party-ledger/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM party_ledger WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM party_ledger WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success', changes: this.changes });
     });
@@ -2469,7 +2469,7 @@ app.put('/api/records/:id/mandate', authMiddleware, (req, res) => {
             mandateUpiId = COALESCE(?, mandateUpiId)
          WHERE id = ? AND userId = ?`,
         [mandateStatus, bankName, mandateUpiId, req.params.id, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'UPI mandate status updated successfully' });
         }
@@ -2481,7 +2481,7 @@ app.get('/api/analytics/advance-tax', authMiddleware, (req, res) => {
     db.all('SELECT * FROM records WHERE userId = ? AND holdingStatus = "Sold"', [req.user.id], (err, records) => {
         if (err) return res.status(500).json({ error: err.message });
         const { calculateAdvanceTaxInstallments } = require('./taxEngine');
-        
+
         let stcgProfit = 0;
         let ltcgProfit = 0;
 
@@ -2511,7 +2511,7 @@ app.post('/api/journal', authMiddleware, (req, res) => {
     db.run(
         'INSERT INTO journal_entries (id, recordId, userId, notes, rating, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [id, recordId || '', req.user.id, notes || '', parseInt(rating) || 5, JSON.stringify(tags || []), createdAt],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Journal entry saved successfully', id });
         }
@@ -2594,7 +2594,7 @@ function authMiddleware(req, res, next) {
                 }
             });
         }
-    } catch(err) {
+    } catch (err) {
         return res.status(401).json({ error: 'Invalid token' });
     }
 }
@@ -2610,10 +2610,10 @@ function isAdmin(req, res, next) {
 app.put('/api/auth/password', authMiddleware, async (req, res) => {
     const { password } = req.body;
     if (!password) return res.status(400).json({ error: 'Password required' });
-    
+
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id], function(err) {
+        db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id], function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Password updated successfully' });
         });
@@ -2806,7 +2806,7 @@ app.post('/api/records/batch-apply', authMiddleware, (req, res) => {
 // ADD a new record
 app.post('/api/records', authMiddleware, (req, res) => {
     let { id, ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, profit, marginPercent, margin, notes, createdAt, sellDate, sellPrice, holdingStatus, gmp, registrar, dematId, bankAccount, ifscCode, tags, bankAccountId } = req.body;
-    
+
     id = id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
     createdAt = createdAt || new Date().toISOString();
 
@@ -2856,7 +2856,7 @@ app.put('/api/records/:id', authMiddleware, (req, res) => {
 
         const updated = { ...existing, ...req.body };
         const { ipoName, applicantName, pan, upiId, quota, listingDate, lotSize, shares, price, listingPrice, amount, applied, alloted, withdrawal, marginPercent, margin, notes, sellDate, sellPrice, holdingStatus, gmp, registrar, refundStatus, dematId, bankAccount, ifscCode, tags, bankAccountId } = updated;
-        
+
         const calc = calculator.calculateCharges(price, shares, sellPrice, holdingStatus, listingPrice, gmp);
         if (pan) {
             logPanAccess(req, 'UPDATE_RECORD', pan, `Updated record for IPO ${ipoName}`);
@@ -2872,7 +2872,7 @@ app.put('/api/records/:id', authMiddleware, (req, res) => {
                 dematId || null, bankAccount || null, ifscCode || null, calc.brokerage || 0, calc.stt || 0, calc.stampDuty || 0, calc.exchangeCharges || 0, calc.sebiFees || 0, calc.dpCharges || 0, calc.gst || 0, calc.netProfit || 0, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : '[]'), bankAccountId || null,
                 id, req.user.id
             ],
-            function(updateErr) {
+            function (updateErr) {
                 if (updateErr) return res.status(400).json({ error: updateErr.message });
 
                 // Auto-refund: if allotment changed to "Not Allotted" or "No" or "0", refund blocked amount
@@ -2935,7 +2935,7 @@ app.delete('/api/records/:id', authMiddleware, (req, res) => {
                 const wasApplied = record.applied === 'Yes' || record.applied === 'Pending';
                 const allotedVal = String(record.alloted || '');
                 const wasNotAllotted = allotedVal === '0' || allotedVal.toLowerCase() === 'no' || allotedVal.toLowerCase() === 'not allotted';
-                
+
                 // Only refund if applied and NOT already refunded (allotted or still pending)
                 if (acctId && wasApplied && !wasNotAllotted && ipoAmount > 0) {
                     recordTransaction(
@@ -2969,14 +2969,14 @@ app.post('/api/records/parse-allotment-pdf', authMiddleware, upload.single('file
             if (err) return res.status(500).json({ error: 'Failed to fetch applicants' });
 
             const matches = [];
-            
+
             applicants.forEach(app => {
                 if (!app.pan) return;
-                
+
                 // Case-insensitive search for PAN
                 const panRegex = new RegExp(app.pan, 'gi');
                 const matchIndex = text.search(panRegex);
-                
+
                 if (matchIndex !== -1) {
                     // Extract surrounding text window
                     const start = Math.max(0, matchIndex - 100);
@@ -2987,7 +2987,7 @@ app.post('/api/records/parse-allotment-pdf', authMiddleware, upload.single('file
                     const panIndexInSnippet = snippet.toLowerCase().indexOf(app.pan.toLowerCase());
                     const postPanText = snippet.substring(panIndexInSnippet + app.pan.length);
                     const postNumbers = postPanText.match(/\d+/g) || [];
-                    
+
                     let appliedShares = 0;
                     let allottedShares = 0;
 
@@ -3026,7 +3026,7 @@ app.post('/api/records/parse-allotment-pdf', authMiddleware, upload.single('file
 // Auto Check Allotment status for a specific record
 app.post('/api/allotment/auto-check', authMiddleware, async (req, res) => {
     const { recordId, ipoName, pan, registrar } = req.body;
-    
+
     if (!recordId) {
         return res.status(400).json({ error: 'Record ID is required' });
     }
@@ -3046,7 +3046,7 @@ app.post('/api/allotment/auto-check', authMiddleware, async (req, res) => {
 
             const panNumPart = parseInt(targetPan.replace(/\D/g, '') || '0', 10);
             const isLucky = (panNumPart % 2 === 0) || (targetPan.includes('7'));
-            
+
             if (isLucky) {
                 isAllotted = true;
                 resultStatus = 'Allotted';
@@ -3061,7 +3061,7 @@ app.post('/api/allotment/auto-check', authMiddleware, async (req, res) => {
             db.run(
                 "UPDATE records SET alloted = ?, holdingStatus = ?, refundStatus = ? WHERE id = ? AND userId = ?",
                 [resultStatus, isAllotted ? 'Holding' : 'Pending', isAllotted ? 'refunded' : 'pending', recordId, req.user.id],
-                function(updateErr) {
+                function (updateErr) {
                     if (updateErr) return res.status(500).json({ error: updateErr.message });
                     logPanAccess(req, 'AUTO_CHECK_ALLOTMENT', targetPan, `Auto checked allotment for ${targetIpo}: ${resultStatus}`);
                     res.json({
@@ -3097,7 +3097,7 @@ app.get('/api/applicants', authMiddleware, (req, res) => {
 // ADD an applicant
 app.post('/api/applicants', authMiddleware, (req, res) => {
     const { id, name, pan, upiId, createdAt, family, dematId, bankAccount, ifscCode, commissionPct } = req.body;
-    
+
     if (!pan || !pan.trim()) {
         return res.status(400).json({ error: 'PAN Number is strictly mandatory' });
     }
@@ -3113,16 +3113,16 @@ app.post('/api/applicants', authMiddleware, (req, res) => {
     // Check subscription limit
     db.get('SELECT subscription, role FROM users WHERE id = ?', [req.user.id], (err, userRow) => {
         if (err || !userRow) return res.status(404).json({ error: 'User not found' });
-        
+
         db.get('SELECT COUNT(*) as count FROM applicants WHERE userId = ?', [req.user.id], (err2, countRow) => {
             if (userRow.subscription === 'free' && userRow.role === 'user' && countRow.count >= 2) {
                 return res.status(403).json({ error: 'Free tier is limited to 2 portfolios. Upgrade to Pro for unlimited.' });
             }
-            
+
             db.run(
                 'INSERT INTO applicants (id, name, pan, upiId, createdAt, userId, family, dematId, bankAccount, ifscCode, commissionPct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [id, name, cleanPan, upiId, createdAt, req.user.id, family || '', dematId || null, bankAccount || null, ifscCode || null, numCommission],
-                function(err3) {
+                function (err3) {
                     if (err3) {
                         if (err3.message.includes('UNIQUE')) {
                             return res.status(400).json({ error: 'Applicant with this name already exists' });
@@ -3140,7 +3140,7 @@ app.post('/api/applicants', authMiddleware, (req, res) => {
 // UPDATE an applicant
 app.put('/api/applicants/:id', authMiddleware, (req, res) => {
     const { name, pan, upiId, family, dematId, bankAccount, ifscCode, commissionPct } = req.body;
-    
+
     if (!pan || !pan.trim()) {
         return res.status(400).json({ error: 'PAN Number is strictly mandatory' });
     }
@@ -3156,7 +3156,7 @@ app.put('/api/applicants/:id', authMiddleware, (req, res) => {
     db.run(
         'UPDATE applicants SET name = ?, pan = ?, upiId = ?, family = ?, dematId = ?, bankAccount = ?, ifscCode = ?, commissionPct = ? WHERE id = ? AND userId = ?',
         [name, cleanPan, upiId, family || '', dematId || null, bankAccount || null, ifscCode || null, numCommission, req.params.id, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(400).json({ error: err.message });
             logPanAccess(req, 'UPDATE_APPLICANT', cleanPan, `Updated applicant profile for ${name}`);
             res.json({ message: 'success', changes: this.changes });
@@ -3166,7 +3166,7 @@ app.put('/api/applicants/:id', authMiddleware, (req, res) => {
 
 // DELETE an applicant
 app.delete('/api/applicants/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM applicants WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM applicants WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(400).json({ error: err.message });
         res.json({ message: 'success', changes: this.changes });
     });
@@ -3187,7 +3187,7 @@ app.post('/api/gmp-alerts', authMiddleware, (req, res) => {
     db.run(
         'INSERT INTO gmp_alerts (id, userId, ipoName, targetGmp, direction, triggered, createdAt) VALUES (?, ?, ?, ?, ?, 0, ?)',
         [id, req.user.id, ipoName, targetGmp, direction || 'above', new Date().toISOString()],
-        function(err) {
+        function (err) {
             if (err) return res.status(400).json({ error: err.message });
             res.json({ message: 'success', id });
         }
@@ -3195,7 +3195,7 @@ app.post('/api/gmp-alerts', authMiddleware, (req, res) => {
 });
 
 app.delete('/api/gmp-alerts/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM gmp_alerts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM gmp_alerts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success', changes: this.changes });
     });
@@ -3263,7 +3263,7 @@ app.post('/api/notifications/register', authMiddleware, (req, res) => {
 
     db.get('SELECT username, email, fcmTokens FROM users WHERE id = ?', [req.user.id], (err, userRow) => {
         if (err || !userRow) return res.status(500).json({ error: err?.message || 'User not found' });
-        
+
         const username = userRow.username || '';
         const email = userRow.email || '';
         const now = new Date().toISOString();
@@ -3299,7 +3299,7 @@ app.post('/api/notifications/register', authMiddleware, (req, res) => {
 
         if (!tokens.includes(token)) {
             tokens.push(token);
-            db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(tokens), req.user.id], function(updateErr) {
+            db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(tokens), req.user.id], function (updateErr) {
                 if (updateErr) return res.status(500).json({ error: updateErr.message });
                 res.json({ message: 'Real FCM Token registered successfully', token });
             });
@@ -3323,7 +3323,7 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
             const body = `Hello ${row.username || 'Investor'}! Firebase Cloud Messaging push notification system is 100% operational.`;
 
             if (admin.apps.length === 0) {
-               throw new Error('Firebase Admin is running in placeholder mode. Add Firebase credentials in firebase-admin.js for live push.');
+                throw new Error('Firebase Admin is running in placeholder mode. Add Firebase credentials in firebase-admin.js for live push.');
             }
 
             const message = {
@@ -3332,7 +3332,7 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
             };
 
             const response = await admin.messaging().sendEachForMulticast(message);
-            
+
             // Log the notification
             const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
             const timestamp = new Date().toISOString();
@@ -3527,19 +3527,22 @@ app.put('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
     db.run(
         'UPDATE fcm_tokens SET username = COALESCE(?, username), email = COALESCE(?, email), deviceType = COALESCE(?, deviceType), token = COALESCE(?, token), lastUsedAt = ? WHERE id = ?',
         [username, email, deviceType, token, now, req.params.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'FCM Token updated successfully', changes: this.changes });
         }
     );
 });
 
-// DELETE single FCM Token (Master Admin)
-app.delete('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
-    db.get('SELECT token FROM fcm_tokens WHERE id = ? OR token = ?', [req.params.id, req.params.id], (err, row) => {
-        const tokenToDelete = row ? row.token : req.params.id;
+// DELETE or POST delete single FCM Token (Master Admin)
+const handleDeleteFcmTokenRoute = (req, res) => {
+    const targetId = req.params.id || req.body?.id;
+    if (!targetId) return res.status(400).json({ error: 'Token ID is required' });
 
-        db.run('DELETE FROM fcm_tokens WHERE id = ? OR token = ?', [req.params.id, req.params.id], function(delErr) {
+    db.get('SELECT token FROM fcm_tokens WHERE id = ? OR token = ?', [targetId, targetId], (err, row) => {
+        const tokenToDelete = row ? row.token : targetId;
+
+        db.run('DELETE FROM fcm_tokens WHERE id = ? OR token = ?', [targetId, targetId], function (delErr) {
             if (delErr) return res.status(500).json({ error: delErr.message });
 
             if (tokenToDelete) {
@@ -3549,7 +3552,7 @@ app.delete('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
                             const parsed = JSON.parse(u.fcmTokens);
                             const filtered = parsed.filter(t => t !== tokenToDelete);
                             db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(filtered), u.id]);
-                        } catch(e) {}
+                        } catch (e) { }
                     });
                 });
             }
@@ -3557,11 +3560,15 @@ app.delete('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
             res.json({ message: 'FCM Token deleted successfully', changes: this.changes });
         });
     });
-});
+};
+
+app.delete('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, handleDeleteFcmTokenRoute);
+app.post('/api/admin/fcm/tokens/delete', authMiddleware, isAdmin, handleDeleteFcmTokenRoute);
+app.post('/api/admin/fcm/tokens/delete/:id', authMiddleware, isAdmin, handleDeleteFcmTokenRoute);
 
 // POST Purge All Dummy Tokens (Master Admin)
 app.post('/api/admin/fcm/purge-dummy', authMiddleware, isAdmin, (req, res) => {
-    db.run("DELETE FROM fcm_tokens WHERE token LIKE 'fcm_token_%' OR token LIKE 'device_token_%' OR length(token) < 30", [], function(err) {
+    db.run("DELETE FROM fcm_tokens WHERE token LIKE 'fcm_token_%' OR token LIKE 'device_token_%' OR length(token) < 30", [], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: `Purged ${this.changes || 0} dummy tokens`, count: this.changes || 0 });
     });
@@ -3599,13 +3606,13 @@ app.get('/api/admin/analytics', authMiddleware, isAdmin, (req, res) => {
     db.get('SELECT COUNT(*) as totalUsers FROM users', (err1, row1) => {
         db.get('SELECT COUNT(*) as totalPortfolios FROM applicants', (err2, row2) => {
             db.get('SELECT SUM(profit) as totalProfit FROM records', (err3, row3) => {
-                res.json({ 
-                    message: 'success', 
+                res.json({
+                    message: 'success',
                     data: {
                         totalUsers: row1?.totalUsers || 0,
                         totalPortfolios: row2?.totalPortfolios || 0,
                         totalProfit: row3?.totalProfit || 0
-                    } 
+                    }
                 });
             });
         });
@@ -3649,10 +3656,10 @@ app.get(['/api/admin/audit-logs', '/api/admin/audit'], authMiddleware, isAdmin, 
 // POST Impersonate (Master Admin Only)
 app.post('/api/admin/impersonate/:id', authMiddleware, isAdmin, (req, res) => {
     if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
-    
+
     db.get('SELECT * FROM users WHERE id = ?', [req.params.id], (err, user) => {
         if (err || !user) return res.status(404).json({ error: 'User not found' });
-        
+
         // Generate token for the target user
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '1h' });
         logAudit(req, 'IMPERSONATE', user.username, 'Admin logged in as user');
@@ -3663,16 +3670,16 @@ app.post('/api/admin/impersonate/:id', authMiddleware, isAdmin, (req, res) => {
 // GET Global Export CSV (Master Admin Only)
 app.get('/api/admin/export', authMiddleware, isAdmin, (req, res) => {
     if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
-    
+
     db.all('SELECT * FROM users', (err, users) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         db.all('SELECT * FROM records', (err2, records) => {
             if (err2) return res.status(500).json({ error: err2.message });
-            
+
             // Generate basic CSV string
             let csv = "User ID,Username,Email,Role,Subscription,Record ID,IPO Name,Applicant Name,Profit\n";
-            
+
             users.forEach(u => {
                 const userRecords = records.filter(r => r.userId === u.id);
                 if (userRecords.length === 0) {
@@ -3683,7 +3690,7 @@ app.get('/api/admin/export', authMiddleware, isAdmin, (req, res) => {
                     });
                 }
             });
-            
+
             logAudit(req, 'EXPORT_CSV', 'All Data', 'Exported platform data to CSV');
             res.header('Content-Type', 'text/csv');
             res.attachment(`platform_export_${new Date().toISOString().split('T')[0]}.csv`);
@@ -3707,29 +3714,29 @@ app.post('/api/admin/notifications/broadcast', authMiddleware, isAdmin, (req, re
     if (req.user.role !== 'master') {
         return res.status(403).json({ error: 'Only Master Admin can broadcast notifications.' });
     }
-    
+
     const { title, body } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'Title and body are required.' });
 
     db.all('SELECT fcmTokens FROM users', async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         let allTokens = [];
         rows.forEach(row => {
             if (row.fcmTokens) {
                 try {
                     const t = JSON.parse(row.fcmTokens);
                     allTokens = allTokens.concat(t);
-                } catch(e) {}
+                } catch (e) { }
             }
         });
-        
+
         const uniqueTokens = [...new Set(allTokens)];
         if (uniqueTokens.length === 0) return res.status(404).json({ error: 'No users have registered for notifications yet.' });
 
         try {
             if (admin.apps.length === 0) {
-               throw new Error('Firebase Admin is in placeholder mode! Add your Firebase keys in firebase-admin.js to send actual push notifications.');
+                throw new Error('Firebase Admin is in placeholder mode! Add your Firebase keys in firebase-admin.js to send actual push notifications.');
             }
 
             const message = {
@@ -3738,7 +3745,7 @@ app.post('/api/admin/notifications/broadcast', authMiddleware, isAdmin, (req, re
             };
 
             const response = await admin.messaging().sendEachForMulticast(message);
-            
+
             const logId = crypto.randomUUID();
             db.run(
                 'INSERT INTO notifications_log (id, title, body, sentAt, recipientCount, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -3794,7 +3801,7 @@ app.post('/api/admin/test-email', authMiddleware, isAdmin, (req, res) => {
             );
             return res.status(500).json({ error: 'Failed to send test email: ' + error.message });
         }
-        
+
         db.run(
             'INSERT INTO notifications_log (id, title, body, sentAt, recipientCount, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [logId, 'Test Email', `SMTP Test to ${testEmail}`, new Date().toISOString(), 1, 'success', 'email']
@@ -3828,7 +3835,7 @@ app.post('/api/admin/users/bulk-notify', authMiddleware, isAdmin, (req, res) => 
     if (!userIds || !userIds.length || !title || !body) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
-    
+
     // In a real scenario, you'd fetch FCM tokens and emails for these specific users.
     // For now, we'll just log it to the DB as a bulk notification.
     const logId = crypto.randomUUID();
@@ -3845,38 +3852,48 @@ app.post('/api/admin/users/bulk-update', authMiddleware, isAdmin, (req, res) => 
     if (!userIds || !userIds.length) {
         return res.status(400).json({ error: 'No users selected' });
     }
-    
+
     let updates = [];
     let params = [];
     if (role) { updates.push('role = ?'); params.push(role); }
     if (status) { updates.push('status = ?'); params.push(status); }
     if (subscription) { updates.push('subscription = ?'); params.push(subscription); }
-    
+
     if (updates.length === 0) return res.json({ message: 'No fields to update' });
-    
+
     const placeholders = userIds.map(() => '?').join(',');
     const query = `UPDATE users SET ${updates.join(', ')} WHERE id IN (${placeholders}) AND role != 'master'`;
-    
-    db.run(query, [...params, ...userIds], function(err) {
+
+    db.run(query, [...params, ...userIds], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         logAudit(req, 'BULK_UPDATE', `Users: ${userIds.length}`, `Updated: ${updates.join(', ')}`);
         res.json({ message: 'Users updated successfully', changes: this.changes });
     });
 });
 
+// GET all users (Master Admin / Admin Only)
+const handleGetUsers = (req, res) => {
+    db.all('SELECT id, username, email, role, status, subscription, createdAt FROM users ORDER BY createdAt DESC', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+};
+app.get('/api/users', authMiddleware, isAdmin, handleGetUsers);
+app.get('/api/admin/users', authMiddleware, isAdmin, handleGetUsers);
+
 // UPDATE user status and role
 app.put('/api/users/:id/status', authMiddleware, isAdmin, (req, res) => {
     const { status, role, subscription } = req.body;
     const targetUserId = req.params.id;
     const currentUserRole = req.user.role;
-    
+
     db.get('SELECT username, role, status, subscription FROM users WHERE id = ?', [targetUserId], (err, row) => {
         if (err || !row) return res.status(404).json({ error: 'User not found' });
-        
+
         if (currentUserRole !== 'master' && (row.role === 'admin' || row.role === 'master') && targetUserId !== req.user.id) {
             return res.status(403).json({ error: 'Only the Master Admin can modify other administrators.' });
         }
-        
+
         // Prevent demoting the primary Master Admin account (dakshitpatel27)
         if (row.username === 'dakshitpatel27' && role && role !== 'master') {
             return res.status(403).json({ error: 'Primary Master Admin account (dakshitpatel27) cannot be demoted.' });
@@ -3908,21 +3925,21 @@ app.put('/api/users/:id/status', authMiddleware, isAdmin, (req, res) => {
 app.delete('/api/users/:id', authMiddleware, isAdmin, (req, res) => {
     const targetUserId = req.params.id;
     const currentUserRole = req.user.role;
-    
+
     db.get('SELECT role FROM users WHERE id = ?', [targetUserId], (err, row) => {
         if (err || !row) return res.status(404).json({ error: 'User not found' });
-        
+
         if (currentUserRole !== 'master' && (row.role === 'admin' || row.role === 'master')) {
             return res.status(403).json({ error: 'Only the Master Admin can delete other administrators.' });
         }
-        
+
         if (row.role === 'master') {
             return res.status(403).json({ error: 'Master Admin cannot be deleted.' });
         }
 
         db.run('DELETE FROM records WHERE userId = ?', [targetUserId], (err1) => {
             db.run('DELETE FROM applicants WHERE userId = ?', [targetUserId], (err2) => {
-                db.run('DELETE FROM users WHERE id = ?', [targetUserId], function(err3) {
+                db.run('DELETE FROM users WHERE id = ?', [targetUserId], function (err3) {
                     if (err3) return res.status(400).json({ error: err3.message });
                     logAudit(req, 'DELETE_USER', row.username || targetUserId, 'Permanently deleted user account');
                     res.json({ message: 'success', changes: this.changes });
@@ -3938,7 +3955,7 @@ app.get('/api/settings/fcm-web', (req, res) => {
         if (err || !row) return res.json(null);
         try {
             res.json(JSON.parse(row.value));
-        } catch(e) {
+        } catch (e) {
             res.json(null);
         }
     });
@@ -3954,7 +3971,7 @@ app.post('/api/settings/fcm', authMiddleware, (req, res) => {
             db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['fcm_service_account', JSON.stringify(serviceAccount)]);
         }
     });
-    
+
     // Reinitialize Admin
     initFirebaseAdmin();
     res.json({ message: 'Settings saved successfully' });
@@ -3976,7 +3993,7 @@ function initFirebaseAdmin() {
                     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
                     console.log("Firebase Admin initialized from DB credentials");
                 }
-            } catch(e) {
+            } catch (e) {
                 console.error("Failed to parse or initialize service account from DB", e);
             }
         }
@@ -4009,7 +4026,7 @@ app.get('/api/admin/settings', authMiddleware, isAdmin, (req, res) => {
 app.post('/api/admin/settings', authMiddleware, isAdmin, (req, res) => {
     if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
     const { key, value } = req.body;
-    db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value], function(err) {
+    db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         logAudit(req, 'UPDATE_SETTING', key, 'Changed system setting');
         res.json({ message: 'success' });
@@ -4032,7 +4049,7 @@ app.post('/api/admin/templates', authMiddleware, isAdmin, (req, res) => {
     db.run(
         'INSERT INTO email_templates (id, name, subject, bodyHtml, createdAt) VALUES (?, ?, ?, ?, ?)',
         [id, name, subject, bodyHtml, createdAt],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             logAudit(req, 'CREATE_TEMPLATE', name, 'Created new email template');
             res.json({ message: 'success', template: { id, name, subject, bodyHtml, createdAt } });
@@ -4046,7 +4063,7 @@ app.put('/api/admin/templates/:id', authMiddleware, isAdmin, (req, res) => {
     db.run(
         'UPDATE email_templates SET name = ?, subject = ?, bodyHtml = ? WHERE id = ?',
         [name, subject, bodyHtml, req.params.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             logAudit(req, 'UPDATE_TEMPLATE', name, 'Updated email template');
             res.json({ message: 'success' });
@@ -4056,7 +4073,7 @@ app.put('/api/admin/templates/:id', authMiddleware, isAdmin, (req, res) => {
 
 app.delete('/api/admin/templates/:id', authMiddleware, isAdmin, (req, res) => {
     if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
-    db.run('DELETE FROM email_templates WHERE id = ?', [req.params.id], function(err) {
+    db.run('DELETE FROM email_templates WHERE id = ?', [req.params.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         logAudit(req, 'DELETE_TEMPLATE', req.params.id, 'Deleted email template');
         res.json({ message: 'success' });
@@ -4076,7 +4093,7 @@ const ensureMasterAdmin = async () => {
         db.get('SELECT id FROM users WHERE username = ? OR email = ?', [username, email], async (err, row) => {
             if (!err && row) {
                 // User exists, promote them to master admin
-                db.run('UPDATE users SET role = ?, status = ?, subscription = ? WHERE id = ?', 
+                db.run('UPDATE users SET role = ?, status = ?, subscription = ? WHERE id = ?',
                     ['master', 'approved', 'pro', row.id],
                     (updateErr) => {
                         if (!updateErr) console.log('Existing user promoted to Master Admin.');
@@ -4087,7 +4104,7 @@ const ensureMasterAdmin = async () => {
                 const hashedPassword = await bcrypt.hash(rawPassword, 10);
                 const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
                 const createdAt = new Date().toISOString();
-                
+
                 db.run('INSERT INTO users (id, username, password, email, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [id, username, hashedPassword, email, createdAt, 'master', 'approved', 'pro'],
                     (insertErr) => {
@@ -4097,7 +4114,7 @@ const ensureMasterAdmin = async () => {
                 );
             }
         });
-    } catch(e) {
+    } catch (e) {
         console.error('Master admin seed error', e);
     }
 };
@@ -4114,7 +4131,7 @@ app.post('/api/cron/run', async (req, res) => {
     try {
         // Trigger the external cron.js logic if needed, or simply run the sync functions
         res.json({ success: true, message: 'Cron endpoint hit successfully' });
-    } catch(err) {
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
@@ -4123,45 +4140,45 @@ app.post('/api/cron/run', async (req, res) => {
 const ALLOWED_IMPORT_TABLES = ['records', 'applicants', 'expenses', 'party_ledger', 'bank_accounts'];
 
 const HEADER_ALIASES = {
-  pan: ['pan', 'pan number', 'pan_no', 'pan_id', 'applicant pan', 'pan card', 'tax id', 'client pan', 'pan_number', 'income tax pan'],
-  ipoName: ['ipo name', 'ipo', 'company name', 'stock', 'scrip', 'symbol', 'security name', 'issue name', 'stock name', 'company', 'scrip name'],
-  applicantName: ['applicant name', 'applicant', 'client name', 'holder name', 'investor name', 'name', 'account holder', 'full name'],
-  amount: ['amount', 'investment amount', 'total amount', 'value', 'cost', 'total value', 'net amount', 'investment', 'grand total'],
-  price: ['price', 'issue price', 'buy price', 'share price', 'rate', 'cost price', 'avg price', 'execution price', 'average price'],
-  shares: ['shares', 'quantity', 'qty', 'no of shares', 'lot size', 'applied shares', 'allotted shares', 'number of shares'],
-  upiId: ['upi id', 'upi', 'upi address', 'vpa', 'mandate upi id'],
-  dematId: ['demat id', 'demat', 'dp id', 'client id', 'bo id', 'demat account id', 'demat account'],
-  category: ['category', 'expense category', 'group', 'type'],
-  listingDate: ['listing date', 'listingdate', 'trade date', 'order date', 'date of listing'],
-  date: ['date', 'transaction date', 'expense date', 'payment date', 'entry date'],
-  description: ['description', 'desc', 'remarks', 'notes', 'narration', 'particulars'],
-  bankAccount: ['bank account', 'bank account number', 'account number', 'bank ac', 'account no'],
-  ifscCode: ['ifsc code', 'ifsc', 'ifsc_code']
+    pan: ['pan', 'pan number', 'pan_no', 'pan_id', 'applicant pan', 'pan card', 'tax id', 'client pan', 'pan_number', 'income tax pan'],
+    ipoName: ['ipo name', 'ipo', 'company name', 'stock', 'scrip', 'symbol', 'security name', 'issue name', 'stock name', 'company', 'scrip name'],
+    applicantName: ['applicant name', 'applicant', 'client name', 'holder name', 'investor name', 'name', 'account holder', 'full name'],
+    amount: ['amount', 'investment amount', 'total amount', 'value', 'cost', 'total value', 'net amount', 'investment', 'grand total'],
+    price: ['price', 'issue price', 'buy price', 'share price', 'rate', 'cost price', 'avg price', 'execution price', 'average price'],
+    shares: ['shares', 'quantity', 'qty', 'no of shares', 'lot size', 'applied shares', 'allotted shares', 'number of shares'],
+    upiId: ['upi id', 'upi', 'upi address', 'vpa', 'mandate upi id'],
+    dematId: ['demat id', 'demat', 'dp id', 'client id', 'bo id', 'demat account id', 'demat account'],
+    category: ['category', 'expense category', 'group', 'type'],
+    listingDate: ['listing date', 'listingdate', 'trade date', 'order date', 'date of listing'],
+    date: ['date', 'transaction date', 'expense date', 'payment date', 'entry date'],
+    description: ['description', 'desc', 'remarks', 'notes', 'narration', 'particulars'],
+    bankAccount: ['bank account', 'bank account number', 'account number', 'bank ac', 'account no'],
+    ifscCode: ['ifsc code', 'ifsc', 'ifsc_code']
 };
 
 function sanitizeImportValue(key, rawVal) {
-  if (rawVal === undefined || rawVal === null) return rawVal;
-  let val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
-  
-  if (typeof val === 'string') {
-    // 1. Currency symbol & comma stripping
-    if (/^[₹$\s]*[-+]?\d{1,3}(,\d{3})*(\.\d+)?$/.test(val)) {
-      const num = parseFloat(val.replace(/[₹$,\s]/g, ''));
-      if (!isNaN(num)) return num;
+    if (rawVal === undefined || rawVal === null) return rawVal;
+    let val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
+
+    if (typeof val === 'string') {
+        // 1. Currency symbol & comma stripping
+        if (/^[₹$\s]*[-+]?\d{1,3}(,\d{3})*(\.\d+)?$/.test(val)) {
+            const num = parseFloat(val.replace(/[₹$,\s]/g, ''));
+            if (!isNaN(num)) return num;
+        }
+        // 2. PAN formatting
+        if (key.toLowerCase() === 'pan') {
+            return val.toUpperCase().replace(/\s+/g, '');
+        }
+        // 3. Date ISO conversion (DD/MM/YYYY -> YYYY-MM-DD)
+        if (key.toLowerCase().includes('date') && val.includes('/')) {
+            const parts = val.split('/');
+            if (parts.length === 3 && parts[2].length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
     }
-    // 2. PAN formatting
-    if (key.toLowerCase() === 'pan') {
-      return val.toUpperCase().replace(/\s+/g, '');
-    }
-    // 3. Date ISO conversion (DD/MM/YYYY -> YYYY-MM-DD)
-    if (key.toLowerCase().includes('date') && val.includes('/')) {
-      const parts = val.split('/');
-      if (parts.length === 3 && parts[2].length === 4) {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-  }
-  return val;
+    return val;
 }
 
 // GET available import tables & schemas
@@ -4208,65 +4225,65 @@ app.post('/api/import/inspect', authMiddleware, (req, res) => {
                 // Try AI header dictionary alias match
                 let aiMatchedCol = null;
                 Object.entries(HEADER_ALIASES).forEach(([targetCol, aliases]) => {
-                  if (aliases.includes(lowerH) && lowerExisting.includes(targetCol.toLowerCase())) {
-                    aiMatchedCol = existingCols[lowerExisting.indexOf(targetCol.toLowerCase())];
-                  }
+                    if (aliases.includes(lowerH) && lowerExisting.includes(targetCol.toLowerCase())) {
+                        aiMatchedCol = existingCols[lowerExisting.indexOf(targetCol.toLowerCase())];
+                    }
                 });
 
                 if (aiMatchedCol) {
-                  matchedColumns.push({ header: cleanHeader, tableColumn: aiMatchedCol, aiMapped: true });
+                    matchedColumns.push({ header: cleanHeader, tableColumn: aiMatchedCol, aiMapped: true });
                 } else {
-                  extraColumns.push(cleanHeader);
+                    extraColumns.push(cleanHeader);
                 }
             }
         });
 
         // Duplicate Check against existing user data
         db.all(`SELECT * FROM ${tableName} WHERE userId = ?`, [req.user.id], (err2, existingRows) => {
-          let duplicateCount = 0;
-          const duplicateSamples = [];
+            let duplicateCount = 0;
+            const duplicateSamples = [];
 
-          if (Array.isArray(sampleRows) && Array.isArray(existingRows)) {
-            sampleRows.forEach(row => {
-              let isDup = false;
-              if (tableName === 'records') {
-                const panVal = row['pan'] || row['PAN'] || row['PAN Number'];
-                const ipoVal = row['ipoName'] || row['IPO Name'] || row['Symbol'];
-                if (panVal && ipoVal) {
-                  isDup = existingRows.some(e => 
-                    String(e.pan || '').toUpperCase() === String(panVal).toUpperCase() &&
-                    String(e.ipoName || '').toLowerCase() === String(ipoVal).toLowerCase()
-                  );
-                }
-              } else if (tableName === 'applicants') {
-                const panVal = row['pan'] || row['PAN Number'] || row['PAN'];
-                if (panVal) {
-                  isDup = existingRows.some(e => String(e.pan || '').toUpperCase() === String(panVal).toUpperCase());
-                }
-              } else if (tableName === 'expenses') {
-                const amtVal = parseFloat(row['amount'] || row['Amount'] || 0);
-                const dateVal = row['date'] || row['Date'];
-                if (amtVal && dateVal) {
-                  isDup = existingRows.some(e => parseFloat(e.amount || 0) === amtVal && String(e.date || '') === String(dateVal));
-                }
-              }
+            if (Array.isArray(sampleRows) && Array.isArray(existingRows)) {
+                sampleRows.forEach(row => {
+                    let isDup = false;
+                    if (tableName === 'records') {
+                        const panVal = row['pan'] || row['PAN'] || row['PAN Number'];
+                        const ipoVal = row['ipoName'] || row['IPO Name'] || row['Symbol'];
+                        if (panVal && ipoVal) {
+                            isDup = existingRows.some(e =>
+                                String(e.pan || '').toUpperCase() === String(panVal).toUpperCase() &&
+                                String(e.ipoName || '').toLowerCase() === String(ipoVal).toLowerCase()
+                            );
+                        }
+                    } else if (tableName === 'applicants') {
+                        const panVal = row['pan'] || row['PAN Number'] || row['PAN'];
+                        if (panVal) {
+                            isDup = existingRows.some(e => String(e.pan || '').toUpperCase() === String(panVal).toUpperCase());
+                        }
+                    } else if (tableName === 'expenses') {
+                        const amtVal = parseFloat(row['amount'] || row['Amount'] || 0);
+                        const dateVal = row['date'] || row['Date'];
+                        if (amtVal && dateVal) {
+                            isDup = existingRows.some(e => parseFloat(e.amount || 0) === amtVal && String(e.date || '') === String(dateVal));
+                        }
+                    }
 
-              if (isDup) {
-                duplicateCount++;
-                if (duplicateSamples.length < 3) duplicateSamples.push(row);
-              }
+                    if (isDup) {
+                        duplicateCount++;
+                        if (duplicateSamples.length < 3) duplicateSamples.push(row);
+                    }
+                });
+            }
+
+            res.json({
+                message: 'success',
+                tableName,
+                existingColumns: existingCols,
+                matchedColumns,
+                extraColumns,
+                duplicateCount,
+                duplicateSamples
             });
-          }
-
-          res.json({
-              message: 'success',
-              tableName,
-              existingColumns: existingCols,
-              matchedColumns,
-              extraColumns,
-              duplicateCount,
-              duplicateSamples
-          });
         });
     });
 });
@@ -4288,18 +4305,18 @@ app.post('/api/import/alter-schema', authMiddleware, (req, res) => {
     newColumns.forEach(colObj => {
         const colName = typeof colObj === 'string' ? colObj : colObj.name;
         const colType = typeof colObj === 'object' && colObj.type ? colObj.type : 'TEXT';
-        
+
         db.addColumn(tableName, colName, colType, (err, result) => {
             if (err) {
-              hasError = err;
+                hasError = err;
             } else {
-              results.push(result);
-              // Store in custom_field_metadata table
-              const metaId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
-              db.run(
-                'INSERT INTO custom_field_metadata (id, userId, tableName, columnName, label, dataType, isVisible, createdAt) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
-                [metaId, req.user.id, tableName, colName, colObj.label || colName, colType, new Date().toISOString()]
-              );
+                results.push(result);
+                // Store in custom_field_metadata table
+                const metaId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+                db.run(
+                    'INSERT INTO custom_field_metadata (id, userId, tableName, columnName, label, dataType, isVisible, createdAt) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+                    [metaId, req.user.id, tableName, colName, colObj.label || colName, colType, new Date().toISOString()]
+                );
             }
             pending--;
             if (pending === 0) {
@@ -4339,11 +4356,11 @@ app.post('/api/import/execute', authMiddleware, (req, res) => {
         db.all(`SELECT * FROM ${tableName} WHERE userId = ?`, [req.user.id], (err2, existingRows) => {
             const existingMap = new Map();
             (existingRows || []).forEach(e => {
-              let key = e.id;
-              if (tableName === 'records' && e.pan && e.ipoName) key = `${e.pan.toUpperCase()}_${e.ipoName.toLowerCase()}`;
-              if (tableName === 'applicants' && e.pan) key = e.pan.toUpperCase();
-              if (tableName === 'expenses' && e.date && e.amount) key = `${e.date}_${e.amount}`;
-              existingMap.set(key, e);
+                let key = e.id;
+                if (tableName === 'records' && e.pan && e.ipoName) key = `${e.pan.toUpperCase()}_${e.ipoName.toLowerCase()}`;
+                if (tableName === 'applicants' && e.pan) key = e.pan.toUpperCase();
+                if (tableName === 'expenses' && e.date && e.amount) key = `${e.date}_${e.amount}`;
+                existingMap.set(key, e);
             });
 
             db.run('BEGIN TRANSACTION', [], (beginErr) => {
@@ -4357,25 +4374,25 @@ app.post('/api/import/execute', authMiddleware, (req, res) => {
 
                     // Apply Automated Data Sanitization Rules
                     Object.keys(recordData).forEach(k => {
-                      recordData[k] = sanitizeImportValue(k, recordData[k]);
+                        recordData[k] = sanitizeImportValue(k, recordData[k]);
                     });
 
                     // Check conflict strategy
                     let duplicateKey = null;
                     if (tableName === 'records' && recordData.pan && recordData.ipoName) {
-                      duplicateKey = `${String(recordData.pan).toUpperCase()}_${String(recordData.ipoName).toLowerCase()}`;
+                        duplicateKey = `${String(recordData.pan).toUpperCase()}_${String(recordData.ipoName).toLowerCase()}`;
                     } else if (tableName === 'applicants' && recordData.pan) {
-                      duplicateKey = String(recordData.pan).toUpperCase();
+                        duplicateKey = String(recordData.pan).toUpperCase();
                     } else if (tableName === 'expenses' && recordData.date && recordData.amount) {
-                      duplicateKey = `${recordData.date}_${recordData.amount}`;
+                        duplicateKey = `${recordData.date}_${recordData.amount}`;
                     }
 
                     const isDuplicate = duplicateKey && existingMap.has(duplicateKey);
 
                     if (isDuplicate && conflictStrategy === 'SKIP') {
-                      pending--;
-                      if (pending === 0) finish();
-                      return;
+                        pending--;
+                        if (pending === 0) finish();
+                        return;
                     }
 
                     // Auto populate standard required system fields if missing
@@ -4419,7 +4436,7 @@ app.post('/api/import/execute', authMiddleware, (req, res) => {
                         sql = `UPDATE ${tableName} SET ${updateClause} WHERE id = '${existingObj.id}' AND userId = '${req.user.id}'`;
                     }
 
-                    db.run(sql, insertVals, function(insertErr) {
+                    db.run(sql, insertVals, function (insertErr) {
                         if (insertErr) {
                             firstErr = insertErr;
                         } else {
@@ -4439,12 +4456,12 @@ app.post('/api/import/execute', authMiddleware, (req, res) => {
                     } else {
                         db.run('COMMIT', (commitErr) => {
                             if (commitErr) return res.status(500).json({ error: 'Commit failed' });
-                            
+
                             // Log Import History Audit Record
                             const historyId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
                             db.run(
-                              'INSERT INTO import_history (id, userId, tableName, fileName, importedCount, addedColumns, importedRecordIds, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                              [historyId, req.user.id, tableName, fileName || 'imported_file.csv', count, JSON.stringify(addedColumns), JSON.stringify(insertedRecordIds), 'success', new Date().toISOString()]
+                                'INSERT INTO import_history (id, userId, tableName, fileName, importedCount, addedColumns, importedRecordIds, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [historyId, req.user.id, tableName, fileName || 'imported_file.csv', count, JSON.stringify(addedColumns), JSON.stringify(insertedRecordIds), 'success', new Date().toISOString()]
                             );
 
                             res.json({ message: 'success', count, historyId });
@@ -4473,19 +4490,19 @@ app.post('/api/import/history/:id/undo', authMiddleware, (req, res) => {
 
         let recordIds = [];
         try {
-          recordIds = JSON.parse(history.importedRecordIds || '[]');
-        } catch(e) {
-          recordIds = [];
+            recordIds = JSON.parse(history.importedRecordIds || '[]');
+        } catch (e) {
+            recordIds = [];
         }
 
         if (recordIds.length === 0) {
-          return res.status(400).json({ error: 'No record IDs associated with this import session' });
+            return res.status(400).json({ error: 'No record IDs associated with this import session' });
         }
 
         const placeholders = recordIds.map(() => '?').join(',');
         const deleteSql = `DELETE FROM ${history.tableName} WHERE userId = ? AND id IN (${placeholders})`;
 
-        db.run(deleteSql, [req.user.id, ...recordIds], function(delErr) {
+        db.run(deleteSql, [req.user.id, ...recordIds], function (delErr) {
             if (delErr) return res.status(500).json({ error: 'Rollback failed: ' + delErr.message });
 
             db.run('UPDATE import_history SET status = "undone" WHERE id = ?', [historyId], () => {
@@ -4509,7 +4526,7 @@ app.put('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
     db.run(
         'UPDATE custom_field_metadata SET label = ?, isVisible = ? WHERE id = ? AND userId = ?',
         [label, isVisible ? 1 : 0, req.params.id, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Custom field updated', changes: this.changes });
         }
@@ -4518,7 +4535,7 @@ app.put('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
 
 // DELETE custom field metadata entry
 app.delete('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM custom_field_metadata WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM custom_field_metadata WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'Custom field removed', changes: this.changes });
     });
@@ -4547,7 +4564,7 @@ app.post('/api/bank-accounts', authMiddleware, (req, res) => {
     db.run(
         'INSERT INTO bank_accounts (id, userId, accountName, bankName, accountNumber, ifscCode, accountType, balance, color, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [id, req.user.id, accountName, bankName, accountNumber, ifscCode, accountType, initBal, color, createdAt],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
 
             // Insert initial opening balance transaction if > 0
@@ -4570,7 +4587,7 @@ app.put('/api/bank-accounts/:id', authMiddleware, (req, res) => {
     db.run(
         'UPDATE bank_accounts SET accountName = ?, bankName = ?, accountNumber = ?, ifscCode = ?, accountType = ?, color = ? WHERE id = ? AND userId = ?',
         [accountName, bankName, accountNumber, ifscCode, accountType, color, req.params.id, req.user.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Account updated', changes: this.changes });
         }
@@ -4579,7 +4596,7 @@ app.put('/api/bank-accounts/:id', authMiddleware, (req, res) => {
 
 // DELETE bank account
 app.delete('/api/bank-accounts/:id', authMiddleware, (req, res) => {
-    db.run('DELETE FROM bank_accounts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function(err) {
+    db.run('DELETE FROM bank_accounts WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
         db.run('DELETE FROM transactions WHERE bankAccountId = ? AND userId = ?', [req.params.id, req.user.id]);
         res.json({ message: 'Account deleted', changes: this.changes });
@@ -4628,7 +4645,7 @@ app.post('/api/transactions', authMiddleware, (req, res) => {
         db.run(
             'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [txnId, req.user.id, bankAccountId, type, category || (type === 'credit' ? 'MANUAL_CREDIT' : 'MANUAL_DEBIT'), numAmt, newBal, description || '', now, now],
-            function(err2) {
+            function (err2) {
                 if (err2) return res.status(500).json({ error: err2.message });
 
                 // Update account balance
@@ -4662,7 +4679,7 @@ app.post('/api/kostak', authMiddleware, (req, res) => {
     db.run(
         'INSERT INTO kostak_deals (id, userId, ipoName, applicantName, lotCount, ratePerLot, totalAmount, dealType, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [id, req.user.id, ipoName, applicantName || 'Family Account', lots, rate, totalAmount, dealType, 'ACTIVE', createdAt],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'Kostak deal recorded', id });
         }
@@ -4679,8 +4696,8 @@ app.get('/api/health', (req, res) => {
                 dbType: isPostgres ? 'PostgreSQL' : 'SQLite',
                 connected: false,
                 error: err.message,
-                hint: isPostgres 
-                    ? 'PostgreSQL connection failed. Verify DATABASE_URL in Vercel Environment Variables.' 
+                hint: isPostgres
+                    ? 'PostgreSQL connection failed. Verify DATABASE_URL in Vercel Environment Variables.'
                     : 'SQLite fallback active.'
             });
         }
@@ -4705,7 +4722,7 @@ app.post('/api/allotment/check-bulk', authMiddleware, (req, res) => {
 
         const results = applicants.map(app => {
             const matchedRecord = records ? records.find(r => r.pan && r.pan.toUpperCase() === app.pan.toUpperCase()) : null;
-            
+
             // Deterministic simulation / registrar lookup engine
             const panHash = app.pan.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
             const isAllotted = (panHash % 3 === 0);
@@ -4714,7 +4731,7 @@ app.post('/api/allotment/check-bulk', authMiddleware, (req, res) => {
 
             if (matchedRecord) {
                 const updatedStatus = isAllotted ? 'Yes' : 'No';
-                db.run('UPDATE records SET alloted = ?, shares = ? WHERE id = ? AND userId = ?', [updatedStatus, sharesAllotted, matchedRecord.id, req.user.id], () => {});
+                db.run('UPDATE records SET alloted = ?, shares = ? WHERE id = ? AND userId = ?', [updatedStatus, sharesAllotted, matchedRecord.id, req.user.id], () => { });
             }
 
             return {
@@ -4767,7 +4784,7 @@ process.on('uncaughtException', (err) => {
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
+        console.log(`Server is running on http://localhost:${PORT}`);
     });
 }
 

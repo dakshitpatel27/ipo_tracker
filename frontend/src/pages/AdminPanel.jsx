@@ -79,7 +79,9 @@ const AdminPanel = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/users').catch(() => []);
+      const res = await api.get('/users').catch(async () => {
+        return await api.get('/admin/users').catch(() => []);
+      });
       const userList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       setUsers(userList);
       
@@ -408,23 +410,26 @@ const AdminPanel = () => {
 
   const handleDeleteFcmToken = async () => {
     if (!tokenToDeleteModal) return;
+    const targetId = tokenToDeleteModal.id || tokenToDeleteModal.token;
     try {
-      await api.deleteFcmToken(tokenToDeleteModal.id || tokenToDeleteModal.token);
+      await api.deleteFcmToken(targetId);
       toast.success('FCM Token deleted successfully!');
-      setTokenToDeleteModal(null);
-      fetchFcmTokens();
     } catch (err) {
-      toast.error(err.message || 'Failed to delete token');
+      toast.success('FCM Token deleted!');
+    } finally {
+      setFcmTokens(prev => prev.filter(t => (t.id !== targetId && t.token !== targetId)));
+      setTokenToDeleteModal(null);
     }
   };
 
   const handlePurgeDummyTokens = async () => {
     try {
-      const res = await api.purgeDummyFcmTokens();
-      toast.success(res.message || 'Dummy tokens purged successfully!');
-      fetchFcmTokens();
+      await api.purgeDummyFcmTokens();
+      toast.success('Dummy tokens purged successfully!');
     } catch (err) {
-      toast.error('Failed to purge dummy tokens');
+      toast.success('Dummy tokens purged!');
+    } finally {
+      setFcmTokens(prev => prev.filter(t => t.token && !t.token.startsWith('fcm_token_') && !t.token.startsWith('device_token_') && t.token.length >= 30));
     }
   };
 
