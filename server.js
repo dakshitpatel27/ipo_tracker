@@ -17,11 +17,14 @@ if (typeof global.DOMMatrix === 'undefined') {
         }
     };
 }
-let pdfParse;
-try {
-    pdfParse = require('pdf-parse');
-} catch (e) {
-    console.warn('[SERVER WARNING] pdf-parse optional module failed to load:', e.message);
+// Lazy PDF Parser loader function
+function getPdfParse() {
+    try {
+        return require('pdf-parse');
+    } catch (e) {
+        console.warn('[SERVER WARNING] pdf-parse optional module is unavailable:', e.message);
+        return null;
+    }
 }
 const upload = multer({ storage: multer.memoryStorage() });
 
