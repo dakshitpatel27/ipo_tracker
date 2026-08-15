@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { WifiOff, Wifi, RefreshCw } from 'lucide-react';
+import { WifiOff, Wifi, RefreshCw, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { syncOfflineMutations } from '../../api';
 import toast from 'react-hot-toast';
+import OfflinePage from '../../pages/OfflinePage';
 
 const OfflineSyncBanner = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
   const [syncedCount, setSyncedCount] = useState(0);
+  const [showFullOffline, setShowFullOffline] = useState(false);
 
   useEffect(() => {
     const handleOnline = async () => {
@@ -58,15 +60,18 @@ const OfflineSyncBanner = () => {
               <div className="flex items-center gap-2">
                 <WifiOff size={15} className="text-amber-400 shrink-0" />
                 <span className="text-white text-xs">
-                  <strong className="text-amber-400 font-bold">Offline Mode Active</strong> — Browsing cached portfolio records & local offline queue
+                  <strong className="text-amber-400 font-bold">Offline Mode Active</strong> — Browsing cached portfolio records & local queue
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                ⚡ Local Cache Active
-              </span>
+              <button
+                onClick={() => setShowFullOffline(true)}
+                className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-all flex items-center gap-1.5"
+              >
+                <Maximize2 size={11} /> Full Screen View
+              </button>
             </div>
           </motion.div>
         )}
@@ -91,8 +96,12 @@ const OfflineSyncBanner = () => {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <RefreshCw size={13} className="animate-spin text-emerald-400" />
-              <span className="text-[10px] font-mono text-emerald-300 uppercase font-bold hidden sm:inline">Synced</span>
+              <button
+                onClick={() => setShowFullOffline(true)}
+                className="px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-300 uppercase font-bold bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all flex items-center gap-1"
+              >
+                <RefreshCw size={12} className="animate-spin text-emerald-400" /> Synced View
+              </button>
             </div>
           </motion.div>
         )}
@@ -101,11 +110,21 @@ const OfflineSyncBanner = () => {
       {/* Floating Offline Status Indicator Badge */}
       {!isOnline && (
         <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40">
-          <div className="px-3 py-1.5 rounded-full bg-[#121215]/90 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 animate-bounce">
+          <button
+            onClick={() => setShowFullOffline(true)}
+            className="px-3 py-1.5 rounded-full bg-[#121215]/90 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 animate-bounce hover:scale-105 transition-transform"
+          >
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             <WifiOff size={13} />
             <span>Offline Mode</span>
-          </div>
+          </button>
+        </div>
+      )}
+
+      {/* Fullscreen Offline / Restored Connection Page Modal */}
+      {showFullOffline && (
+        <div className="fixed inset-0 z-[99999]">
+          <OfflinePage onContinueToApp={() => setShowFullOffline(false)} />
         </div>
       )}
     </>

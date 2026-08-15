@@ -16,6 +16,8 @@ import AllotmentChecker from './pages/AllotmentChecker';
 import AllottedPortfolio from './pages/AllottedPortfolio';
 import PartyLedger from './pages/PartyLedger';
 import ExpenseTracker from './pages/ExpenseTracker';
+import NotFound from './pages/NotFound';
+import OfflinePage from './pages/OfflinePage';
 import { useAuth } from './context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast, ToastBar } from 'react-hot-toast';
@@ -113,6 +115,32 @@ function App() {
 
   if (!user) return <Auth />;
 
+  const isValidRoute = (pathname) => {
+    const validPaths = [
+      '/',
+      '/records',
+      '/accounts',
+      '/party-ledger',
+      '/expenses',
+      '/applicants',
+      '/ipo-master',
+      '/calendar',
+      '/allotment',
+      '/allotted',
+      '/analytics',
+      '/settings',
+      '/profile',
+      '/admin',
+      '/offline'
+    ];
+    const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+    return validPaths.includes(cleanPath);
+  };
+
+  if (!isValidRoute(location.pathname)) {
+    return <NotFound />;
+  }
+
   return (
     <div key="main-app" className="flex h-screen bg-[#09090b] text-[#f4f4f5] overflow-hidden font-sans relative">
       {/* Brand color override */}
@@ -208,6 +236,8 @@ function App() {
               <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
               <Route path="/profile"  element={<AnimatedPage><Profile /></AnimatedPage>} />
               <Route path="/admin"    element={user?.role === 'admin' || user?.role === 'master' ? <AnimatedPage><AdminPanel /></AnimatedPage> : <AnimatedPage><Dashboard /></AnimatedPage>} />
+              <Route path="/offline"  element={<AnimatedPage><OfflinePage /></AnimatedPage>} />
+              <Route path="*"        element={<AnimatedPage><NotFound /></AnimatedPage>} />
             </Routes>
           </AnimatePresence>
         </div>
@@ -275,4 +305,3 @@ function App() {
 }
 
 export default App;
-
