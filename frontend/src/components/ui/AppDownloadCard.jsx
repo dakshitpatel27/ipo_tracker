@@ -56,7 +56,8 @@ const AppDownloadCard = () => {
   };
 
   const handleDownloadDesktopApp = () => {
-    const urlContent = `[InternetShortcut]\nURL=${window.location.origin}\nIDList=\nHotKey=0\nIconFile=${window.location.origin}/favicon.svg\nIconIndex=0\n`;
+    const iconUrl = window.location.origin + '/app-icon.png';
+    const urlContent = '[InternetShortcut]\nURL=' + window.location.origin + '\nIDList=\nHotKey=0\nIconFile=' + iconUrl + '\nIconIndex=0\n';
     const blob = new Blob([urlContent], { type: 'application/x-ms-shortcut' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -80,7 +81,7 @@ const AppDownloadCard = () => {
   };
 
   const appUrl = window.location.origin;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(appUrl)}&color=6366f1&bgcolor=090d16`;
+  const qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(appUrl) + '&color=6366f1&bgcolor=090d16';
 
   return (
     <div className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6 border border-indigo-500/20">
@@ -113,11 +114,8 @@ const AppDownloadCard = () => {
         {/* Left Column: Direct Install Buttons */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-gradient-to-br from-indigo-900/40 via-surface-2 to-surface-1 p-4 sm:p-5 rounded-2xl border border-indigo-500/30 flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg shadow-indigo-500/30 shrink-0">
-                  ⚡
-                </div>
+                <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover shadow-lg shadow-emerald-500/30 shrink-0 border border-emerald-500/30" />
                 <div>
                   <h4 className="font-bold text-white text-sm sm:text-base">IPO Tracker Native App</h4>
                   <p className="text-[11px] sm:text-xs text-secondary">Instant Home Screen access • Dedicated window • Offline ready</p>
@@ -189,7 +187,7 @@ const AppDownloadCard = () => {
                 <ol className="list-decimal list-inside space-y-1.5 text-zinc-300">
                   <li>Open <strong>IPO Tracker</strong> in Chrome on your Android phone.</li>
                   <li>Tap the <strong>three dots (⋮)</strong> menu in top-right corner.</li>
-                  <li>Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+                  <li>Select <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home screen&quot;</strong>.</li>
                   <li>Confirm installation to launch IPO Tracker as a native app!</li>
                 </ol>
               )}
@@ -198,7 +196,7 @@ const AppDownloadCard = () => {
                 <ol className="list-decimal list-inside space-y-1.5 text-zinc-300">
                   <li>Open <strong>IPO Tracker</strong> in <strong>Safari</strong> on iPhone or iPad.</li>
                   <li>Tap the <strong>Share button (Square with arrow ↑)</strong> at bottom.</li>
-                  <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+                  <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong>.</li>
                   <li>Tap <strong>Add</strong> in top right corner.</li>
                 </ol>
               )}

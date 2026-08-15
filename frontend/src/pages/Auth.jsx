@@ -69,9 +69,7 @@ const Auth = () => {
         {/* Logo */}
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <TrendingUp size={19} strokeWidth={2.5} className="text-white" />
-            </div>
+            <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-emerald-500/30 border border-emerald-500/30" />
             <div>
               <div className="font-bold text-white text-base tracking-tight">IPO Tracker</div>
               <div className="text-[0.6rem] text-indigo-400 font-semibold tracking-wider uppercase">Portfolio Pro</div>
@@ -134,9 +132,7 @@ const Auth = () => {
         >
           {/* Mobile logo */}
           <div className="md:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <TrendingUp size={18} strokeWidth={2.5} className="text-white" />
-            </div>
+            <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-emerald-500/30 border border-emerald-500/30" />
             <span className="font-bold text-white text-lg tracking-tight">IPO Tracker</span>
           </div>
 

@@ -197,9 +197,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
         {/* Brand */}
         <div className="px-4 py-4 border-b border-[var(--border)] shrink-0 flex justify-between items-center">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <TrendingUp size={17} strokeWidth={2.5} />
-            </div>
+            <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-8 h-8 rounded-lg object-cover shadow-md shadow-emerald-500/20 border border-emerald-500/30" />
             <div>
               <div className="font-bold text-[0.875rem] text-white leading-tight tracking-tight">{brandName}</div>
               <div className="text-[0.6rem] text-[var(--text-muted)] font-medium tracking-wider uppercase mt-0.5">Portfolio Pro</div>
