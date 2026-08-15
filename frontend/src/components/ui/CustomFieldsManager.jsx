@@ -14,7 +14,8 @@ const CustomFieldsManager = () => {
     try {
       setLoading(true);
       const data = await api.getCustomFields();
-      setCustomFields(data || []);
+      const fieldsList = Array.isArray(data) ? data : (data?.data || []);
+      setCustomFields(fieldsList);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load custom fields');
@@ -69,7 +70,8 @@ const CustomFieldsManager = () => {
   }
 
   // Group by table
-  const grouped = (customFields || []).reduce((acc, f) => {
+  const fieldsList = Array.isArray(customFields) ? customFields : [];
+  const grouped = fieldsList.reduce((acc, f) => {
     const tbl = f.tableName || 'other';
     if (!acc[tbl]) acc[tbl] = [];
     acc[tbl].push(f);

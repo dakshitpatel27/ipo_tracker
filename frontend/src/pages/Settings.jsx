@@ -9,6 +9,7 @@ import CustomFieldsManager from '../components/ui/CustomFieldsManager';
 import ImportHistoryDrawer from '../components/ui/ImportHistoryDrawer';
 import PasskeyAuth from '../components/ui/PasskeyAuth';
 import ThemeStudio from '../components/ui/ThemeStudio';
+import AppDownloadCard from '../components/ui/AppDownloadCard';
 import { useNavigate } from 'react-router-dom';
 
 const TelegramSettingsForm = () => {
@@ -380,9 +381,10 @@ const Settings = () => {
       {/* Settings Sub-navigation Tabs */}
       <div className="flex border-b border-border gap-2 pb-px overflow-x-auto">
         {[
+          { id: 'app_download', label: 'Download App & PWA', icon: Download },
           { id: 'security', label: 'Security & Sessions', icon: ShieldAlert },
           { id: 'preferences', label: 'Display & Theme', icon: User },
-          { id: 'notifications', label: 'Alert Channels', icon: BellRing },
+          { id: 'notifications', label: 'Alert Channels & Webhooks', icon: BellRing },
           { id: 'custom_fields', label: 'Custom Fields', icon: Layers },
           { id: 'import_history', label: 'Import History', icon: Clock },
           { id: 'data', label: 'Account & Data', icon: Trash2 },
@@ -407,6 +409,11 @@ const Settings = () => {
 
       <div className="bg-surface border border-border rounded-xl p-6 space-y-6">
         
+        {/* --- APP DOWNLOAD & PWA TAB --- */}
+        {activeTab === 'app_download' && (
+          <AppDownloadCard />
+        )}
+
         {/* --- SECURITY TAB --- */}
         {activeTab === 'security' && (
           <div className="space-y-6">

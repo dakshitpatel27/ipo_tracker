@@ -17,7 +17,8 @@ const KostakDealTracker = () => {
     try {
       setLoading(true);
       const data = await api.getKostakDeals();
-      setDeals(data || []);
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setDeals(list);
     } catch (err) {
       console.error(err);
     } finally {
@@ -120,7 +121,7 @@ const KostakDealTracker = () => {
 
       {/* Deals list */}
       <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-        {deals.map((d) => (
+        {(Array.isArray(deals) ? deals : []).map((d) => (
           <div key={d.id} className="p-3 rounded-xl bg-surface-2 border border-border flex justify-between items-center text-xs">
             <div>
               <span className="font-bold text-white text-sm">{d.ipoName}</span>
@@ -134,7 +135,7 @@ const KostakDealTracker = () => {
           </div>
         ))}
 
-        {deals.length === 0 && !loading && (
+        {(!Array.isArray(deals) || deals.length === 0) && !loading && (
           <p className="text-xs text-secondary italic text-center py-4">No Kostak deals recorded yet.</p>
         )}
       </div>

@@ -838,7 +838,8 @@ export const api = {
 
   async getImportHistory() {
     const res = await fetch(`${API_URL}/import/history`, { headers: getHeaders() });
-    return parseResponse(res);
+    const data = await parseResponse(res);
+    return data.data || [];
   },
 
   async undoImportSession(historyId) {
@@ -851,7 +852,8 @@ export const api = {
 
   async getCustomFields() {
     const res = await fetch(`${API_URL}/import/custom-fields`, { headers: getHeaders() });
-    return parseResponse(res);
+    const data = await parseResponse(res);
+    return data.data || [];
   },
 
   async updateCustomField(id, data) {
@@ -922,7 +924,8 @@ export const api = {
 
   async getKostakDeals() {
     const res = await fetch(`${API_URL}/kostak`, { headers: getHeaders() });
-    return parseResponse(res);
+    const data = await parseResponse(res);
+    return data.data || [];
   },
 
   async addKostakDeal(data) {

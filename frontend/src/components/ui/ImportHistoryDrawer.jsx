@@ -13,7 +13,8 @@ const ImportHistoryDrawer = () => {
     try {
       setLoading(true);
       const data = await api.getImportHistory();
-      setHistoryLogs(data || []);
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setHistoryLogs(list);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load import history');
@@ -53,6 +54,8 @@ const ImportHistoryDrawer = () => {
     );
   }
 
+  const logsList = Array.isArray(historyLogs) ? historyLogs : [];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center border-b border-border pb-4">
@@ -69,7 +72,7 @@ const ImportHistoryDrawer = () => {
         </button>
       </div>
 
-      {historyLogs.length === 0 ? (
+      {logsList.length === 0 ? (
         <div className="text-center py-12 glass-card space-y-2">
           <FileSpreadsheet size={32} className="text-secondary mx-auto" />
           <p className="font-semibold text-white text-sm">No Import Sessions Recorded Yet</p>
@@ -79,7 +82,7 @@ const ImportHistoryDrawer = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {historyLogs.map((log) => {
+          {logsList.map((log) => {
             let addedCols = [];
             try { addedCols = JSON.parse(log.addedColumns || '[]'); } catch(e) {}
             const isUndone = log.status === 'undone';

@@ -972,6 +972,133 @@ app.get('/api/user/telegram', authMiddleware, (req, res) => {
     });
 });
 
+// TEST Telegram Bot Message
+app.post('/api/webhooks/telegram/test', authMiddleware, async (req, res) => {
+    const { chatId, botToken } = req.body;
+    const targetChatId = chatId || req.user.telegramChatId;
+    const targetToken = botToken || req.user.telegramToken;
+
+    if (!targetChatId || !targetToken) {
+        return res.status(400).json({ error: 'Telegram Chat ID and Bot Token are required' });
+    }
+
+    try {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const testMsg = `🚀 *IPO Tracker Telegram Bot Connected!*\n\nYour Telegram bot interface is online. Try sending commands:\n- \`/status\` - Active IPO applications\n- \`/allotment\` - Allotted portfolio summary\n- \`/gmp\` - Current GMP updates\n- \`/summary\` - Investment overview`;
+        
+        const url = `https://api.telegram.org/bot${targetToken}/sendMessage`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: targetChatId, text: testMsg, parse_mode: 'Markdown' })
+        });
+        const json = await response.json();
+        if (!json.ok) throw new Error(json.description || 'Telegram API returned error');
+        res.json({ message: 'Telegram test message sent successfully!', result: json });
+    } catch(err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// INTERACTIVE Telegram Webhook Handler (Receives /status, /allotment, /gmp, /summary commands)
+app.post('/api/webhooks/telegram', async (req, res) => {
+    res.status(200).send('OK'); // Always return 200 to Telegram instantly
+
+    const body = req.body || {};
+    const message = body.message || body.edited_message;
+    if (!message || !message.text || !message.chat) return;
+
+    const chatId = String(message.chat.id);
+    const text = message.text.trim();
+    const command = text.split(' ')[0].toLowerCase();
+
+    db.get('SELECT id, username, telegramToken FROM users WHERE telegramChatId = ?', [chatId], async (err, user) => {
+        if (err || !user || !user.telegramToken) return;
+
+        const botToken = user.telegramToken;
+        const sendReply = async (replyText) => {
+            try {
+                const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: 'Markdown' })
+                });
+            } catch(e) {
+                console.error("Failed to send Telegram bot reply:", e.message);
+            }
+        };
+
+        if (command === '/start' || command === '/help') {
+            const helpText = `👋 *Welcome to IPO Tracker Bot, ${user.username || 'Investor'}!*\n\n` +
+                `Here are available interactive commands:\n` +
+                `🔹 \`/status\` - Check recent IPO applications\n` +
+                `🔹 \`/allotment\` - View allotted IPO portfolio\n` +
+                `🔹 \`/gmp\` - Check live Grey Market Premiums\n` +
+                `🔹 \`/summary\` - View application & allotment totals`;
+            return sendReply(helpText);
+        }
+
+        if (command === '/status') {
+            db.all('SELECT ipoName, applicantName, status, amount FROM records WHERE userId = ? ORDER BY createdAt DESC LIMIT 5', [user.id], (err2, records) => {
+                if (err2 || !records || records.length === 0) {
+                    return sendReply('📭 No active IPO applications found in your account.');
+                }
+                let reply = `📋 *Recent IPO Applications (${records.length})*:\n\n`;
+                records.forEach((r, idx) => {
+                    const badge = r.status === 'ALLOTTED' ? '🎉 ALLOTTED' : (r.status === 'REJECTED' ? '❌ NOT ALLOTTED' : '⏳ APPLIED');
+                    reply += `${idx + 1}. *${r.ipoName}*\n   👤 Applicant: ${r.applicantName || 'Self'}\n   💰 Amount: ₹${Number(r.amount || 0).toLocaleString('en-IN')}\n   Status: ${badge}\n\n`;
+                });
+                sendReply(reply);
+            });
+            return;
+        }
+
+        if (command === '/allotment') {
+            db.all('SELECT ipoName, applicantName, amount, shares FROM records WHERE userId = ? AND (status = "ALLOTTED" OR status = "WON")', [user.id], (err2, records) => {
+                if (err2 || !records || records.length === 0) {
+                    return sendReply('🔍 No allotted IPO shares recorded yet.');
+                }
+                let reply = `🎉 *Allotted IPO Portfolio (${records.length} wins)*:\n\n`;
+                records.forEach((r, idx) => {
+                    reply += `🏆 *${r.ipoName}*\n   👤 Holder: ${r.applicantName || 'Self'}\n   📊 Shares: ${r.shares || '1 Lot'} | Investment: ₹${Number(r.amount || 0).toLocaleString('en-IN')}\n\n`;
+                });
+                sendReply(reply);
+            });
+            return;
+        }
+
+        if (command === '/gmp') {
+            db.all('SELECT ipoName, gmp, estListing, status FROM gmp_alerts ORDER BY createdAt DESC LIMIT 5', [], (err2, alerts) => {
+                if (err2 || !alerts || alerts.length === 0) {
+                    return sendReply('📈 *GMP Updates*: Market sentiment is neutral. Check web dashboard for details.');
+                }
+                let reply = `🔥 *Current Grey Market Premiums (GMP)*:\n\n`;
+                alerts.forEach(a => {
+                    reply += `📌 *${a.ipoName}*: GMP +₹${a.gmp || 0} (${a.estListing || 'N/A'})\n`;
+                });
+                sendReply(reply);
+            });
+            return;
+        }
+
+        if (command === '/summary') {
+            db.get('SELECT COUNT(*) as total, SUM(CASE WHEN status = "ALLOTTED" THEN 1 ELSE 0 END) as allotted, SUM(amount) as totalAmt FROM records WHERE userId = ?', [user.id], (err2, row) => {
+                if (err2 || !row) return sendReply('Failed to retrieve summary.');
+                const reply = `📊 *IPO Portfolio Overview*:\n\n` +
+                    `📝 Total Bids Applied: *${row.total || 0}*\n` +
+                    `🎉 Allotments Won: *${row.allotted || 0}*\n` +
+                    `💼 Total Capital Applied: *₹${Number(row.totalAmt || 0).toLocaleString('en-IN')}*`;
+                sendReply(reply);
+            });
+            return;
+        }
+
+        // Fallback for unknown text
+        sendReply(`❓ Command unrecognized. Type \`/help\` to view available commands.`);
+    });
+});
+
 // ========== BANK ACCOUNTS & EXPENSE TRACKER API ==========
 
 // Helper: record a transaction and update account balance
