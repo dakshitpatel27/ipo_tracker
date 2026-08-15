@@ -14,8 +14,24 @@ if (isPostgres) {
     });
 } else {
     console.log('Connecting to local SQLite database...');
-    const dbPath = path.resolve(__dirname, 'database.sqlite');
-    sqliteDb = new sqlite3.Database(dbPath, (err) => {
+    const fs = require('fs');
+    let dbPath = path.resolve(__dirname, 'database.sqlite');
+
+    if (process.env.VERCEL) {
+        const tmpDbPath = path.join('/tmp', 'database.sqlite');
+        if (!fs.existsSync(tmpDbPath) && fs.existsSync(dbPath)) {
+            try {
+                fs.copyFileSync(dbPath, tmpDbPath);
+            } catch (e) {
+                console.error('Failed to copy database to /tmp:', e);
+            }
+        }
+        if (fs.existsSync(tmpDbPath)) {
+            dbPath = tmpDbPath;
+        }
+    }
+
+    sqliteDb = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
         if (err) console.error('Error opening database', err.message);
     });
 }
