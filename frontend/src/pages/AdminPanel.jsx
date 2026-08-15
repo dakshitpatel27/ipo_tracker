@@ -65,10 +65,11 @@ const AdminPanel = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/users');
-      setUsers(res.data);
+      const res = await api.get('/users').catch(() => []);
+      const userList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setUsers(userList);
       
-      if (currentUser?.role === 'master') {
+      if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
         const [logs, stats, sets, audit] = await Promise.all([
           api.getNotificationLogs().catch(() => []),
           api.getGlobalAnalytics().catch(() => null),
@@ -76,25 +77,26 @@ const AdminPanel = () => {
           api.getAuditLogs().catch(() => [])
         ]);
         
-        setNotificationLogs(logs);
-        setAnalytics(stats);
-        setSettings(sets);
-        setAuditLogs(audit);
+        setNotificationLogs(Array.isArray(logs) ? logs : (logs?.data || []));
+        setAnalytics(stats?.data || stats);
         
-        setSmtpHost(sets.smtpHost || '');
-        setSmtpPort(sets.smtpPort || '');
-        setSmtpUser(sets.smtpUser || '');
-        setSmtpPass(sets.smtpPass || '');
-        setGlobalBanner(sets.globalBanner || '');
-        setBrandNameLocal(sets.brandName || 'IPO Tracker');
-        setBrandColorLocal(sets.brandColor || '');
-        if (sets.subscriptionTiers) {
-           try { setSubscriptionTiers(JSON.parse(sets.subscriptionTiers)); } catch(e) {}
+        const setsData = sets?.data || sets || {};
+        setSettings(setsData);
+        setAuditLogs(Array.isArray(audit) ? audit : (audit?.data || []));
+        
+        setSmtpHost(setsData.smtpHost || '');
+        setSmtpPort(setsData.smtpPort || '');
+        setSmtpUser(setsData.smtpUser || '');
+        setSmtpPass(setsData.smtpPass || '');
+        setGlobalBanner(setsData.globalBanner || '');
+        setBrandNameLocal(setsData.brandName || 'IPO Tracker');
+        setBrandColorLocal(setsData.brandColor || '');
+        if (setsData.subscriptionTiers) {
+           try { setSubscriptionTiers(JSON.parse(setsData.subscriptionTiers)); } catch(e) {}
         }
       }
     } catch (err) {
       console.error("AdminPanel loadData error:", err);
-      toast.error('Failed to load admin data');
     } finally {
       setLoading(false);
     }

@@ -126,52 +126,26 @@ export const api = {
     return parseResponse(res);
   }),
 
-  login: async (credentials) => {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials)
-    });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
-  },
-  
-  register: async (credentials) => {
-    const res = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials)
-    });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
-  },
-
-  getMe: async () => {
-    const res = await fetch(`${API_URL}/auth/me`, { headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    return res.json();
-  },
+  login: async (credentials) => api.post('/auth/login', credentials),
+  register: async (credentials) => api.post('/auth/register', credentials),
+  getMe: async () => api.get('/auth/me'),
 
   async getSessions() {
-    const res = await fetch(`${API_URL}/sessions`, { headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch active sessions'); }
-    const data = await res.json();
+    const data = await api.get('/sessions');
     return data.data || [];
   },
 
   async revokeSession(sessionId) {
-    const res = await fetch(`${API_URL}/sessions/${sessionId}`, { method: 'DELETE', headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to revoke session'); }
-    return res.json();
+    return api.delete(`/sessions/${sessionId}`);
   },
 
   async revokeAllSessions() {
-    const res = await fetch(`${API_URL}/sessions/logout-all`, { method: 'POST', headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to revoke sessions'); }
-    return res.json();
+    return api.post('/sessions/logout-all');
   },
 
   async getRecords() {
     try {
-      const res = await fetch(`${API_URL}/records`, { headers: getHeaders() });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch records'); }
-      const data = await res.json();
+      const data = await api.get('/records');
       const records = data.data || [];
       try { localStorage.setItem('offline_cache_records', JSON.stringify(records)); } catch (e) {}
       return records;
@@ -208,228 +182,82 @@ export const api = {
       return { success: true, data: payload, offline: true };
     }
 
-    const res = await fetch(`${API_URL}/records`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    return data;
+    return api.post('/records', payload);
   },
 
   async registerFcmToken(token) {
-    const res = await fetch(`${API_URL}/notifications/register`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ token })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to register token');
-    return data;
+    return api.post('/notifications/register', { token });
   },
 
   async autoCheckAllotment(payload) {
-    const res = await fetch(`${API_URL}/allotment/auto-check`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to auto check allotment');
-    return data;
+    return api.post('/allotment/auto-check', payload);
   },
 
   async testNotification() {
-    const res = await fetch(`${API_URL}/notifications/test`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to trigger notification');
-    return data;
+    return api.post('/notifications/test', {});
   },
 
   async getNotificationLogs() {
-    const res = await fetch(`${API_URL}/admin/notifications/logs`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch logs');
+    const data = await api.get('/admin/notifications/logs');
     return data.data || [];
   },
 
   async broadcastNotification(title, body) {
-    const res = await fetch(`${API_URL}/admin/notifications/broadcast`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ title, body })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to broadcast notification');
-    return data;
+    return api.post('/admin/notifications/broadcast', { title, body });
   },
 
   async sendTestEmail(smtpConfig) {
-    const res = await fetch(`${API_URL}/admin/test-email`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(smtpConfig)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to send test email');
-    return data;
+    return api.post('/admin/test-email', smtpConfig);
   },
 
   async impersonateUser(userId) {
-    const res = await fetch(`${API_URL}/admin/impersonate`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ userId })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to impersonate user');
-    return data;
+    return api.post('/admin/impersonate', { userId });
   },
 
   async bulkUpdateUsers(payload) {
-    const res = await fetch(`${API_URL}/admin/users/bulk-update`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to bulk update users');
-    return data;
+    return api.post('/admin/users/bulk-update', payload);
   },
 
   async bulkNotifyUsers(payload) {
-    const res = await fetch(`${API_URL}/admin/users/bulk-notify`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to bulk notify users');
-    return data;
+    return api.post('/admin/users/bulk-notify', payload);
   },
 
   async getGlobalAnalytics() {
-    const res = await fetch(`${API_URL}/admin/analytics`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch global analytics');
+    const data = await api.get('/admin/analytics');
     return data.data || data;
   },
 
   async getAdminSettings() {
-    const res = await fetch(`${API_URL}/admin/settings`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch admin settings');
+    const data = await api.get('/admin/settings');
     return data.data || data;
   },
 
   async saveAdminSetting(key, value) {
-    const res = await fetch(`${API_URL}/admin/settings`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ key, value })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to save admin setting');
-    return data;
+    return api.post('/admin/settings', { key, value });
   },
 
   async getAuditLogs() {
-    const res = await fetch(`${API_URL}/admin/audit-logs`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch audit logs');
+    const data = await api.get('/admin/audit-logs');
     return data.data || [];
   },
 
   async getLiveConsole() {
-    const res = await fetch(`${API_URL}/admin/console`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch console logs');
+    const data = await api.get('/admin/console');
     return data.data || [];
   },
 
   async getCronJobs() {
-    const res = await fetch(`${API_URL}/admin/cron`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch cron status');
-    return data;
+    return api.get('/admin/cron');
   },
 
   async triggerCronJob(job) {
-    const res = await fetch(`${API_URL}/admin/cron/trigger`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ job })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to trigger cron job');
-    return data;
-  },
-
-  async saveAdminSetting(key, value) {
-    const res = await fetch(`${API_URL}/admin/settings`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ key, value })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to save setting');
-    return data;
-  },
-
-  async getAuditLogs() {
-    const res = await fetch(`${API_URL}/admin/audit_logs`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch audit logs');
-    return data.data;
-  },
-
-  async getCronJobs() {
-    const res = await fetch(`${API_URL}/admin/cron`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch cron status');
-    return data;
-  },
-
-  async triggerCronJob(job) {
-    const res = await fetch(`${API_URL}/admin/cron/trigger`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ job })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to trigger job');
-    return data;
-  },
-
-  async bulkNotifyUsers(payload) {
-    const res = await fetch(`${API_URL}/admin/users/bulk-notify`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to bulk notify');
-    return data;
-  },
-
-  async bulkUpdateUsers(payload) {
-    const res = await fetch(`${API_URL}/admin/users/bulk-update`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to bulk update users');
-    return data;
+    return api.post('/admin/cron/trigger', { job });
   },
 
   async downloadBackup() {
     const res = await fetch(`${API_URL}/admin/backup`, { headers: getHeaders() });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await parseResponse(res);
       throw new Error(data.error || 'Failed to download backup');
     }
     const blob = await res.blob();
@@ -440,13 +268,6 @@ export const api = {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  },
-
-  async getLiveConsole() {
-    const res = await fetch(`${API_URL}/admin/console`, { headers: getHeaders() });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch logs');
-    return data.data;
   },
 
   async downloadExport() {
