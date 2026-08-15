@@ -1,4 +1,10 @@
-const sqlite3 = require('sqlite3').verbose();
+let sqlite3;
+try {
+    sqlite3 = require('sqlite3').verbose();
+} catch (e) {
+    console.warn('[DB WARNING] sqlite3 native module failed to load:', e.message);
+}
+
 const { Pool } = require('pg');
 const path = require('path');
 
@@ -12,7 +18,7 @@ if (isPostgres) {
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
     });
-} else {
+} else if (sqlite3) {
     console.log('Connecting to local SQLite database...');
     const fs = require('fs');
     let dbPath = path.resolve(__dirname, 'database.sqlite');
@@ -31,9 +37,15 @@ if (isPostgres) {
         }
     }
 
-    sqliteDb = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-        if (err) console.error('Error opening database', err.message);
-    });
+    try {
+        sqliteDb = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+            if (err) console.error('Error opening database', err.message);
+        });
+    } catch (err) {
+        console.error('Failed to initialize SQLite database instance:', err.message);
+    }
+} else {
+    console.warn('[DB WARNING] Neither DATABASE_URL nor sqlite3 native driver is active.');
 }
 
 // Helper to convert SQLite `?` params to Postgres `$1`, `$2`
@@ -65,10 +77,13 @@ const db = {
                     }
                     callback && callback.call({ changes: 0 }, err);
                 });
-        } else {
+        } else if (sqliteDb) {
             sqliteDb.run(sql, params, function(err) {
                 callback && callback.call(this, err);
             });
+        } else {
+            console.error('[DB Error] No database connection available for SQL:', sql);
+            callback && callback.call({ changes: 0 }, new Error('Database connection unavailable on Vercel. Please add a DATABASE_URL environment variable in Vercel.'));
         }
     },
     
@@ -82,10 +97,13 @@ const db = {
             pgPool.query(convertToPgQuery(sql), params)
                 .then(res => callback && callback.call(null, null, res.rows))
                 .catch(err => callback && callback.call(null, err, null));
-        } else {
+        } else if (sqliteDb) {
             sqliteDb.all(sql, params, function(err, rows) {
                 callback && callback.call(this, err, rows);
             });
+        } else {
+            console.error('[DB Error] No database connection available for SQL:', sql);
+            callback && callback.call(null, new Error('Database connection unavailable on Vercel. Please add a DATABASE_URL environment variable in Vercel.'), []);
         }
     },
     
@@ -99,10 +117,13 @@ const db = {
             pgPool.query(convertToPgQuery(sql), params)
                 .then(res => callback && callback.call(null, null, res.rows[0]))
                 .catch(err => callback && callback.call(null, err, null));
-        } else {
+        } else if (sqliteDb) {
             sqliteDb.get(sql, params, function(err, row) {
                 callback && callback.call(this, err, row);
             });
+        } else {
+            console.error('[DB Error] No database connection available for SQL:', sql);
+            callback && callback.call(null, new Error('Database connection unavailable on Vercel. Please add a DATABASE_URL environment variable in Vercel.'), null);
         }
     },
 
