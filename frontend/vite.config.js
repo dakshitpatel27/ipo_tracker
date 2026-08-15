@@ -18,6 +18,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       workbox: {
+        navigateFallbackDenylist: [/^\/api/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
@@ -30,11 +31,7 @@ export default defineConfig({
           },
           {
             urlPattern: /\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }
-            }
+            handler: 'NetworkOnly'
           }
         ]
       },
