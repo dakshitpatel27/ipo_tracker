@@ -107,7 +107,71 @@ function calculateTaxLedger(records) {
     };
 }
 
+function calculateAllotmentOdds(subTimes = 1, quota = 'Retail', lotCount = 1) {
+    const subNum = parseFloat(subTimes) || 1;
+    if (subNum <= 1) {
+        return {
+            probabilityPct: 100,
+            oddsRatio: '1:1 (Guaranteed Allotment)',
+            status: 'FULL_ALLOTMENT'
+        };
+    }
+
+    if (quota === 'Retail') {
+        const probabilityPct = Math.min(100, Number((100 / subNum).toFixed(2)));
+        const ratioInt = Math.round(subNum);
+        return {
+            probabilityPct,
+            oddsRatio: `1:${ratioInt} Lucky Draw`,
+            status: probabilityPct >= 50 ? 'HIGH_PROBABILITY' : (probabilityPct >= 20 ? 'MODERATE' : 'LOW_PROBABILITY')
+        };
+    } else if (quota.includes('sHNI') || quota.includes('Small HNI')) {
+        const probabilityPct = Math.min(100, Number((100 / subNum).toFixed(2)));
+        const ratioInt = Math.round(subNum);
+        return {
+            probabilityPct,
+            oddsRatio: `1:${ratioInt} Lucky Draw`,
+            status: probabilityPct >= 30 ? 'MODERATE' : 'LOW_PROBABILITY'
+        };
+    } else {
+        const probabilityPct = Math.min(100, Number((100 / subNum).toFixed(2)));
+        return {
+            probabilityPct,
+            oddsRatio: `Pro-Rata / 1:${Math.round(subNum)}`,
+            status: 'PRO_RATA'
+        };
+    }
+}
+
+function predictListingGain(gmp = 0, issuePrice = 100, qibSubX = 1, overallSubX = 1) {
+    const gmpNum = parseFloat(gmp) || 0;
+    const priceNum = parseFloat(issuePrice) || 1;
+    const qibNum = parseFloat(qibSubX) || 1;
+
+    const basePct = (gmpNum / priceNum) * 100;
+    
+    let qibBoost = 0;
+    if (qibNum > 50) qibBoost = 12;
+    else if (qibNum > 20) qibBoost = 8;
+    else if (qibNum > 5) qibBoost = 4;
+
+    const minGainPct = Math.max(-20, Number((basePct * 0.85).toFixed(1)));
+    const maxGainPct = Number((basePct * 1.15 + qibBoost).toFixed(1));
+    const estListingPrice = Number((priceNum + gmpNum + (priceNum * (qibBoost / 100))).toFixed(2));
+
+    return {
+        baseGmpPct: Number(basePct.toFixed(1)),
+        predictedGainRange: `${minGainPct}% to ${maxGainPct}%`,
+        minGainPct,
+        maxGainPct,
+        estListingPrice,
+        sentiment: basePct >= 50 ? 'STRONG_BULLISH' : (basePct >= 15 ? 'MODERATE' : (basePct >= 0 ? 'NEUTRAL' : 'BEARISH'))
+    };
+}
+
 module.exports = {
     calculateCharges,
-    calculateTaxLedger
+    calculateTaxLedger,
+    calculateAllotmentOdds,
+    predictListingGain
 };

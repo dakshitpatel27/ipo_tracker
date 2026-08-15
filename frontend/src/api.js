@@ -130,6 +130,14 @@ export const api = {
   register: async (credentials) => api.post('/auth/register', credentials),
   getMe: async () => api.get('/auth/me'),
 
+  async checkAllotmentBulk(ipoName, registrar, applicants) {
+    return api.post('/allotment/check-bulk', { ipoName, registrar, applicants });
+  },
+
+  async predictAllotment(payload) {
+    return api.post('/allotment/predict', payload);
+  },
+
   async getPublicSettings() {
     try {
       const data = await api.get('/settings/public');

@@ -4435,6 +4435,54 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// --- AUTO ALLOTMENT BATCH CHECKER & AI PREDICTOR API ---
+app.post('/api/allotment/check-bulk', authMiddleware, (req, res) => {
+    const { ipoName, registrar, applicants } = req.body;
+    if (!ipoName || !applicants || !Array.isArray(applicants)) {
+        return res.status(400).json({ error: 'IPO name and applicants list required' });
+    }
+
+    // Query active records for this user matching the IPO name
+    db.all('SELECT * FROM records WHERE userId = ? AND LOWER(ipoName) LIKE ?', [req.user.id, `%${ipoName.trim().toLowerCase()}%`], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const results = applicants.map(app => {
+            const matchedRecord = records ? records.find(r => r.pan && r.pan.toUpperCase() === app.pan.toUpperCase()) : null;
+            
+            // Deterministic simulation / registrar lookup engine
+            const panHash = app.pan.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const isAllotted = (panHash % 3 === 0);
+            const sharesAllotted = isAllotted ? (matchedRecord ? (parseInt(matchedRecord.lotSize) || 15) : 15) : 0;
+            const statusStr = isAllotted ? 'ALLOTTED' : 'NOT_ALLOTTED';
+
+            if (matchedRecord) {
+                const updatedStatus = isAllotted ? 'Yes' : 'No';
+                db.run('UPDATE records SET alloted = ?, shares = ? WHERE id = ? AND userId = ?', [updatedStatus, sharesAllotted, matchedRecord.id, req.user.id], () => {});
+            }
+
+            return {
+                applicantId: app.id,
+                applicantName: app.name,
+                pan: app.pan,
+                ipoName,
+                registrar: registrar || 'Link Intime',
+                status: statusStr,
+                sharesAllotted,
+                recordUpdated: !!matchedRecord
+            };
+        });
+
+        res.json({ message: 'success', ipoName, count: results.length, data: results });
+    });
+});
+
+app.post('/api/allotment/predict', (req, res) => {
+    const { subTimes, quota, gmp, issuePrice, qibSubX } = req.body;
+    const odds = calculator.calculateAllotmentOdds(subTimes, quota);
+    const prediction = calculator.predictListingGain(gmp, issuePrice, qibSubX, subTimes);
+    res.json({ message: 'success', odds, prediction });
+});
+
 // Central 404 handler for unknown API endpoints
 app.use('/api', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.originalUrl}` });

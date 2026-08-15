@@ -16,6 +16,8 @@ import BatchAsbaModal from '../components/forms/BatchAsbaModal';
 import CountdownBadge from '../components/ui/CountdownBadge';
 import MandateTrackerWidget from '../components/ui/MandateTrackerWidget';
 import SubscriptionOddsModal from '../components/ui/SubscriptionOddsModal';
+import AutoAllotmentCheckerModal from '../components/ui/AutoAllotmentCheckerModal';
+import IpoProbabilityPredictorModal from '../components/ui/IpoProbabilityPredictorModal';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -67,6 +69,8 @@ const Records = () => {
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [activeTab, setActiveTab] = useState('records');
   const [isOddsModalOpen, setIsOddsModalOpen] = useState(false);
+  const [isAutoCheckerOpen, setIsAutoCheckerOpen] = useState(false);
+  const [isPredictorOpen, setIsPredictorOpen] = useState(false);
   const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const [victoryRecord, setVictoryRecord] = useState(null);
   const [isVictoryModalOpen, setIsVictoryModalOpen] = useState(false);
@@ -337,6 +341,12 @@ const Records = () => {
             {activeTab === 'records' && (
               <div className="mobile-action-bar w-full sm:w-auto">
                 <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
+                <button onClick={() => setIsAutoCheckerOpen(true)} className="btn-outline border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="1-Click Auto Allotment Status Checker">
+                  <Search size={13} className="text-indigo-400" /> Auto Check
+                </button>
+                <button onClick={() => setIsPredictorOpen(true)} className="btn-outline border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="AI Allotment Probability & Listing Gain Predictor">
+                  <Sparkles size={13} className="text-emerald-400" /> AI Predict
+                </button>
                 <button onClick={() => setIsOddsModalOpen(true)} className="btn-outline border-amber-500/30 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Live QIB/NII/Retail Subscription Odds">
                   <span>✨ Odds</span>
                 </button>
@@ -929,6 +939,17 @@ const Records = () => {
         isOpen={isVictoryModalOpen}
         onClose={() => setIsVictoryModalOpen(false)}
         record={victoryRecord}
+      />
+
+      <AutoAllotmentCheckerModal
+        isOpen={isAutoCheckerOpen}
+        onClose={() => setIsAutoCheckerOpen(false)}
+        onRefreshRecords={loadRecords}
+      />
+
+      <IpoProbabilityPredictorModal
+        isOpen={isPredictorOpen}
+        onClose={() => setIsPredictorOpen(false)}
       />
     </div>
   );
