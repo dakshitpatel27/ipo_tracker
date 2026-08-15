@@ -31,7 +31,21 @@ const AdminPanel = () => {
   const [notiTitle, setNotiTitle] = useState('');
   const [notiBody, setNotiBody] = useState('');
   const [sendingNoti, setSendingNoti] = useState(false);
-  
+  const [testChannel, setTestChannel] = useState('push');
+
+  // FCM Master Table & Direct Push State
+  const [fcmTokens, setFcmTokens] = useState([]);
+  const [directPushTokenModal, setDirectPushTokenModal] = useState(null);
+  const [directPushTitle, setDirectPushTitle] = useState('');
+  const [directPushBody, setDirectPushBody] = useState('');
+  const [sendingDirectPush, setSendingDirectPush] = useState(false);
+
+  // FCM Token CRUD State
+  const [fcmModalOpen, setFcmModalOpen] = useState(false);
+  const [editingFcmToken, setEditingFcmToken] = useState(null);
+  const [fcmForm, setFcmForm] = useState({ username: '', email: '', deviceType: 'Desktop Browser', token: '' });
+  const [tokenToDeleteModal, setTokenToDeleteModal] = useState(null);
+
   // Settings State
   const [smtpHost, setSmtpHost] = useState('');
   const [smtpPort, setSmtpPort] = useState('');
@@ -311,6 +325,109 @@ const AdminPanel = () => {
           setTemplateToDelete(null);
       }
   };
+  const fetchFcmTokens = async () => {
+    try {
+      const data = await api.getFcmTokensMaster();
+      setFcmTokens(data);
+    } catch (e) {
+      toast.error('Failed to load FCM tokens master list');
+    }
+  };
+
+  const fetchNotificationLogs = async () => {
+    try {
+      const res = await api.get('/admin/notifications/logs');
+      setNotificationLogs(Array.isArray(res) ? res : (res?.data || []));
+    } catch (e) {
+      console.warn('Failed to fetch notification logs');
+    }
+  };
+
+  const handleTestBroadcast = async (e) => {
+    e.preventDefault();
+    if (!notiTitle || !notiBody) return toast.error('Title and message body are required');
+    setSendingNoti(true);
+    try {
+      const res = await api.sendTestNotificationSuite({
+        channel: testChannel,
+        title: notiTitle,
+        body: notiBody
+      });
+      toast.success(res.message || 'Test alert dispatched!');
+      setNotiTitle('');
+      setNotiBody('');
+      fetchNotificationLogs();
+    } catch (err) {
+      toast.error(err.message || 'Failed to send test alert');
+    } finally {
+      setSendingNoti(false);
+    }
+  };
+
+  const handleSendDirectPush = async (e) => {
+    e.preventDefault();
+    if (!directPushTokenModal) return;
+    setSendingDirectPush(true);
+    try {
+      const res = await api.sendDirectFcmPush(
+        directPushTokenModal.token,
+        directPushTitle || '⚡ Direct Push Alert',
+        directPushBody || 'Hello! Test notification from Master Admin'
+      );
+      toast.success(res.message || 'Direct Push Sent!');
+      setDirectPushTokenModal(null);
+      setDirectPushTitle('');
+      setDirectPushBody('');
+      fetchNotificationLogs();
+    } catch (err) {
+      toast.error(err.message || 'Failed to send direct push');
+    } finally {
+      setSendingDirectPush(false);
+    }
+  };
+
+  const handleSaveFcmToken = async (e) => {
+    e.preventDefault();
+    if (!fcmForm.token) return toast.error('FCM Token string is required');
+    try {
+      if (editingFcmToken) {
+        await api.updateFcmToken(editingFcmToken.id, fcmForm);
+        toast.success('FCM Token updated successfully!');
+      } else {
+        await api.createFcmToken(fcmForm);
+        toast.success('FCM Token added successfully!');
+      }
+      setFcmModalOpen(false);
+      setEditingFcmToken(null);
+      setFcmForm({ username: '', email: '', deviceType: 'Desktop Browser', token: '' });
+      fetchFcmTokens();
+    } catch (err) {
+      toast.error(err.message || 'Failed to save FCM token');
+    }
+  };
+
+  const handleDeleteFcmToken = async () => {
+    if (!tokenToDeleteModal) return;
+    try {
+      await api.deleteFcmToken(tokenToDeleteModal.id || tokenToDeleteModal.token);
+      toast.success('FCM Token deleted successfully!');
+      setTokenToDeleteModal(null);
+      fetchFcmTokens();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete token');
+    }
+  };
+
+  const handlePurgeDummyTokens = async () => {
+    try {
+      const res = await api.purgeDummyFcmTokens();
+      toast.success(res.message || 'Dummy tokens purged successfully!');
+      fetchFcmTokens();
+    } catch (err) {
+      toast.error('Failed to purge dummy tokens');
+    }
+  };
+
   useEffect(() => {
      if (activeTab === 'console' && currentUser?.role === 'master') {
          fetchConsoleLogs();
@@ -320,6 +437,12 @@ const AdminPanel = () => {
      }
      if (activeTab === 'templates' && currentUser?.role === 'master') {
          fetchTemplates();
+     }
+     if (activeTab === 'fcm' && (currentUser?.role === 'master' || currentUser?.role === 'admin')) {
+         fetchFcmTokens();
+     }
+     if (activeTab === 'notifications' && (currentUser?.role === 'master' || currentUser?.role === 'admin')) {
+         fetchNotificationLogs();
      }
   }, [activeTab]);
 
@@ -333,9 +456,10 @@ const AdminPanel = () => {
   if (currentUser?.role === 'master') {
       tabs.push({ id: 'subscriptions', label: 'Subscriptions', icon: Activity });
       tabs.push({ id: 'analytics', label: 'Global Analytics', icon: BarChart2 });
+      tabs.push({ id: 'fcm', label: 'FCM Token Master', icon: Shield });
+      tabs.push({ id: 'notifications', label: 'Notifications & Logs', icon: Activity });
       tabs.push({ id: 'templates', label: 'Email Templates', icon: ScrollText });
       tabs.push({ id: 'cron', label: 'Background Tasks', icon: Terminal });
-      tabs.push({ id: 'notifications', label: 'Notifications', icon: Activity });
       tabs.push({ id: 'settings', label: 'System Settings', icon: SettingsIcon });
       tabs.push({ id: 'branding', label: 'Branding', icon: Palette });
       tabs.push({ id: 'console', label: 'Live Console', icon: Terminal });
@@ -706,57 +830,229 @@ const AdminPanel = () => {
             </div>
         )}
 
-        {activeTab === 'notifications' && currentUser?.role === 'master' && (
+        {/* FCM Token Master Table */}
+        {activeTab === 'fcm' && (currentUser?.role === 'master' || currentUser?.role === 'admin') && (
             <div className="flex flex-col h-full">
-              <div className="p-6 border-b border-border/50 flex flex-col md:flex-row gap-6 shrink-0">
-                 <div className="flex-1 space-y-4">
-                     <h3 className="text-sm font-bold text-white">Broadcast Custom Notification</h3>
-                     <form onSubmit={handleBroadcast} className="space-y-4">
-                        <div>
-                          <input type="text" placeholder="Title" value={notiTitle} onChange={e => setNotiTitle(e.target.value)} className="w-full bg-black/20 border border-border rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" required />
-                        </div>
-                        <div>
-                          <textarea placeholder="Message" value={notiBody} onChange={e => setNotiBody(e.target.value)} className="w-full bg-black/20 border border-border rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none min-h-[80px]" required></textarea>
-                        </div>
-                        <button disabled={sendingNoti} type="submit" className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50">
-                           {sendingNoti ? 'Broadcasting...' : 'Send Broadcast'}
-                        </button>
-                     </form>
-                 </div>
+              <div className="p-4 border-b border-border/50 flex flex-wrap justify-between items-center bg-black/20 gap-3 shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Shield className="text-emerald-400" size={18} /> FCM Device Tokens Master Table
+                  </h2>
+                  <p className="text-xs text-secondary">All registered Firebase Cloud Messaging push devices linked to User Name & Email ID</p>
+                </div>
+                <div className="flex items-center flex-wrap gap-2">
+                  <button onClick={() => { setEditingFcmToken(null); setFcmForm({ username: '', email: '', deviceType: 'Desktop Browser', token: '' }); setFcmModalOpen(true); }} className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-500/20">
+                    + Add Token
+                  </button>
+                  <button onClick={handlePurgeDummyTokens} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold rounded-lg text-xs transition-all">
+                    🧹 Purge Dummy Tokens
+                  </button>
+                  <button onClick={async () => {
+                    try {
+                      const deviceType = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile Device' : 'Desktop Browser';
+                      const { requestForToken } = await import('../firebase');
+                      const token = await requestForToken();
+                      if (!token || token.length < 30 || token.startsWith('fcm_token_')) {
+                        return toast.error('Notification permission required to obtain real FCM token. Please allow notifications in browser settings.');
+                      }
+                      await api.post('/notifications/register', { token, deviceType });
+                      toast.success('Real FCM Push Token registered successfully!');
+                      fetchFcmTokens();
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to register real FCM token');
+                    }
+                  }} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-indigo-600">
+                    ⚡ Register Real FCM Token
+                  </button>
+                  <button onClick={fetchFcmTokens} className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5">
+                    <Activity size={14} /> Refresh ({fcmTokens.length})
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm text-gray-300">
                   <thead className="text-xs uppercase bg-black/40 text-secondary font-semibold sticky top-0 z-10 backdrop-blur-md">
                     <tr>
-                      <th className="px-6 py-4">Timestamp</th>
-                      <th className="px-6 py-4">Title</th>
-                      <th className="px-6 py-4">Body</th>
-                      <th className="px-6 py-4">Recipients</th>
-                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">User Name</th>
+                      <th className="px-6 py-4">Email ID</th>
+                      <th className="px-6 py-4">Device Token</th>
+                      <th className="px-6 py-4">Device Type</th>
+                      <th className="px-6 py-4">Last Active</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {notificationLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-secondary">{new Date(log.sentAt).toLocaleString()}</td>
-                        <td className="px-6 py-4 font-medium text-gray-200">{log.title}</td>
-                        <td className="px-6 py-4 text-xs text-gray-400 max-w-xs truncate" title={log.body}>{log.body}</td>
-                        <td className="px-6 py-4">{log.recipientCount}</td>
+                    {fcmTokens.map((tokenRow) => (
+                      <tr key={tokenRow.id || tokenRow.token} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 font-bold text-white">{tokenRow.username || 'Investor User'}</td>
+                        <td className="px-6 py-4 text-secondary">{tokenRow.email || 'N/A'}</td>
+                        <td className="px-6 py-4 font-mono text-xs text-indigo-300">
+                          <span className="bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20 max-w-[200px] inline-block truncate" title={tokenRow.token}>
+                            {tokenRow.token ? `${tokenRow.token.substring(0, 24)}...` : 'N/A'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
-                          {log.status === 'success' ? (
-                            <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-bold tracking-wider uppercase border border-emerald-500/20">Success</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-rose-500/10 text-rose-500 rounded text-[10px] font-bold tracking-wider uppercase border border-rose-500/20">Failed</span>
-                          )}
+                          <span className="badge badge-blue text-[10px] font-bold uppercase">{tokenRow.deviceType || 'Web Browser'}</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-secondary">
+                          {tokenRow.lastUsedAt ? new Date(tokenRow.lastUsedAt).toLocaleString() : 'Recent'}
+                        </td>
+                        <td className="px-6 py-4 text-right flex justify-end gap-1.5">
+                          <button
+                            onClick={() => { setDirectPushTokenModal(tokenRow); setDirectPushTitle(''); setDirectPushBody(''); }}
+                            className="px-2.5 py-1 text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 rounded-lg inline-flex items-center gap-1 font-medium transition-colors"
+                          >
+                            ⚡ Direct Push
+                          </button>
+                          <button
+                            onClick={() => { setEditingFcmToken(tokenRow); setFcmForm(tokenRow); setFcmModalOpen(true); }}
+                            className="px-2.5 py-1 text-xs bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/20 rounded-lg inline-flex items-center gap-1 font-medium transition-colors"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => setTokenToDeleteModal(tokenRow)}
+                            className="px-2.5 py-1 text-xs bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 rounded-lg inline-flex items-center gap-1 font-medium transition-colors"
+                          >
+                            🗑️ Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
-                    {notificationLogs.length === 0 && (
-                      <tr><td colSpan="5" className="text-center py-8 text-secondary">No notifications found.</td></tr>
+                    {fcmTokens.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="text-center py-10 text-secondary">
+                          No FCM device tokens registered yet. Click <strong>+ Add Token</strong> or <strong>⚡ Register Real FCM Token</strong> above.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+        )}
+
+        {/* Test Notification Module & History Logs */}
+        {activeTab === 'notifications' && (currentUser?.role === 'master' || currentUser?.role === 'admin') && (
+            <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-6 space-y-6">
+              {/* Test Notification Module Form */}
+              <div className="bg-surface-1/90 border border-emerald-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+                <div className="flex justify-between items-center border-b border-border pb-3">
+                  <div>
+                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                      <Activity className="text-emerald-400" size={18} /> Master Admin Test Notification Module
+                    </h3>
+                    <p className="text-xs text-secondary">Test & dispatch alerts across Push, Telegram, WhatsApp, and Email channels</p>
+                  </div>
+                  <span className="badge badge-emerald text-[10px] font-bold">Multi-Channel Live Engine</span>
+                </div>
+
+                <form onSubmit={handleTestBroadcast} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="section-label block mb-1">Notification Channel</label>
+                      <select
+                        value={testChannel}
+                        onChange={e => setTestChannel(e.target.value)}
+                        className="input-field"
+                      >
+                        <option value="push">📱 FCM Web Push Notification</option>
+                        <option value="telegram">✈️ Telegram Bot Alert</option>
+                        <option value="whatsapp">💬 WhatsApp Message</option>
+                        <option value="email">📧 SMTP Email Digest</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="section-label block mb-1">Alert Title</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Tata Tech Allotment Out!"
+                        value={notiTitle}
+                        onChange={e => setNotiTitle(e.target.value)}
+                        className="input-field"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="section-label block mb-1">Alert Message Body</label>
+                    <textarea
+                      placeholder="e.g. Allotment status for Tata Technologies is live on KFintech portal. Check your records now!"
+                      value={notiBody}
+                      onChange={e => setNotiBody(e.target.value)}
+                      className="input-field min-h-[70px]"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    disabled={sendingNoti}
+                    type="submit"
+                    className="btn-primary py-2.5 px-6 font-bold text-xs flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-indigo-600 shadow-lg shadow-emerald-500/20"
+                  >
+                    {sendingNoti ? 'Dispatching Alert...' : '🚀 Trigger Test Alert'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Notification History Log Table */}
+              <div className="bg-surface-1/90 border border-border rounded-2xl p-6 shadow-xl space-y-4 flex-1 flex flex-col">
+                <div className="flex justify-between items-center border-b border-border pb-3">
+                  <h3 className="font-bold text-white text-base">Notification History Log</h3>
+                  <span className="text-xs text-secondary">{notificationLogs.length} total logs</span>
+                </div>
+
+                <div className="overflow-x-auto custom-scrollbar flex-1">
+                  <table className="w-full text-left text-sm text-gray-300">
+                    <thead className="text-xs uppercase bg-black/40 text-secondary font-semibold sticky top-0 z-10 backdrop-blur-md">
+                      <tr>
+                        <th className="px-4 py-3">Sent Time</th>
+                        <th className="px-4 py-3">Channel</th>
+                        <th className="px-4 py-3">User / Email</th>
+                        <th className="px-4 py-3">Title</th>
+                        <th className="px-4 py-3">Message Body</th>
+                        <th className="px-4 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {notificationLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-secondary">
+                            {log.sentAt ? new Date(log.sentAt).toLocaleString() : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`badge ${log.channel === 'push' || log.type === 'push' ? 'badge-blue' : (log.channel === 'telegram' ? 'badge-amber' : 'badge-emerald')} text-[10px] uppercase font-bold`}>
+                              {log.channel || log.type || 'push'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            <div className="font-bold text-white">{log.username || 'System User'}</div>
+                            <div className="text-[11px] text-secondary">{log.email || ''}</div>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-white">{log.title}</td>
+                          <td className="px-4 py-3 text-xs text-gray-400 max-w-xs truncate" title={log.body}>{log.body}</td>
+                          <td className="px-4 py-3">
+                            {log.status === 'success' ? (
+                              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[10px] font-bold border border-emerald-500/20">Success</span>
+                            ) : log.status === 'simulated' ? (
+                              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-bold border border-amber-500/20">Simulated</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded text-[10px] font-bold border border-rose-500/20" title={log.error}>Failed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {notificationLogs.length === 0 && (
+                        <tr>
+                          <td colSpan="6" className="text-center py-8 text-secondary">No notification logs recorded yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
         )}
@@ -951,6 +1247,114 @@ const AdminPanel = () => {
               </div>
           </form>
       </Modal>
+
+      {/* Direct Push FCM Modal */}
+      <Modal isOpen={!!directPushTokenModal} onClose={() => setDirectPushTokenModal(null)} title="⚡ Direct FCM Push Alert">
+        <form onSubmit={handleSendDirectPush} className="space-y-4">
+          <div className="text-xs text-secondary bg-surface-2 p-3 rounded-xl border border-indigo-500/20 space-y-1">
+            <div>Target User: <strong className="text-white">{directPushTokenModal?.username || 'Investor User'}</strong></div>
+            <div>Email ID: <span className="text-indigo-300">{directPushTokenModal?.email || 'N/A'}</span></div>
+            <div className="truncate text-[11px] font-mono text-gray-400">Token: {directPushTokenModal?.token}</div>
+          </div>
+
+          <div>
+            <label className="section-label block mb-1">Push Alert Title</label>
+            <input
+              type="text"
+              value={directPushTitle}
+              onChange={e => setDirectPushTitle(e.target.value)}
+              placeholder="⚡ Allotment Priority Notification"
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="section-label block mb-1">Push Alert Body</label>
+            <textarea
+              value={directPushBody}
+              onChange={e => setDirectPushBody(e.target.value)}
+              placeholder="Your allotment status for Bajaj Housing Finance is updated."
+              className="input-field min-h-[80px]"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setDirectPushTokenModal(null)} className="btn-outline">Cancel</button>
+            <button type="submit" disabled={sendingDirectPush} className="btn-primary">
+              {sendingDirectPush ? 'Dispatching...' : '🚀 Send Direct Push'}
+            </button>
+      {/* Create / Edit FCM Token Modal */}
+      <Modal isOpen={fcmModalOpen} onClose={() => setFcmModalOpen(false)} title={editingFcmToken ? '✏️ Edit FCM Device Token' : '➕ Add FCM Device Token'}>
+        <form onSubmit={handleSaveFcmToken} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="section-label block mb-1">User Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Dakshit Patel"
+                value={fcmForm.username}
+                onChange={e => setFcmForm({ ...fcmForm, username: e.target.value })}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="section-label block mb-1">Email ID</label>
+              <input
+                type="email"
+                placeholder="e.g. user@ipotracker.com"
+                value={fcmForm.email}
+                onChange={e => setFcmForm({ ...fcmForm, email: e.target.value })}
+                className="input-field"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="section-label block mb-1">Device Type</label>
+            <select
+              value={fcmForm.deviceType}
+              onChange={e => setFcmForm({ ...fcmForm, deviceType: e.target.value })}
+              className="input-field"
+            >
+              <option value="Desktop Browser">🖥️ Desktop Browser (Chrome/Edge)</option>
+              <option value="Android Mobile App">📱 Android App</option>
+              <option value="iOS Device"> iOS Device (Safari Push)</option>
+              <option value="Custom Device">💻 Custom Device</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="section-label block mb-1">FCM Registration Token</label>
+            <textarea
+              placeholder="Paste Firebase FCM registration token string here..."
+              value={fcmForm.token}
+              onChange={e => setFcmForm({ ...fcmForm, token: e.target.value })}
+              className="input-field min-h-[90px] font-mono text-xs"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setFcmModalOpen(false)} className="btn-outline">Cancel</button>
+            <button type="submit" className="btn-primary">
+              {editingFcmToken ? 'Save Changes' : 'Create FCM Token'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete FCM Token Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!tokenToDeleteModal}
+        onClose={() => setTokenToDeleteModal(null)}
+        onConfirm={handleDeleteFcmToken}
+        title="Delete FCM Device Token"
+        message={`Are you sure you want to delete the FCM token for ${tokenToDeleteModal?.username || 'this user'}? Push notifications will no longer be delivered to this device.`}
+      />
     </div>
   );
 };

@@ -255,13 +255,25 @@ export const api = {
   },
 
   async getAuditLogs() {
-    const data = await api.get('/admin/audit-logs');
-    return data.data || [];
+    try {
+      const res = await fetch(`${API_URL}/admin/audit-logs`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    } catch (e) {
+      return [];
+    }
   },
 
   async getLiveConsole() {
-    const data = await api.get('/admin/console');
-    return data.data || [];
+    try {
+      const res = await fetch(`${API_URL}/admin/console`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    } catch (e) {
+      return [];
+    }
   },
 
   async getCronJobs() {
@@ -325,6 +337,82 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save config');
+    return data;
+  },
+
+  async getFcmTokensMaster() {
+    try {
+      const res = await fetch(`${API_URL}/admin/fcm/tokens`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    } catch (e) {
+      console.warn('FCM Tokens Master API returned empty:', e.message);
+      return [];
+    }
+  },
+
+  async createFcmToken(payload) {
+    const res = await fetch(`${API_URL}/admin/fcm/tokens`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add token');
+    return data;
+  },
+
+  async updateFcmToken(id, payload) {
+    const res = await fetch(`${API_URL}/admin/fcm/tokens/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update token');
+    return data;
+  },
+
+  async deleteFcmToken(id) {
+    const res = await fetch(`${API_URL}/admin/fcm/tokens/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete token');
+    return data;
+  },
+
+  async purgeDummyFcmTokens() {
+    const res = await fetch(`${API_URL}/admin/fcm/purge-dummy`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to purge dummy tokens');
+    return data;
+  },
+
+  async sendDirectFcmPush(token, title, body) {
+    const res = await fetch(`${API_URL}/admin/fcm/send-direct`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ token, title, body })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to send direct push');
+    return data;
+  },
+
+  async sendTestNotificationSuite(payload) {
+    const res = await fetch(`${API_URL}/admin/notifications/test-suite`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to send test notification');
     return data;
   },
 

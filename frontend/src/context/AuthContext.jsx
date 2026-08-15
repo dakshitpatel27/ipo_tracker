@@ -40,8 +40,28 @@ export const AuthProvider = ({ children }) => {
     fetchSettings();
   }, []);
 
+  // Auto-detect and register real FCM device token for logged-in user
+  const autoRegisterDeviceToken = async (loggedInUser) => {
+    if (!loggedInUser) return;
+    try {
+      const deviceType = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile Device' : 'Desktop Browser';
+      
+      const { requestForToken } = await import('../firebase');
+      const token = await requestForToken();
+
+      // Only register real, valid Firebase FCM tokens (no dummy tokens)
+      if (token && token.length >= 30 && !token.startsWith('fcm_token_')) {
+        await api.post('/notifications/register', { token, deviceType });
+      }
+    } catch (err) {
+      console.warn('[FCM Auto-Register Warning]:', err.message);
+    }
+  };
+
   useEffect(() => {
     if (user && !isSuspended) {
+      autoRegisterDeviceToken(user);
+
       pollInterval.current = setInterval(async () => {
         try {
           const res = await api.getMe();
@@ -58,7 +78,6 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } catch (e) {
-          // Ignore network errors, but if strictly 401/403, we might want to log out.
           if (e.message === 'Invalid token' || e.message === 'Unauthorized') {
             logout();
           } else {
@@ -66,7 +85,6 @@ export const AuthProvider = ({ children }) => {
           }
         }
       }, 60000); // Check every 60 seconds
-
     }
 
     return () => {

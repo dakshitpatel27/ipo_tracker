@@ -416,13 +416,41 @@ const initSchema = () => {
     // 8. Notifications Log
     db.run(`CREATE TABLE IF NOT EXISTS notifications_log (
         id TEXT PRIMARY KEY,
+        userId TEXT,
+        username TEXT,
+        email TEXT,
         title TEXT,
         body TEXT,
         sentAt TEXT,
-        recipientCount INTEGER,
+        recipientCount INTEGER DEFAULT 1,
         status TEXT,
-        type TEXT
-    )`);
+        type TEXT,
+        channel TEXT DEFAULT 'push',
+        error TEXT
+    )`, () => {
+        db.run(`ALTER TABLE notifications_log ADD COLUMN userId TEXT`, () => { });
+        db.run(`ALTER TABLE notifications_log ADD COLUMN username TEXT`, () => { });
+        db.run(`ALTER TABLE notifications_log ADD COLUMN email TEXT`, () => { });
+        db.run(`ALTER TABLE notifications_log ADD COLUMN channel TEXT DEFAULT 'push'`, () => { });
+        db.run(`ALTER TABLE notifications_log ADD COLUMN error TEXT`, () => { });
+    });
+
+    // 8b. FCM Tokens Master Table
+    db.run(`CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        username TEXT,
+        email TEXT,
+        token TEXT UNIQUE,
+        deviceType TEXT DEFAULT 'web',
+        createdAt TEXT,
+        lastUsedAt TEXT
+    )`, () => {
+        db.run(`ALTER TABLE fcm_tokens ADD COLUMN username TEXT`, () => { });
+        db.run(`ALTER TABLE fcm_tokens ADD COLUMN email TEXT`, () => { });
+        db.run(`ALTER TABLE fcm_tokens ADD COLUMN deviceType TEXT DEFAULT 'web'`, () => { });
+        db.run(`ALTER TABLE fcm_tokens ADD COLUMN lastUsedAt TEXT`, () => { });
+    });
 
     // 9. Active Sessions Table
     // 10. GMP Alerts

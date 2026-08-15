@@ -22,19 +22,29 @@ if (!getApps().length) {
 export const messagingInstance = getMessaging(app);
 
 export const requestForToken = async () => {
-  return getToken(messagingInstance, { vapidKey: vapidKeyStore })
-    .then((currentToken) => {
-      if (currentToken) {
-        return currentToken;
-      } else {
-        console.log('No registration token available. Request permission to generate one.');
-        return null;
-      }
-    })
-    .catch((err) => {
-      console.log('An error occurred while retrieving token. ', err);
+  if (typeof window === 'undefined' || !('Notification' in window)) return null;
+  
+  if (Notification.permission === 'default') {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return null;
+    } catch (e) {
       return null;
-    });
+    }
+  } else if (Notification.permission !== 'granted') {
+    return null;
+  }
+
+  try {
+    const currentToken = await getToken(messagingInstance, { vapidKey: vapidKeyStore });
+    if (currentToken && currentToken.length >= 30) {
+      return currentToken;
+    }
+    return null;
+  } catch (err) {
+    console.warn('[FCM Token Notice]:', err.message);
+    return null;
+  }
 };
 
 export const onMessageListener = (callback) => {

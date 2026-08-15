@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, TrendingUp, BarChart2, Shield, CheckCircle2 } from 'lucide-react';
+import Hero3DScene from '../components/ui/Hero3DScene';
 
 const features = [
   { icon: BarChart2,    text: 'Track all your IPO applications in one place' },
@@ -53,13 +54,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-background text-gray-100 overflow-hidden font-sans">
-      {/* ── Left Panel (branding) — hidden on mobile ── */}
-      <div className="hidden md:flex md:w-[46%] lg:w-[42%] relative flex-col justify-between p-10 overflow-hidden"
+    <div className="flex flex-col md:flex-row min-h-screen w-full bg-background text-gray-100 font-sans overflow-x-hidden custom-scrollbar">
+      {/* ── Left/Top Panel (branding + 3D Scene) — visible on both Mobile & Web ── */}
+      <div className="w-full md:w-[48%] lg:w-[45%] relative flex flex-col justify-between p-6 sm:p-8 lg:p-10 overflow-hidden shrink-0 border-b md:border-b-0 md:border-r border-white/10"
         style={{ background: 'linear-gradient(145deg, #0d0d14 0%, #09090b 60%, #111118 100%)' }}
       >
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 opacity-[0.03]"
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
             backgroundImage: `linear-gradient(rgba(99,102,241,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.6) 1px, transparent 1px)`,
             backgroundSize: '36px 36px'
@@ -68,7 +69,7 @@ const Auth = () => {
 
         {/* Logo */}
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3">
             <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-emerald-500/30 border border-emerald-500/30" />
             <div>
               <div className="font-bold text-white text-base tracking-tight">IPO Tracker</div>
@@ -77,47 +78,30 @@ const Auth = () => {
           </div>
         </div>
 
-        {/* Main copy */}
-        <div className="relative z-10 space-y-8">
-          <div>
-            <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-3">
+        {/* 3D Scene Display */}
+        <div className="relative z-10 my-auto py-4 md:py-0">
+          <Hero3DScene />
+          <div className="mt-2 text-center">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white leading-tight tracking-tight mb-1.5">
               Your IPO portfolio,<br />
               <span className="text-indigo-400">professionally tracked.</span>
             </h2>
-            <p className="text-[var(--text-secondary)] text-sm leading-relaxed">
-              The most comprehensive IPO tracking tool for Indian retail investors. Monitor allotments, profits, and live market GMP in one place.
+            <p className="text-[var(--text-secondary)] text-xs leading-relaxed max-w-sm mx-auto">
+              Monitor allotments, profits, live market GMP & multi-account family portfolios in one place.
             </p>
           </div>
-
-          {/* Features */}
-          <ul className="space-y-3.5">
-            {features.map(({ icon: Icon, text }, i) => (
-              <motion.li
-                key={i}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 + i * 0.08 }}
-                className="flex items-center gap-3"
-              >
-                <div className="w-7 h-7 rounded-md bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                  <Icon size={14} />
-                </div>
-                <span className="text-[0.8125rem] text-[var(--text-secondary)]">{text}</span>
-              </motion.li>
-            ))}
-          </ul>
         </div>
 
         {/* Bottom credit */}
-        <div className="relative z-10 text-[0.7rem] text-[var(--text-muted)]">
+        <div className="relative z-10 text-[0.7rem] text-[var(--text-muted)] text-center hidden md:block">
           © 2026 IPO Tracker · Built for Indian investors
         </div>
       </div>
 
-      {/* ── Right Panel (form) ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 relative overflow-hidden">
+      {/* ── Right Panel (form with 3D Flip) ── */}
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-10 relative overflow-hidden" style={{ perspective: '1000px' }}>
         {/* Mobile bg orbs */}
-        <div className="md:hidden fixed inset-0 pointer-events-none">
+        <div className="fixed inset-0 pointer-events-none">
           <div className="absolute -top-[20%] right-0 w-[400px] h-[400px] rounded-full"
             style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)', filter: 'blur(60px)' }} />
           <div className="absolute -bottom-[20%] left-0 w-[400px] h-[400px] rounded-full"
@@ -125,10 +109,12 @@ const Auth = () => {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-          className="w-full max-w-sm relative z-10"
+          key={isLogin ? 'login-card' : 'signup-card'}
+          initial={{ opacity: 0, rotateY: isLogin ? -15 : 15, scale: 0.96 }}
+          animate={{ opacity: 1, rotateY: 0, scale: 1 }}
+          exit={{ opacity: 0, rotateY: isLogin ? 15 : -15, scale: 0.96 }}
+          transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+          className="w-full max-w-sm relative z-10 my-auto"
         >
           {/* Mobile logo */}
           <div className="md:hidden flex items-center gap-3 mb-8 justify-center">
@@ -305,7 +291,7 @@ const Auth = () => {
                   <div className="mt-6 text-center">
                     <button
                       onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                      className="text-[0.8125rem] text-[var(--text-secondary)] hover:text-emerald-400 transition-colors"
+                      className="text-[0.8125rem] text-[var(--text-secondary)] hover:text-emerald-400 transition-colors border-0 bg-transparent cursor-pointer"
                     >
                       {isLogin
                         ? <>Don't have an account? <span className="font-semibold text-emerald-400">Sign up</span></>

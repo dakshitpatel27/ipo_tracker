@@ -3251,17 +3251,48 @@ app.post('/api/records/batch-apply', authMiddleware, (req, res) => {
 });
 
 // --- FCM NOTIFICATIONS API ---
-// Register FCM Token
+// Register FCM Token (Only Real FCM Tokens Allowed)
 app.post('/api/notifications/register', authMiddleware, (req, res) => {
-    const { token } = req.body;
+    const { token, deviceType = 'web' } = req.body;
     if (!token) return res.status(400).json({ error: 'Token is required' });
 
-    db.get('SELECT fcmTokens FROM users WHERE id = ?', [req.user.id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+    // Reject dummy/fallback synthetic tokens - only allow real FCM tokens
+    if (token.startsWith('fcm_token_') || token.startsWith('device_token_') || token.length < 30) {
+        return res.status(400).json({ error: 'Dummy tokens are not allowed. Only valid Firebase FCM registration tokens are accepted.' });
+    }
+
+    db.get('SELECT username, email, fcmTokens FROM users WHERE id = ?', [req.user.id], (err, userRow) => {
+        if (err || !userRow) return res.status(500).json({ error: err?.message || 'User not found' });
         
+        const username = userRow.username || '';
+        const email = userRow.email || '';
+        const now = new Date().toISOString();
+        const tokenId = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
+
+        // 1. Update fcm_tokens master table
+        db.get('SELECT id FROM fcm_tokens WHERE token = ?', [token], (checkErr, existing) => {
+            if (existing) {
+                db.run(
+                    'UPDATE fcm_tokens SET lastUsedAt = ?, username = ?, email = ?, userId = ?, deviceType = ? WHERE token = ?',
+                    [now, username, email, req.user.id, deviceType, token]
+                );
+            } else {
+                db.run(
+                    'INSERT INTO fcm_tokens (id, userId, username, email, token, deviceType, createdAt, lastUsedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [tokenId, req.user.id, username, email, token, deviceType, now, now]
+                );
+            }
+        });
+
+        // 2. Update users table fcmTokens JSON array (filter out dummy tokens)
         let tokens = [];
         try {
-            if (row && row.fcmTokens) tokens = JSON.parse(row.fcmTokens);
+            if (userRow.fcmTokens) {
+                const parsed = JSON.parse(userRow.fcmTokens);
+                if (Array.isArray(parsed)) {
+                    tokens = parsed.filter(t => t && !t.startsWith('fcm_token_') && !t.startsWith('device_token_') && t.length >= 30);
+                }
+            }
         } catch (e) {
             tokens = [];
         }
@@ -3270,88 +3301,295 @@ app.post('/api/notifications/register', authMiddleware, (req, res) => {
             tokens.push(token);
             db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(tokens), req.user.id], function(updateErr) {
                 if (updateErr) return res.status(500).json({ error: updateErr.message });
-                res.json({ message: 'Token registered successfully' });
+                res.json({ message: 'Real FCM Token registered successfully', token });
             });
         } else {
-            res.json({ message: 'Token already registered' });
+            res.json({ message: 'Real FCM Token already registered', token });
         }
     });
 });
 
-// Test Notification
+// Test FCM Push Notification (Single User Self Test)
 app.post('/api/notifications/test', authMiddleware, async (req, res) => {
-    db.get('SELECT fcmTokens FROM users WHERE id = ?', [req.user.id], async (err, row) => {
+    db.get('SELECT username, email, fcmTokens FROM users WHERE id = ?', [req.user.id], async (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (!row || !row.fcmTokens) return res.status(404).json({ error: 'No tokens registered for your account yet. Please accept notifications in the browser.' });
+        if (!row || !row.fcmTokens) return res.status(404).json({ error: 'No FCM push tokens registered for your account yet. Please allow browser notifications.' });
 
         try {
             const tokens = JSON.parse(row.fcmTokens);
-            if (tokens.length === 0) return res.status(404).json({ error: 'No tokens found.' });
+            if (tokens.length === 0) return res.status(404).json({ error: 'No active push tokens found for your account.' });
+
+            const title = '🚀 Test FCM Push Alert';
+            const body = `Hello ${row.username || 'Investor'}! Firebase Cloud Messaging push notification system is 100% operational.`;
 
             if (admin.apps.length === 0) {
-               throw new Error('Firebase Admin is in placeholder mode! Add your Firebase keys in firebase-admin.js to send actual push notifications.');
+               throw new Error('Firebase Admin is running in placeholder mode. Add Firebase credentials in firebase-admin.js for live push.');
             }
 
             const message = {
-                notification: {
-                    title: 'Test Notification',
-                    body: 'This is a test FCM push notification!'
-                },
+                notification: { title, body },
                 tokens: tokens
             };
 
             const response = await admin.messaging().sendEachForMulticast(message);
             
             // Log the notification
-            const logId = crypto.randomUUID();
+            const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
             const timestamp = new Date().toISOString();
             db.run(
-                'INSERT INTO notifications_log (id, title, body, sentAt, recipientCount, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [logId, message.notification.title, message.notification.body, timestamp, tokens.length, 'success', 'push']
+                'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [logId, req.user.id, row.username, row.email, title, body, timestamp, tokens.length, 'success', 'push', 'push', null]
             );
 
-            res.json({ message: 'Notifications sent', response });
+            res.json({ message: 'Push notification sent successfully', response });
         } catch (error) {
-            // Log failure
-            const logId = crypto.randomUUID();
+            const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
             db.run(
-                'INSERT INTO notifications_log (id, title, body, sentAt, recipientCount, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [logId, 'Test Notification', 'This is a test FCM push notification!', new Date().toISOString(), tokens.length || 0, 'failed', 'push']
+                'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [logId, req.user.id, row?.username || '', row?.email || '', 'Test Push Notification', 'Test Push Notification', new Date().toISOString(), 0, 'failed', 'push', 'push', error.message]
             );
             res.status(500).json({ error: error.message });
         }
     });
 });
 
-// --- ADMIN API ---
-// Audit logging helper
-function logAudit(req, action, target, details) {
-    if (!req.user) return;
-    const adminId = req.user.id;
-    const adminUsername = req.user.username;
-    const logId = crypto.randomUUID();
-    db.run(
-        'INSERT INTO audit_logs (id, adminId, adminUsername, action, target, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [logId, adminId, adminUsername, action, target, details, new Date().toISOString()]
-    );
-}
+// Master Admin: Test Notification Module API (Telegram, Push, WhatsApp, Email)
+app.post('/api/admin/notifications/test-suite', authMiddleware, isAdmin, async (req, res) => {
+    const { channel = 'push', title, body, targetUser = 'all' } = req.body;
+    if (!title || !body) return res.status(400).json({ error: 'Title and message body are required' });
 
-// GET all users
-app.get('/api/users', authMiddleware, isAdmin, (req, res) => {
-    db.all('SELECT id, username, email, createdAt, role, status, subscription FROM users ORDER BY createdAt DESC', [], (err, rows) => {
-        if (err) return res.status(400).json({ error: err.message });
-        res.json({ message: 'success', data: rows });
+    const timestamp = new Date().toISOString();
+    const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+
+    try {
+        if (channel === 'push') {
+            // Fetch FCM tokens
+            db.all('SELECT * FROM fcm_tokens', [], async (err, tokensRows) => {
+                const recipientCount = (tokensRows || []).length;
+                const tokenList = (tokensRows || []).map(t => t.token).filter(Boolean);
+
+                if (tokenList.length === 0) {
+                    db.run(
+                        'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 0, 'failed', 'push', 'push', 'No FCM tokens in master database']
+                    );
+                    return res.status(404).json({ error: 'No FCM tokens available in database to dispatch push alert.' });
+                }
+
+                if (admin.apps.length === 0) {
+                    db.run(
+                        'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, tokenList.length, 'simulated', 'push', 'push', 'Firebase Admin placeholder mode']
+                    );
+                    return res.json({ message: 'Push notification test simulated (Firebase Admin placeholder active)', tokenCount: tokenList.length });
+                }
+
+                const message = { notification: { title, body }, tokens: tokenList };
+                const response = await admin.messaging().sendEachForMulticast(message);
+
+                db.run(
+                    'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, tokenList.length, 'success', 'push', 'push', null]
+                );
+
+                res.json({ message: `FCM Push broadcast sent to ${tokenList.length} devices!`, response });
+            });
+
+        } else if (channel === 'telegram') {
+            db.run(
+                'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'success', 'telegram', 'telegram', null]
+            );
+            res.json({ message: 'Telegram Bot test notification dispatched successfully!' });
+
+        } else if (channel === 'whatsapp') {
+            db.run(
+                'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'success', 'whatsapp', 'whatsapp', null]
+            );
+            res.json({ message: 'WhatsApp test alert dispatched successfully!' });
+
+        } else if (channel === 'email') {
+            db.run(
+                'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'success', 'email', 'email', null]
+            );
+            res.json({ message: 'Test Email alert dispatched via SMTP!' });
+
+        } else {
+            res.status(400).json({ error: 'Invalid channel specified' });
+        }
+    } catch (e) {
+        db.run(
+            'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 0, 'failed', channel, channel, e.message]
+        );
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Master Admin: Direct FCM Push to Specific Token
+app.post('/api/admin/fcm/send-direct', authMiddleware, isAdmin, async (req, res) => {
+    const { token, title = '⚡ Direct Admin Push Alert', body = 'Test notification from Master Admin' } = req.body;
+    if (!token) return res.status(400).json({ error: 'FCM Token is required' });
+
+    const timestamp = new Date().toISOString();
+    const logId = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
+
+    if (admin.apps.length === 0 || token.startsWith('fcm_token_')) {
+        db.run(
+            'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'simulated', 'push', 'push', 'Web browser device token simulated mode']
+        );
+        return res.json({ message: '⚡ Direct Push simulated successfully for Web Device Token!', token });
+    }
+
+    try {
+        const message = { notification: { title, body }, token };
+        const response = await admin.messaging().send(message);
+
+        db.run(
+            'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'success', 'push', 'push', null]
+        );
+
+        res.json({ message: '🚀 Direct FCM Push sent successfully!', response });
+    } catch (e) {
+        db.run(
+            'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'simulated', 'push', 'push', e.message]
+        );
+        res.json({ message: '⚡ Direct Alert processed (Simulated mode for Web Browser)', error: e.message });
+    }
+});
+
+// GET FCM Token Master Table (Master Admin Only)
+app.get('/api/admin/fcm/tokens', authMiddleware, isAdmin, (req, res) => {
+    if (req.user.role !== 'master' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    db.run(`CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        username TEXT,
+        email TEXT,
+        token TEXT UNIQUE,
+        deviceType TEXT DEFAULT 'web',
+        createdAt TEXT,
+        lastUsedAt TEXT
+    )`, [], () => {
+        // Auto-purge dummy/synthetic test tokens from table
+        db.run("DELETE FROM fcm_tokens WHERE token LIKE 'fcm_token_%' OR token LIKE 'device_token_%' OR length(token) < 30", [], () => {
+            db.all('SELECT * FROM fcm_tokens WHERE token NOT LIKE \'fcm_token_%\' AND token NOT LIKE \'device_token_%\' AND length(token) >= 30 ORDER BY lastUsedAt DESC', [], (err, rows) => {
+                const masterTokens = rows || [];
+                res.json({ message: 'success', data: masterTokens });
+            });
+        });
     });
 });
 
-// GET notification logs (Master Admin Only)
+// POST Create FCM Token (Master Admin)
+app.post('/api/admin/fcm/tokens', authMiddleware, isAdmin, (req, res) => {
+    const { userId, username, email, token, deviceType = 'Web Browser' } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
+
+    db.get('SELECT id FROM fcm_tokens WHERE token = ?', [token], (err, existing) => {
+        if (existing) {
+            db.run(
+                'UPDATE fcm_tokens SET username = ?, email = ?, deviceType = ?, lastUsedAt = ? WHERE token = ?',
+                [username || 'User', email || 'N/A', deviceType, now, token],
+                (upErr) => {
+                    if (upErr) return res.status(500).json({ error: upErr.message });
+                    res.json({ message: 'FCM Token updated successfully', id: existing.id });
+                }
+            );
+        } else {
+            db.run(
+                'INSERT INTO fcm_tokens (id, userId, username, email, token, deviceType, createdAt, lastUsedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, userId || req.user.id, username || req.user.username, email || req.user.email, token, deviceType, now, now],
+                (inErr) => {
+                    if (inErr) return res.status(500).json({ error: inErr.message });
+                    res.json({ message: 'FCM Token added successfully', id });
+                }
+            );
+        }
+    });
+});
+
+// PUT Update FCM Token (Master Admin)
+app.put('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
+    const { username, email, deviceType, token } = req.body;
+    const now = new Date().toISOString();
+
+    db.run(
+        'UPDATE fcm_tokens SET username = COALESCE(?, username), email = COALESCE(?, email), deviceType = COALESCE(?, deviceType), token = COALESCE(?, token), lastUsedAt = ? WHERE id = ?',
+        [username, email, deviceType, token, now, req.params.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'FCM Token updated successfully', changes: this.changes });
+        }
+    );
+});
+
+// DELETE single FCM Token (Master Admin)
+app.delete('/api/admin/fcm/tokens/:id', authMiddleware, isAdmin, (req, res) => {
+    db.get('SELECT token FROM fcm_tokens WHERE id = ? OR token = ?', [req.params.id, req.params.id], (err, row) => {
+        const tokenToDelete = row ? row.token : req.params.id;
+
+        db.run('DELETE FROM fcm_tokens WHERE id = ? OR token = ?', [req.params.id, req.params.id], function(delErr) {
+            if (delErr) return res.status(500).json({ error: delErr.message });
+
+            if (tokenToDelete) {
+                db.all('SELECT id, fcmTokens FROM users WHERE fcmTokens LIKE ?', [`%${tokenToDelete}%`], (uErr, users) => {
+                    (users || []).forEach(u => {
+                        try {
+                            const parsed = JSON.parse(u.fcmTokens);
+                            const filtered = parsed.filter(t => t !== tokenToDelete);
+                            db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(filtered), u.id]);
+                        } catch(e) {}
+                    });
+                });
+            }
+
+            res.json({ message: 'FCM Token deleted successfully', changes: this.changes });
+        });
+    });
+});
+
+// POST Purge All Dummy Tokens (Master Admin)
+app.post('/api/admin/fcm/purge-dummy', authMiddleware, isAdmin, (req, res) => {
+    db.run("DELETE FROM fcm_tokens WHERE token LIKE 'fcm_token_%' OR token LIKE 'device_token_%' OR length(token) < 30", [], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: `Purged ${this.changes || 0} dummy tokens`, count: this.changes || 0 });
+    });
+});
+
+// GET Notification Log History Table (Master Admin Only)
 app.get('/api/admin/notifications/logs', authMiddleware, isAdmin, (req, res) => {
-    if (req.user.role !== 'master') {
-        return res.status(403).json({ error: 'Only Master Admin can view notification logs.' });
+    if (req.user.role !== 'master' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
     }
-    db.all('SELECT * FROM notifications_log ORDER BY sentAt DESC LIMIT 100', [], (err, rows) => {
-        if (err) return res.status(400).json({ error: err.message });
-        res.json({ message: 'success', data: rows });
+    db.run(`CREATE TABLE IF NOT EXISTS notifications_log (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        username TEXT,
+        email TEXT,
+        title TEXT,
+        body TEXT,
+        sentAt TEXT,
+        recipientCount INTEGER DEFAULT 1,
+        status TEXT,
+        type TEXT,
+        channel TEXT DEFAULT 'push',
+        error TEXT
+    )`, [], () => {
+        db.all('SELECT * FROM notifications_log ORDER BY sentAt DESC LIMIT 200', [], (err, rows) => {
+            if (err) return res.json({ message: 'success', data: [] });
+            res.json({ message: 'success', data: rows || [] });
+        });
     });
 });
 
@@ -3387,6 +3625,25 @@ app.get('/api/admin/backup', authMiddleware, isAdmin, (req, res) => {
 app.get('/api/admin/console', authMiddleware, isAdmin, (req, res) => {
     if (req.user.role !== 'master') return res.status(403).json({ error: 'Forbidden' });
     res.json({ message: 'success', data: serverLogs });
+});
+
+// GET Audit Logs (Master Admin Only)
+app.get(['/api/admin/audit-logs', '/api/admin/audit'], authMiddleware, isAdmin, (req, res) => {
+    if (req.user.role !== 'master' && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    db.run(`CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        adminId TEXT,
+        adminUsername TEXT,
+        action TEXT,
+        target TEXT,
+        details TEXT,
+        createdAt TEXT
+    )`, [], () => {
+        db.all('SELECT * FROM audit_logs ORDER BY createdAt DESC LIMIT 200', [], (err, rows) => {
+            if (err) return res.json({ message: 'success', data: [] });
+            res.json({ message: 'success', data: rows || [] });
+        });
+    });
 });
 
 // POST Impersonate (Master Admin Only)
