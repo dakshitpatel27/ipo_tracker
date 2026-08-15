@@ -13,11 +13,19 @@ let pgPool;
 let sqliteDb;
 
 if (isPostgres) {
-    console.log('Connecting to PostgreSQL database...');
-    pgPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
+    console.log('Connecting to PostgreSQL database via DATABASE_URL...');
+    try {
+        pgPool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1') ? false : { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000,
+        });
+        pgPool.on('error', (err) => {
+            console.error('[PostgreSQL Pool Error]:', err.message);
+        });
+    } catch (e) {
+        console.error('[PostgreSQL Init Error]:', e.message);
+    }
 } else if (sqlite3) {
     console.log('Connecting to local SQLite database...');
     const fs = require('fs');
