@@ -1285,6 +1285,10 @@ const AdminPanel = () => {
             <button type="submit" disabled={sendingDirectPush} className="btn-primary">
               {sendingDirectPush ? 'Dispatching...' : '🚀 Send Direct Push'}
             </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Create / Edit FCM Token Modal */}
       <Modal isOpen={fcmModalOpen} onClose={() => setFcmModalOpen(false)} title={editingFcmToken ? '✏️ Edit FCM Device Token' : '➕ Add FCM Device Token'}>
         <form onSubmit={handleSaveFcmToken} className="space-y-4">
