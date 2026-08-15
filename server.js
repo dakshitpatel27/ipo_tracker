@@ -17,7 +17,12 @@ if (typeof global.DOMMatrix === 'undefined') {
         }
     };
 }
-const pdfParse = require('pdf-parse');
+let pdfParse;
+try {
+    pdfParse = require('pdf-parse');
+} catch (e) {
+    console.warn('[SERVER WARNING] pdf-parse optional module failed to load:', e.message);
+}
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Helper to audit PAN access securely (partially masked)
