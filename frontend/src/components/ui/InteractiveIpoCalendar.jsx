@@ -4,11 +4,10 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 const MOCK_EVENTS = [
-  { id: '1', ipoName: 'Swiggy Limited', date: '2026-08-16', type: 'OPEN_DATE', desc: 'Bidding Opens' },
-  { id: '2', ipoName: 'Swiggy Limited', date: '2026-08-18', type: 'CLOSE_DATE', desc: 'Bidding Closes @ 5:00 PM' },
-  { id: '3', ipoName: 'Swiggy Limited', date: '2026-08-20', type: 'ALLOTMENT_DATE', desc: 'Allotment Declaration Date' },
-  { id: '4', ipoName: 'Swiggy Limited', date: '2026-08-22', type: 'LISTING_DATE', desc: 'Stock Listing on BSE & NSE' },
-  { id: '5', ipoName: 'Hyundai Motor India', date: '2026-08-25', type: 'LISTING_DATE', desc: 'Stock Listing Date' },
+  { id: '1', ipoName: 'Upcoming Mainboard IPO', date: '2026-08-16', type: 'OPEN_DATE', desc: 'Bidding Opens' },
+  { id: '2', ipoName: 'Upcoming Mainboard IPO', date: '2026-08-18', type: 'CLOSE_DATE', desc: 'Bidding Closes @ 5:00 PM' },
+  { id: '3', ipoName: 'Upcoming Mainboard IPO', date: '2026-08-20', type: 'ALLOTMENT_DATE', desc: 'Allotment Declaration Date' },
+  { id: '4', ipoName: 'Upcoming Mainboard IPO', date: '2026-08-22', type: 'LISTING_DATE', desc: 'Stock Listing on BSE & NSE' },
 ];
 
 const InteractiveIpoCalendar = () => {

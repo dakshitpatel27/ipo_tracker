@@ -2,7 +2,7 @@ import React from 'react';
 import { Download, FileText, Printer, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const PartySettlementPDF = ({ partyName = 'Family Partner Account', balance = 45000 }) => {
+const PartySettlementPDF = ({ partyName = 'Family Partner Account', balance = 0 }) => {
   const handlePrintStatement = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -42,7 +42,7 @@ const PartySettlementPDF = ({ partyName = 'Family Partner Account', balance = 45
               <tr>
                 <td>${new Date().toLocaleDateString('en-IN')}</td>
                 <td>IPO_ALLOTMENT</td>
-                <td>Swiggy IPO Allotment Settlement</td>
+                <td>IPO Allotment Settlement Statement</td>
                 <td>—</td>
                 <td>₹${balance.toLocaleString('en-IN')}</td>
               </tr>

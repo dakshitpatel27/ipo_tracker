@@ -66,7 +66,7 @@ const StatCard = ({ title, value, rawValue, sub, icon: Icon, accent, trend, dela
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay, duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-        className="glass-card glass-card-hover p-5 relative overflow-hidden h-full"
+        className="glass-card glass-card-hover p-3.5 sm:p-5 relative overflow-hidden h-full"
       >
         {/* Background glow blob */}
         <div
@@ -74,20 +74,20 @@ const StatCard = ({ title, value, rawValue, sub, icon: Icon, accent, trend, dela
           style={{ background: `radial-gradient(circle, ${c.glow}, transparent 70%)`, filter: 'blur(20px)' }}
         />
         <div className="relative z-10">
-          <div className="flex items-start justify-between mb-4">
-            <div className={`p-2.5 rounded-xl ${c.bg} ${c.icon}`}>
-              <Icon size={20} strokeWidth={2} />
+          <div className="flex items-start justify-between mb-2.5 sm:mb-4">
+            <div className={`p-2 sm:p-2.5 rounded-xl ${c.bg} ${c.icon}`}>
+              <Icon size={18} strokeWidth={2} />
             </div>
             {trend !== undefined && (
-              <div className={`flex items-center gap-1 text-xs font-semibold ${trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {trend >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+              <div className={`flex items-center gap-1 text-[11px] sm:text-xs font-semibold ${trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {trend >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                 {Math.abs(trend)}%
               </div>
             )}
           </div>
-          <div className="stat-number text-[1.75rem] text-white mb-1">{value}</div>
-          <div className="section-label">{title}</div>
-          {sub && <div className="text-[0.7rem] text-[var(--text-muted)] mt-1">{sub}</div>}
+          <div className="stat-number text-lg sm:text-[1.75rem] text-white mb-1 truncate" title={value}>{value}</div>
+          <div className="section-label text-[0.65rem] sm:text-[0.7rem] truncate">{title}</div>
+          {sub && <div className="text-[0.65rem] sm:text-[0.7rem] text-[var(--text-muted)] mt-1 truncate">{sub}</div>}
         </div>
       </motion.div>
     </Trading3DCard>
@@ -494,14 +494,36 @@ const Dashboard = () => {
       <div className="space-y-6">
         <AllotmentBadges records={records} />
         <TraderBadges />
-        <ShareableGainCard ipoName="Swiggy / Mainboard IPO" profit={18500} returnPct={124.5} applicant="Primary" />
+        {(() => {
+          const topRecord = records.filter(r => getRecordProfit(r) > 0).sort((a, b) => getRecordProfit(b) - getRecordProfit(a))[0];
+          if (!topRecord) return null;
+          const profit = getRecordProfit(topRecord);
+          const amt = parseFloat(topRecord.amount) || 1;
+          const pct = ((profit / amt) * 100).toFixed(1);
+          return (
+            <ShareableGainCard
+              ipoName={topRecord.ipoName}
+              profit={profit}
+              returnPct={pct}
+              applicant={topRecord.applicantName}
+            />
+          );
+        })()}
         <ThemeCustomizer />
-        <PreOpenCalculator issuePrice={390} gmp={115} lotSize={38} />
-        <AnchorLockupCalendar ipoName="Swiggy / Mainboard IPO" listingDate="2026-08-01" />
+        {(() => {
+          const latest = records[0];
+          if (!latest) return null;
+          return (
+            <>
+              <PreOpenCalculator issuePrice={parseFloat(latest.price) || 100} gmp={parseFloat(latest.gmp) || 0} lotSize={parseInt(latest.lotSize) || 15} />
+              <AnchorLockupCalendar ipoName={latest.ipoName} listingDate={latest.listingDate} />
+              <AllotmentPredictor ipoName={latest.ipoName} issuePrice={parseFloat(latest.price) || 100} expectedGmp={parseFloat(latest.gmp) || 0} />
+            </>
+          );
+        })()}
         <KostakCalculator />
         <BenchmarkRadar records={records} />
         <AllotmentOddsCalculator />
-        <AllotmentPredictor ipoName="Live Swiggy / Mainboard IPO" retailSub={14.8} qibSub={52.1} niiSub={31.4} issuePrice={390} expectedGmp={115} />
         <FundReservePlanner applicantsCount={3} />
       </div>
     </div>

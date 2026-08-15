@@ -2,7 +2,7 @@ import React from 'react';
 import { Activity, Flame, TrendingUp, Users, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const LiveSubscriptionHeatmap = ({ ipoName = 'Swiggy Limited' }) => {
+const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
   const SUB_DATA = [
     { category: 'QIB (Institutional)', times: 52.4, target: 50, icon: Building2, color: 'emerald', momentum: '🔥 Heavy Day 3 Spike' },
     { category: 'NII (HNI / Corporate)', times: 31.8, target: 30, icon: Flame, color: 'amber', momentum: '⚡ Steady Growth' },

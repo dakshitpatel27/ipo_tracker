@@ -151,21 +151,21 @@ const Applicants = () => {
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="page-title">Applicant Master</h1>
           <p className="page-subtitle">Manage family profiles, Demat IDs, and profit-sharing commission %.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="mobile-action-bar w-full sm:w-auto">
           <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
-          <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5" title="Download CSV Import Template">
-            <FileSpreadsheet size={14} className="text-emerald-400" /> Template
+          <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Download CSV Import Template">
+            <FileSpreadsheet size={13} className="text-emerald-400" /> Template
           </button>
-          <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10" title="Smart Import Applicants with Extra Column Detection">
-            <Sparkles size={14} className="text-indigo-400" /> Smart Import
+          <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 shrink-0" title="Smart Import Applicants with Extra Column Detection">
+            <Sparkles size={13} className="text-indigo-400" /> Import
           </button>
-          <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5" title="Export Applicants to CSV">
-            <Download size={14} className="text-amber-400" /> Export
+          <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Export Applicants to CSV">
+            <Download size={13} className="text-amber-400" /> Export
           </button>
           <button 
             onClick={() => { 
@@ -179,9 +179,9 @@ const Applicants = () => {
                    setIsModalOpen(true);
                }
             }}
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3 shrink-0"
           >
-            <Plus size={16} /> Add Applicant
+            <Plus size={15} /> Add Applicant
           </button>
         </div>
       </div>

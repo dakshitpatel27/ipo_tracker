@@ -4,8 +4,8 @@ import { Wallet, Calendar, Users, AlertCircle, ArrowUpRight, DollarSign } from '
 export default function FundReservePlanner({ applicantsCount = 3, openIpos = [] }) {
   const [selectedApplicants, setSelectedApplicants] = useState(applicantsCount || 3);
   const [selectedIpos, setSelectedIpos] = useState([
-    { name: 'Swiggy Limited', lotPrice: 14950, closeDate: '2026-08-14' },
-    { name: 'NTPC Green Energy', lotPrice: 14800, closeDate: '2026-08-18' }
+    { name: 'Mainboard IPO A', lotPrice: 14950, closeDate: '2026-08-14' },
+    { name: 'Mainboard IPO B', lotPrice: 14800, closeDate: '2026-08-18' }
   ]);
 
   const totalRequiredLiquidity = selectedIpos.reduce((sum, ipo) => sum + (ipo.lotPrice * selectedApplicants), 0);

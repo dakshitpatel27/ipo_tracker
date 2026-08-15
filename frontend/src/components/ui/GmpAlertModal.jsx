@@ -67,7 +67,7 @@ export default function GmpAlertModal({ isOpen, onClose, defaultIpoName = '', on
               type="text"
               value={ipoName}
               onChange={(e) => setIpoName(e.target.value)}
-              placeholder="e.g. Swiggy Limited"
+              placeholder="e.g. Acme Limited"
               className="input-field"
               required
             />

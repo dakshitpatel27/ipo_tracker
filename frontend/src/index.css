@@ -317,9 +317,24 @@ html.light {
   .data-table-container {
     width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--surface);
+  }
+
+  /* Custom mobile action scroll wrapper */
+  .mobile-action-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+    max-width: 100%;
+  }
+  .mobile-action-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .data-table {

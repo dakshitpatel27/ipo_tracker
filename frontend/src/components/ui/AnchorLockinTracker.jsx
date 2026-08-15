@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 const MOCK_ANCHOR_DATA = [
   {
-    ipoName: 'Swiggy Limited',
+    ipoName: 'Mainboard IPO A',
     listingDate: '2026-08-01',
     anchorAmount: '₹5,000 Cr',
     lockin30Date: '2026-08-31',
@@ -15,7 +15,7 @@ const MOCK_ANCHOR_DATA = [
     riskLevel: 'MODERATE'
   },
   {
-    ipoName: 'Hyundai Motor India',
+    ipoName: 'Mainboard IPO B',
     listingDate: '2026-07-15',
     anchorAmount: '₹8,300 Cr',
     lockin30Date: '2026-08-14',

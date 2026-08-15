@@ -101,35 +101,35 @@ const PartyLedger = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="mobile-action-bar w-full sm:w-auto">
           <button
             onClick={() => setIsSmartImportOpen(true)}
-            className="btn-outline text-xs flex items-center gap-1.5 py-2 px-3 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10"
+            className="btn-outline text-xs flex items-center gap-1.5 py-1.5 px-2.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 shrink-0"
             title="Smart Import Ledger Entries with Extra Column Detection"
           >
-            <Sparkles size={14} className="text-indigo-400" />
-            <span>Smart Import</span>
+            <Sparkles size={13} className="text-indigo-400" />
+            <span>Import</span>
           </button>
           <button
             onClick={loadData}
-            className="btn-outline text-xs flex items-center gap-1.5 py-2 px-3"
+            className="btn-outline text-xs flex items-center gap-1.5 py-1.5 px-2.5 shrink-0"
             title="Refresh Ledger"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
 
           <button
             onClick={() => handleOpenAddModal('', 'gave')}
-            className="btn-primary bg-rose-600 hover:bg-rose-700 text-xs py-2 px-3 flex items-center gap-1.5"
+            className="btn-primary bg-rose-600 hover:bg-rose-700 text-xs py-1.5 px-2.5 flex items-center gap-1 shrink-0"
           >
-            <ArrowUpRight size={14} /> + You Gave
+            <ArrowUpRight size={13} /> + You Gave
           </button>
           <button
             onClick={() => handleOpenAddModal('', 'got')}
-            className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs py-2 px-3 flex items-center gap-1.5"
+            className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs py-1.5 px-2.5 flex items-center gap-1 shrink-0"
           >
-            <ArrowDownLeft size={14} /> + You Got
+            <ArrowDownLeft size={13} /> + You Got
           </button>
         </div>
       </div>

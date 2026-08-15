@@ -31,6 +31,56 @@ const parseResponse = async (res) => {
   return json;
 };
 
+export const saveOfflineMutation = (url, options) => {
+  try {
+    const queue = JSON.parse(localStorage.getItem('offline_mutations_queue') || '[]');
+    queue.push({
+      url,
+      method: options.method || 'POST',
+      headers: options.headers,
+      body: options.body,
+      timestamp: Date.now()
+    });
+    localStorage.setItem('offline_mutations_queue', JSON.stringify(queue));
+  } catch (e) {
+    console.error('Failed to save offline mutation', e);
+  }
+};
+
+export const syncOfflineMutations = async () => {
+  if (!navigator.onLine) return 0;
+  try {
+    const queue = JSON.parse(localStorage.getItem('offline_mutations_queue') || '[]');
+    if (!Array.isArray(queue) || queue.length === 0) return 0;
+
+    let syncedCount = 0;
+    const remaining = [];
+
+    for (const item of queue) {
+      try {
+        const res = await fetch(item.url, {
+          method: item.method,
+          headers: item.headers,
+          body: item.body
+        });
+        if (res.ok) {
+          syncedCount++;
+        } else {
+          remaining.push(item);
+        }
+      } catch (err) {
+        remaining.push(item);
+      }
+    }
+
+    localStorage.setItem('offline_mutations_queue', JSON.stringify(remaining));
+    return syncedCount;
+  } catch (e) {
+    console.error('Failed to sync offline queue', e);
+    return 0;
+  }
+};
+
 export const api = {
   setToken: (token) => { authToken = token; },
   
@@ -93,10 +143,25 @@ export const api = {
   },
 
   async getRecords() {
-    const res = await fetch(`${API_URL}/records`, { headers: getHeaders() });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch records'); }
-    const data = await res.json();
-    return data.data || [];
+    try {
+      const res = await fetch(`${API_URL}/records`, { headers: getHeaders() });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to fetch records'); }
+      const data = await res.json();
+      const records = data.data || [];
+      try { localStorage.setItem('offline_cache_records', JSON.stringify(records)); } catch (e) {}
+      return records;
+    } catch (err) {
+      if (!navigator.onLine || err.name === 'TypeError' || err.message?.includes('fetch') || err.message?.includes('Network')) {
+        const cached = localStorage.getItem('offline_cache_records');
+        if (cached) {
+          try {
+            console.warn('[Offline Mode] Loaded records from local cache');
+            return JSON.parse(cached);
+          } catch (e) {}
+        }
+      }
+      throw err;
+    }
   },
 
   async addRecord(record) {
@@ -105,6 +170,19 @@ export const api = {
       id: record.id || generateId(), 
       createdAt: record.createdAt || new Date().toISOString() 
     };
+
+    if (!navigator.onLine) {
+      saveOfflineMutation(`${API_URL}/records`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      const cached = JSON.parse(localStorage.getItem('offline_cache_records') || '[]');
+      cached.unshift(payload);
+      localStorage.setItem('offline_cache_records', JSON.stringify(cached));
+      return { success: true, data: payload, offline: true };
+    }
+
     const res = await fetch(`${API_URL}/records`, {
       method: 'POST',
       headers: getHeaders(),
@@ -422,17 +500,44 @@ export const api = {
   },
   // --- Applicants API ---
   getApplicants: async () => {
-    const res = await fetch(`${API_URL}/applicants`, { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch applicants');
-    const json = await res.json();
-    return json.data;
+    try {
+      const res = await fetch(`${API_URL}/applicants`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Failed to fetch applicants');
+      const json = await res.json();
+      const applicants = json.data || [];
+      try { localStorage.setItem('offline_cache_applicants', JSON.stringify(applicants)); } catch (e) {}
+      return applicants;
+    } catch (err) {
+      if (!navigator.onLine || err.name === 'TypeError' || err.message?.includes('fetch') || err.message?.includes('Network')) {
+        const cached = localStorage.getItem('offline_cache_applicants');
+        if (cached) {
+          try {
+            console.warn('[Offline Mode] Loaded applicants from local cache');
+            return JSON.parse(cached);
+          } catch (e) {}
+        }
+      }
+      throw err;
+    }
   },
 
   addApplicant: async (data) => {
+    const payload = { ...data, id: data.id || generateId(), createdAt: new Date().toISOString() };
+    if (!navigator.onLine) {
+      saveOfflineMutation(`${API_URL}/applicants`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      const cached = JSON.parse(localStorage.getItem('offline_cache_applicants') || '[]');
+      cached.unshift(payload);
+      localStorage.setItem('offline_cache_applicants', JSON.stringify(cached));
+      return { success: true, data: payload, offline: true };
+    }
     const res = await fetch(`${API_URL}/applicants`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ ...data, id: generateId(), createdAt: new Date().toISOString() })
+      body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('Failed to add applicant');
     return res.json();

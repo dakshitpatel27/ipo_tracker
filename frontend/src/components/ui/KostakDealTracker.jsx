@@ -70,7 +70,7 @@ const KostakDealTracker = () => {
                 value={form.ipoName}
                 onChange={e => setForm({...form, ipoName: e.target.value})}
                 className="input-field py-1 text-xs"
-                placeholder="e.g. Swiggy IPO"
+                placeholder="e.g. Acme IPO"
               />
             </div>
             <div>

@@ -488,7 +488,7 @@ const ExpenseTracker = () => {
           </h1>
           <p className="page-subtitle">Track daily expenses, manage budgets & analyze spending patterns</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="mobile-action-bar w-full sm:w-auto">
           {/* Hidden File Input for Receipt OCR */}
           <input
             type="file"
@@ -500,23 +500,23 @@ const ExpenseTracker = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isScanning}
-            className="btn-outline flex items-center gap-1.5"
+            className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0"
             title="Upload receipt image or PDF to auto-extract date, category & amount"
           >
-            {isScanning ? <Loader2 size={14} className="animate-spin text-indigo-400" /> : <Scan size={14} className="text-cyan-400" />}
-            <span>{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
+            {isScanning ? <Loader2 size={13} className="animate-spin text-indigo-400" /> : <Scan size={13} className="text-cyan-400" />}
+            <span>{isScanning ? 'Scanning...' : 'Scan'}</span>
           </button>
-          <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10" title="Smart Import Expenses with Extra Column Detection">
-            <Sparkles size={14} className="text-indigo-400" /> Smart Import
+          <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 shrink-0" title="Smart Import Expenses with Extra Column Detection">
+            <Sparkles size={13} className="text-indigo-400" /> Import
           </button>
-          <button onClick={downloadMonthlyDigestPdf} className="btn-outline flex items-center gap-1.5" title="Generate printable Monthly Statement PDF report">
-            <FileText size={14} className="text-emerald-400" /> Monthly Statement (PDF)
+          <button onClick={downloadMonthlyDigestPdf} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Generate printable Monthly Statement PDF report">
+            <FileText size={13} className="text-emerald-400" /> PDF Report
           </button>
-          <button onClick={() => setIsBudgetModalOpen(true)} className="btn-outline flex items-center gap-1.5">
-            <Target size={14} className="text-amber-400" /> Set Budget
+          <button onClick={() => setIsBudgetModalOpen(true)} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0">
+            <Target size={13} className="text-amber-400" /> Budget
           </button>
-          <button onClick={openAddExpense} className="btn-primary flex items-center gap-2">
-            <Plus size={16} /> Add Expense
+          <button onClick={openAddExpense} className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3 shrink-0">
+            <Plus size={15} /> Add Expense
           </button>
         </div>
       </div>

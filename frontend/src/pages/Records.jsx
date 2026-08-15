@@ -301,9 +301,9 @@ const Records = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
             {/* Tab switcher */}
-            <div className="tab-switcher">
+            <div className="tab-switcher overflow-x-auto custom-scrollbar max-w-full shrink-0">
               <button
                 onClick={() => setActiveTab('records')}
                 className={`tab-item ${activeTab === 'records' ? 'active' : ''}`}
@@ -335,25 +335,25 @@ const Records = () => {
 
             {/* Actions */}
             {activeTab === 'records' && (
-              <div className="flex items-center gap-2">
+              <div className="mobile-action-bar w-full sm:w-auto">
                 <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
-                <button onClick={() => setIsOddsModalOpen(true)} className="btn-outline border-amber-500/30 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5" title="Live QIB/NII/Retail Subscription Odds">
-                  <span>✨ Live Odds</span>
+                <button onClick={() => setIsOddsModalOpen(true)} className="btn-outline border-amber-500/30 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Live QIB/NII/Retail Subscription Odds">
+                  <span>✨ Odds</span>
                 </button>
-                <button onClick={() => setIsBatchAsbaOpen(true)} className="btn-outline flex items-center gap-1.5" title="Generate Multi-Account Batch ASBA Payload">
-                  <FileSpreadsheet size={14} className="text-indigo-400" /> Batch ASBA
+                <button onClick={() => setIsBatchAsbaOpen(true)} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Generate Multi-Account Batch ASBA Payload">
+                  <FileSpreadsheet size={13} className="text-indigo-400" /> Batch
                 </button>
-                <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5" title="Download CSV Import Template">
-                  <FileSpreadsheet size={14} className="text-emerald-400" /> Template
+                <button onClick={handleDownloadTemplate} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Download CSV Import Template">
+                  <FileSpreadsheet size={13} className="text-emerald-400" /> Template
                 </button>
-                <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10" title="Smart Import Records with Extra Column Detection">
-                  <Sparkles size={14} className="text-indigo-400" /> Smart Import
+                <button onClick={() => setIsSmartImportOpen(true)} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 shrink-0" title="Smart Import Records with Extra Column Detection">
+                  <Sparkles size={13} className="text-indigo-400" /> Import
                 </button>
-                <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5" title="Export Records to CSV">
-                  <Download size={14} className="text-amber-400" /> Export
+                <button onClick={handleExportCSV} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-2.5 shrink-0" title="Export Records to CSV">
+                  <Download size={13} className="text-amber-400" /> Export
                 </button>
-                <button onClick={openAddModal} className="btn-primary">
-                  <Plus size={16} /> Add Record
+                <button onClick={openAddModal} className="btn-primary text-xs py-1.5 px-3 shrink-0">
+                  <Plus size={15} /> Add Record
                 </button>
               </div>
             )}

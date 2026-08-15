@@ -123,7 +123,7 @@ export default function BatchAsbaModal({ isOpen, onClose }) {
               <label className="block text-xs font-semibold text-white/80 mb-1">Target IPO Name</label>
               <input
                 type="text"
-                placeholder="e.g. Swiggy Ltd"
+                placeholder="e.g. Acme Ltd"
                 value={ipoName}
                 onChange={e => setIpoName(e.target.value)}
                 className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"

@@ -355,51 +355,51 @@ const Accounts = () => {
           </h1>
           <p className="page-subtitle">Manage bank accounts, track balances & view transaction history</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={openAddTransaction} className="btn-outline flex items-center gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+          <button onClick={openAddTransaction} className="btn-outline flex items-center gap-1.5 text-xs py-1.5 px-3 flex-1 sm:flex-initial justify-center">
             <ArrowLeftRight size={14} className="text-emerald-400" /> New Transaction
           </button>
-          <button onClick={openAddAccount} className="btn-primary flex items-center gap-2">
+          <button onClick={openAddAccount} className="btn-primary flex items-center gap-2 text-xs py-1.5 px-3 flex-1 sm:flex-initial justify-center">
             <Plus size={16} /> Add Account
           </button>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-4 flex items-center gap-3"
+          className="glass-card p-3.5 sm:p-4 flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-            <PiggyBank size={20} />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
+            <PiggyBank size={18} />
           </div>
-          <div>
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold">Total Balance</p>
-            <p className="text-lg font-extrabold text-white">{formatCurrency(totalBalance)}</p>
+          <div className="min-w-0">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold truncate">Total Balance</p>
+            <p className="text-base sm:text-lg font-extrabold text-white truncate">{formatCurrency(totalBalance)}</p>
           </div>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="glass-card p-4 flex items-center gap-3"
+          className="glass-card p-3.5 sm:p-4 flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <TrendingUp size={20} />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+            <TrendingUp size={18} />
           </div>
-          <div>
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold">Total Credits</p>
-            <p className="text-lg font-extrabold text-emerald-400">+{formatCurrency(totalCredits)}</p>
+          <div className="min-w-0">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold truncate">Total Credits</p>
+            <p className="text-base sm:text-lg font-extrabold text-emerald-400 truncate">+{formatCurrency(totalCredits)}</p>
           </div>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="glass-card p-4 flex items-center gap-3"
+          className="glass-card p-3.5 sm:p-4 flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
-            <TrendingDown size={20} />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 shrink-0">
+            <TrendingDown size={18} />
           </div>
-          <div>
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold">Total Debits</p>
-            <p className="text-lg font-extrabold text-rose-400">-{formatCurrency(totalDebits)}</p>
+          <div className="min-w-0">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold truncate">Total Debits</p>
+            <p className="text-base sm:text-lg font-extrabold text-rose-400 truncate">-{formatCurrency(totalDebits)}</p>
           </div>
         </motion.div>
       </div>
@@ -430,7 +430,7 @@ const Accounts = () => {
           </motion.div>
 
           {/* Individual Account Cards */}
-          <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto custom-scrollbar pr-1">
+          <div className="space-y-3 lg:max-h-[calc(100vh-400px)] overflow-y-auto custom-scrollbar pr-1">
             <AnimatePresence>
               {accounts.map((account) => (
                 <AccountCard

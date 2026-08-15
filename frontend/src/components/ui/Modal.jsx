@@ -20,7 +20,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -34,18 +34,18 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="glass-card relative w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col z-10 shadow-2xl"
+            className="glass-card relative w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden flex flex-col z-10 shadow-2xl"
           >
-            <div className="flex items-center justify-between p-6 border-b border-border bg-black/20">
-              <h2 className="text-xl font-bold text-white">{title}</h2>
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border bg-black/20 shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold text-white truncate pr-2">{title}</h2>
               <button
                 onClick={onClose}
-                className="p-2 text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                className="p-1.5 sm:p-2 text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors shrink-0"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
               {children}
             </div>
           </motion.div>

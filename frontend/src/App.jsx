@@ -164,7 +164,9 @@ function App() {
 
       {/* Mobile Topbar */}
       <div
-        className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3"
+        className={`md:hidden fixed left-0 right-0 z-30 flex items-center justify-between px-4 py-3 ${
+          globalBanner || localStorage.getItem('ipo_master_token') ? 'top-9' : 'top-0'
+        }`}
         style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-2.5">
@@ -185,9 +187,11 @@ function App() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} brandName={brandName} />
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto relative z-10 flex flex-col pt-[56px] md:pt-0 cyber-grid-bg">
+      <main className={`flex-1 overflow-y-auto relative z-10 flex flex-col ${
+        globalBanner || localStorage.getItem('ipo_master_token') ? 'pt-[92px] md:pt-0' : 'pt-[56px] md:pt-0'
+      } cyber-grid-bg`}>
         <TradingTicker />
-        <div className="flex-1 p-4 md:p-8 pb-20 md:pb-8">
+        <div className="flex-1 p-3 sm:p-4 md:p-8 pb-28 md:pb-8">
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
               <Route path="/"         element={<AnimatedPage><Dashboard /></AnimatedPage>} />
