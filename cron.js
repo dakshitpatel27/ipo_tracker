@@ -4,7 +4,7 @@ const db = require('./db');
 
 async function initMailer() {
   return new Promise((resolve) => {
-    db.all('SELECT * FROM settings WHERE key IN ("smtpHost", "smtpPort", "smtpUser", "smtpPass")', async (err, rows) => {
+    db.all("SELECT * FROM settings WHERE key IN ('smtpHost', 'smtpPort', 'smtpUser', 'smtpPass')", async (err, rows) => {
       let config = {};
       if (!err && rows) {
         rows.forEach(r => config[r.key] = r.value);

@@ -3720,10 +3720,12 @@ function initFirebaseAdmin() {
 
 // --- THEME & ADMIN SETTINGS API ---
 app.get('/api/settings/public', (req, res) => {
-    db.all('SELECT key, value FROM settings WHERE key IN ("brandName", "brandColor", "globalBanner", "subscriptionTiers")', (err, rows) => {
+    db.all("SELECT key, value FROM settings WHERE key IN ('brandName', 'brandColor', 'globalBanner', 'subscriptionTiers')", (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const settings = {};
-        rows.forEach(r => settings[r.key] = r.value);
+        if (Array.isArray(rows)) {
+            rows.forEach(r => settings[r.key] = r.value);
+        }
         res.json({ message: 'success', data: settings });
     });
 });
