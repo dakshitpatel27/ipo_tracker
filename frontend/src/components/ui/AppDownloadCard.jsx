@@ -210,7 +210,6 @@ const AppDownloadCard = () => {
               )}
             </div>
           </div>
-        </div>
 
         {/* Right Column: QR Code Mobile Pairing */}
         <div className="bg-surface-2 p-5 rounded-2xl border border-border text-center space-y-3 flex flex-col justify-center items-center">
