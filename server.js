@@ -4404,6 +4404,29 @@ app.post('/api/kostak', authMiddleware, (req, res) => {
     );
 });
 
+// Database Health & Connection Diagnostics Endpoint
+app.get('/api/health', (req, res) => {
+    const isPostgres = !!process.env.DATABASE_URL;
+    db.get('SELECT 1 as connected', [], (err, row) => {
+        if (err) {
+            return res.status(500).json({
+                status: 'error',
+                dbType: isPostgres ? 'PostgreSQL' : 'SQLite',
+                connected: false,
+                error: err.message,
+                hint: isPostgres 
+                    ? 'PostgreSQL connection failed. Verify DATABASE_URL in Vercel Environment Variables.' 
+                    : 'SQLite fallback active.'
+            });
+        }
+        res.json({
+            status: 'ok',
+            dbType: isPostgres ? 'PostgreSQL' : 'SQLite',
+            connected: true
+        });
+    });
+});
+
 // Central 404 handler for unknown API endpoints
 app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.originalUrl}` });
