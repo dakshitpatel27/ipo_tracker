@@ -1,3 +1,5 @@
+import { isRecordAllotted } from './profitCalculator';
+
 export const LEVEL_TIERS = [
   { level: 1, minXp: 0, title: 'Novice Bidder', icon: '🌱', color: 'text-zinc-400', badgeClass: 'bg-zinc-500/10 border-zinc-500/20 text-zinc-300' },
   { level: 2, minXp: 300, title: 'Retail Applicant', icon: '📝', color: 'text-blue-400', badgeClass: 'bg-blue-500/10 border-blue-500/20 text-blue-300' },
@@ -32,14 +34,14 @@ export function calculateGamificationStats(records = [], applicants = []) {
   const uniquePans = new Set();
 
   sorted.forEach(r => {
-    const isAllotted = String(r.status || r.alloted || '').toUpperCase() === 'ALLOTTED' || parseFloat(r.alloted) > 0;
+    const allotted = isRecordAllotted(r);
     const profit = Number(r.profit || r.listingProfit || 0);
     const panVal = (r.pan || r.applicantPan || r.applicantName || '').trim();
     if (panVal) uniquePans.add(panVal);
 
     const isSme = (r.quota || '').toLowerCase().includes('sme') || (r.type || '').toLowerCase().includes('sme') || (r.category || '').toLowerCase().includes('sme');
 
-    if (isAllotted) {
+    if (allotted) {
       allottedCount++;
       currentStreak++;
       if (currentStreak > maxStreak) maxStreak = currentStreak;
@@ -165,10 +167,10 @@ export function calculateSyndicateLuck(records = [], applicants = []) {
     const stat = applicantStats[key];
     stat.appliedCount++;
 
-    const isAllotted = String(r.status || r.alloted || '').toUpperCase() === 'ALLOTTED' || parseFloat(r.alloted) > 0;
+    const allotted = isRecordAllotted(r);
     const profit = Number(r.profit || r.listingProfit || 0);
 
-    if (isAllotted) {
+    if (allotted) {
       stat.allottedCount++;
       stat.streak++;
       if (stat.streak > stat.maxStreak) stat.maxStreak = stat.streak;

@@ -78,7 +78,13 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } catch (e) {
-          if (e.message === 'Invalid token' || e.message === 'Unauthorized') {
+          if (
+            e.status === 401 ||
+            e.message === 'Invalid token' ||
+            e.message === 'Unauthorized' ||
+            e.message?.includes('revoked') ||
+            e.message?.includes('logged out')
+          ) {
             logout();
           } else {
             console.error('Polling error:', e.message);

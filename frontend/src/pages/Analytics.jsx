@@ -8,7 +8,7 @@ import PageLoader from '../components/ui/PageLoader';
 import ApplicantHeatmap from '../components/ui/ApplicantHeatmap';
 import TaxHarvestingPlanner from '../components/ui/TaxHarvestingPlanner';
 import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
-import { getRecordProfit } from '../utils/profitCalculator';
+import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#8b5cf6'];
 
@@ -33,7 +33,7 @@ const Analytics = () => {
 
   // ─── Core Metrics ─────────────────────────────────────────────────────────
   const appliedCount = records.filter(r => r.applied === 'Yes').length;
-  const allottedCount = records.filter(r => parseFloat(r.alloted) > 0 || r.alloted === 'Yes' || r.alloted === 'Allotted').length;
+  const allottedCount = records.filter(r => isRecordAllotted(r)).length;
   const winRate = appliedCount > 0 ? ((allottedCount / appliedCount) * 100).toFixed(1) : 0;
   const totalProfit = records.reduce((s, r) => s + getRecordProfit(r), 0);
 
@@ -87,7 +87,7 @@ const Analytics = () => {
     leaderboardMap[name].totalProfit += getRecordProfit(r);
     leaderboardMap[name].totalAmount += parseFloat(r.amount) || 0;
     if (r.applied === 'Yes') leaderboardMap[name].applied++;
-    if (parseFloat(r.alloted) > 0 || r.alloted === 'Yes' || r.alloted === 'Allotted') leaderboardMap[name].allotted++;
+    if (isRecordAllotted(r)) leaderboardMap[name].allotted++;
   });
 
   const leaderboard = Object.values(leaderboardMap)

@@ -22,6 +22,8 @@ import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 
+import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
+
 const CSV_HEADERS = [
   'ipoName', 'applicantName', 'quota', 'listingDate',
   'lotSize', 'shares', 'price', 'gmp', 'listingPrice', 'amount', 'applied',
@@ -45,9 +47,9 @@ const StatusBadge = ({ applied, alloted }) => {
     return <span className="badge badge-amber"><span className="status-dot" style={{ background: '#f59e0b' }} />Pending</span>;
   if (applied === 'No')
     return <span className="badge badge-gray"><span className="status-dot" style={{ background: '#64748b' }} />Not Applied</span>;
-  if (parseFloat(alloted) > 0)
+  if (isRecordAllotted({ alloted }))
     return <span className="badge badge-emerald"><span className="status-dot" style={{ background: '#10b981' }} />Allotted</span>;
-  if (applied === 'Yes' && (alloted === '0' || alloted === 0))
+  if (applied === 'Yes' && (alloted === '0' || alloted === 0 || alloted === 'No' || alloted === 'Not Allotted'))
     return <span className="badge badge-rose"><span className="status-dot" style={{ background: '#f43f5e' }} />Not Allotted</span>;
   return <span className="badge badge-blue"><span className="status-dot" style={{ background: '#3b82f6' }} />Applied</span>;
 };
@@ -278,7 +280,7 @@ const Records = () => {
     });
   };
 
-  const refundRecords = records.filter(r => r.applied === 'Yes' && !(parseFloat(r.alloted) > 0));
+  const refundRecords = records.filter(r => r.applied === 'Yes' && !isRecordAllotted(r));
 
   const markRefund = async (record, status) => {
     try {
@@ -297,8 +299,8 @@ const Records = () => {
       ((r.ipoName || '').toLowerCase().includes(search.toLowerCase()) ||
         (r.applicantName || '').toLowerCase().includes(search.toLowerCase())) &&
       (filterStatus === 'ALL' ||
-        (filterStatus === 'allotted' && parseFloat(r.alloted) > 0) ||
-        (filterStatus === 'not_allotted' && r.applied === 'Yes' && parseFloat(r.alloted) <= 0) ||
+        (filterStatus === 'allotted' && isRecordAllotted(r)) ||
+        (filterStatus === 'not_allotted' && r.applied === 'Yes' && !isRecordAllotted(r)) ||
         (filterStatus === 'pending' && r.applied === 'Pending') ||
         (filterStatus === 'not_applied' && r.applied === 'No')
       ) &&
@@ -321,7 +323,7 @@ const Records = () => {
           <div>
             <h1 className="page-title">IPO Records</h1>
             <p className="page-subtitle">
-              {records.length} records · {records.filter(r => parseFloat(r.alloted) > 0).length} allotted
+              {records.length} records · {records.filter(r => isRecordAllotted(r)).length} allotted
             </p>
           </div>
 

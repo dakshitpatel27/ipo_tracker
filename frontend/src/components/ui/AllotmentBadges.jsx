@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trophy, Zap, Award, Flame, Star, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { isRecordAllotted } from '../../utils/profitCalculator';
 
 export function calculateGamificationStats(records = []) {
   const sorted = [...records].sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
@@ -11,10 +12,10 @@ export function calculateGamificationStats(records = []) {
   let totalProfit = 0;
 
   sorted.forEach(r => {
-    const isAllotted = String(r.status || r.alloted || '').toUpperCase() === 'ALLOTTED' || parseFloat(r.alloted) > 0;
+    const allotted = isRecordAllotted(r);
     const profit = Number(r.profit || r.listingProfit || 0);
 
-    if (isAllotted) {
+    if (allotted) {
       allottedCount++;
       currentStreak++;
       if (currentStreak > maxStreak) maxStreak = currentStreak;

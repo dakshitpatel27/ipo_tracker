@@ -85,7 +85,7 @@ const Calendar = () => {
     setSelectedIpos(dayObj.events);
   };
 
-  const todayKey = toKey(today.toISOString());
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="space-y-6 h-full flex flex-col">

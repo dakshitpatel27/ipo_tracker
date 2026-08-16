@@ -23,7 +23,7 @@ import AllotmentBadges from '../components/ui/AllotmentBadges';
 import ThemeCustomizer from '../components/ui/ThemeCustomizer';
 import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
-import { getRecordProfit } from '../utils/profitCalculator';
+import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 
 // Milestone thresholds (in ₹)
 const MILESTONES = [10000, 25000, 50000, 100000, 250000, 500000, 1000000];
@@ -56,7 +56,7 @@ const StatCard = ({ title, value, rawValue, sub, icon: Icon, accent, trend, dela
     emerald: { bg: 'bg-emerald-500/10', icon: 'text-emerald-400', ring: 'rgba(34,197,94,0.12)', glow: 'rgba(34,197,94,0.06)' },
     blue:    { bg: 'bg-blue-500/10',    icon: 'text-blue-400',    ring: 'rgba(59,130,246,0.12)',  glow: 'rgba(59,130,246,0.06)' },
     amber:   { bg: 'bg-amber-500/10',   icon: 'text-amber-400',   ring: 'rgba(245,158,11,0.12)', glow: 'rgba(245,158,11,0.06)' },
-    violet:  { bg: 'bg-violet-500/10',  icon: 'text-violet-400',  ring: 'rgba(139,92,246,0.12)', glow: 'rgba(139,92,246,0.06)' },
+    violet:  { bg: 'bg-violet-500/10',  icon: 'text-violet-400',  ring: 'rgba(139,92,246,0.12)',  glow: 'rgba(139,92,246,0.06)' },
   };
   const c = colors[accent] || colors.indigo;
 
@@ -145,11 +145,11 @@ function computeStreak(records) {
     .sort((a, b) => new Date(a.listingDate || a.createdAt) - new Date(b.listingDate || b.createdAt));
   let current = 0, best = 0, temp = 0;
   sorted.forEach(r => {
-    if (parseFloat(r.alloted) > 0) { temp++; best = Math.max(best, temp); }
+    if (isRecordAllotted(r)) { temp++; best = Math.max(best, temp); }
     else { temp = 0; }
   });
   for (let i = sorted.length - 1; i >= 0; i--) {
-    if (parseFloat(sorted[i].alloted) > 0) current++;
+    if (isRecordAllotted(sorted[i])) current++;
     else break;
   }
   return { current, best };
@@ -161,7 +161,7 @@ function computeCapital(records) {
   records.forEach(r => {
     const amt = parseFloat(r.amount) || 0;
     totalInvested += amt;
-    if (r.applied === 'Yes' && !(parseFloat(r.alloted) > 0) && r.holdingStatus !== 'Sold') {
+    if (r.applied === 'Yes' && !isRecordAllotted(r) && r.holdingStatus !== 'Sold') {
       blocked += amt;
     }
   });
@@ -204,7 +204,7 @@ const Dashboard = () => {
       const invested = recs.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
       const profit = recs.reduce((s, r) => s + getRecordProfit(r), 0);
       const applied = recs.filter(r => r.applied === 'Yes').length;
-      const alloted = recs.filter(r => parseFloat(r.alloted) > 0 || r.alloted === 'Yes' || r.alloted === 'Allotted').length;
+      const alloted = recs.filter(r => isRecordAllotted(r)).length;
       const rate = applied > 0 ? ((alloted / applied) * 100).toFixed(1) : 0;
 
       const monthlyProfits = {};
@@ -357,7 +357,7 @@ const Dashboard = () => {
           icon={Activity}
           accent="amber"
           delay={0.26}
-          sub={`${records.filter(r => parseFloat(r.alloted) > 0).length} allotted of ${records.filter(r => r.applied === 'Yes').length}`}
+          sub={`${records.filter(r => isRecordAllotted(r)).length} allotted of ${records.filter(r => r.applied === 'Yes').length}`}
         />
       </div>
 
