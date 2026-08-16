@@ -2572,13 +2572,41 @@ function authMiddleware(req, res, next) {
 
         if (decoded.sessionId) {
             db.get('SELECT id FROM sessions WHERE id = ? AND userId = ?', [decoded.sessionId, decoded.id], (err, session) => {
-                if (err || !session) {
-                    return res.status(401).json({ error: 'Session has been revoked or logged out from another device.' });
+                if (session) {
+                    req.sessionId = decoded.sessionId;
+                    // Update last active timestamp asynchronously
+                    db.run('UPDATE sessions SET lastActiveAt = ? WHERE id = ?', [new Date().toISOString(), decoded.sessionId]);
+                    return next();
                 }
-                req.sessionId = decoded.sessionId;
-                // Update last active timestamp asynchronously
-                db.run('UPDATE sessions SET lastActiveAt = ? WHERE id = ?', [new Date().toISOString(), decoded.sessionId]);
-                next();
+
+                // If session record is missing (e.g. Vercel serverless cold-start or DB migration):
+                // Verify user account exists and status is approved
+                db.get('SELECT id, role, status FROM users WHERE id = ?', [decoded.id], (userErr, userRow) => {
+                    if (userErr || !userRow) {
+                        return res.status(401).json({ error: 'User account not found' });
+                    }
+                    if (userRow.status === 'rejected') {
+                        return res.status(403).json({ error: 'Account has been rejected or suspended' });
+                    }
+                    if (userRow.status !== 'approved') {
+                        return res.status(403).json({ error: 'Account is pending admin approval' });
+                    }
+
+                    // Auto-heal session record for approved user
+                    const now = new Date().toISOString();
+                    const rawAgent = req.headers['user-agent'] || 'Unknown Device';
+                    const deviceAgent = parseUserAgent(rawAgent);
+                    const ipAddress = getClientIp(req);
+
+                    db.run(
+                        'INSERT OR REPLACE INTO sessions (id, userId, deviceAgent, ipAddress, createdAt, lastActiveAt, token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [decoded.sessionId, decoded.id, deviceAgent, ipAddress, now, now, token || ''],
+                        () => {
+                            req.sessionId = decoded.sessionId;
+                            next();
+                        }
+                    );
+                });
             });
         } else {
             // Legacy token without sessionId: check if active session exists or provision one
