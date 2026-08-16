@@ -2,9 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X, TrendingUp, ExternalLink } from 'lucide-react';
 import PageLoader from '../components/ui/PageLoader';
-import { api } from '../api';
-import toast from 'react-hot-toast';
-import InteractiveIpoCalendar from '../components/ui/InteractiveIpoCalendar';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -104,21 +101,8 @@ const Calendar = () => {
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Closes</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Lists</span>
           </div>
-
-          <button
-            onClick={() => {
-              const url = api.getICalUrl();
-              navigator.clipboard.writeText(url);
-              toast.success('Personal iCal Feed URL copied! Import into Google Calendar or Apple Calendar.');
-            }}
-            className="btn-outline text-xs flex items-center gap-1.5 py-1.5 px-3 border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10"
-          >
-            <span>📅 Copy iCal Feed URL</span>
-          </button>
         </div>
       </div>
-
-      <InteractiveIpoCalendar />
 
       <div className="glass-card flex-1 overflow-hidden flex flex-col p-5">
         {/* Month Nav */}

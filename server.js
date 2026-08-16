@@ -2607,6 +2607,33 @@ function isAdmin(req, res, next) {
     }
 }
 
+// Audit Logger Helper Function
+function logAudit(req, action, target, details) {
+    if (!req || !req.user) return;
+    const id = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
+    const adminId = req.user.id || 'system';
+    const adminUsername = req.user.username || 'admin';
+    const createdAt = new Date().toISOString();
+
+    db.run(`CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        adminId TEXT,
+        adminUsername TEXT,
+        action TEXT,
+        target TEXT,
+        details TEXT,
+        createdAt TEXT
+    )`, [], () => {
+        db.run(
+            'INSERT INTO audit_logs (id, adminId, adminUsername, action, target, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [id, adminId, adminUsername, action || 'ACTION', target || 'SYSTEM', details || '', createdAt],
+            (err) => {
+                if (err) console.warn('[Audit Log Insert Warning]:', err.message);
+            }
+        );
+    });
+}
+
 app.put('/api/auth/password', authMiddleware, async (req, res) => {
     const { password } = req.body;
     if (!password) return res.status(400).json({ error: 'Password required' });

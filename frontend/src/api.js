@@ -108,7 +108,7 @@ export const syncOfflineMutations = async () => {
 
 export const api = {
   setToken: (token) => { authToken = token; },
-  
+
   get: async (endpoint) => safeApiCall(async () => {
     const res = await fetch(`${API_URL}${endpoint}`, { headers: getHeaders() });
     return parseResponse(res);
@@ -165,7 +165,7 @@ export const api = {
     try {
       const data = await api.get('/records');
       const records = data.data || [];
-      try { localStorage.setItem('offline_cache_records', JSON.stringify(records)); } catch (e) {}
+      try { localStorage.setItem('offline_cache_records', JSON.stringify(records)); } catch (e) { }
       return records;
     } catch (err) {
       if (!navigator.onLine || err.name === 'TypeError' || err.message?.includes('fetch') || err.message?.includes('Network')) {
@@ -174,7 +174,7 @@ export const api = {
           try {
             console.warn('[Offline Mode] Loaded records from local cache');
             return JSON.parse(cached);
-          } catch (e) {}
+          } catch (e) { }
         }
       }
       throw err;
@@ -182,10 +182,10 @@ export const api = {
   },
 
   async addRecord(record) {
-    const payload = { 
-      ...record, 
-      id: record.id || generateId(), 
-      createdAt: record.createdAt || new Date().toISOString() 
+    const payload = {
+      ...record,
+      id: record.id || generateId(),
+      createdAt: record.createdAt || new Date().toISOString()
     };
 
     if (!navigator.onLine) {
@@ -469,7 +469,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to fetch applicants');
       const json = await res.json();
       const applicants = json.data || [];
-      try { localStorage.setItem('offline_cache_applicants', JSON.stringify(applicants)); } catch (e) {}
+      try { localStorage.setItem('offline_cache_applicants', JSON.stringify(applicants)); } catch (e) { }
       return applicants;
     } catch (err) {
       if (!navigator.onLine || err.name === 'TypeError' || err.message?.includes('fetch') || err.message?.includes('Network')) {
@@ -478,7 +478,7 @@ export const api = {
           try {
             console.warn('[Offline Mode] Loaded applicants from local cache');
             return JSON.parse(cached);
-          } catch (e) {}
+          } catch (e) { }
         }
       }
       throw err;
@@ -674,10 +674,10 @@ export const api = {
   async parseAllotmentPdf(file) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-    
+
     const res = await fetch(`${API_URL}/records/parse-allotment-pdf`, {
       method: 'POST',
       headers,

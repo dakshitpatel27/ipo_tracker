@@ -77,7 +77,7 @@ function App() {
           }
           if (json.data.brandColor) setBrandColor(json.data.brandColor);
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     fetchSettings();
   }, []);
@@ -192,9 +192,8 @@ function App() {
 
       {/* Mobile Topbar */}
       <div
-        className={`md:hidden fixed left-0 right-0 z-30 flex items-center justify-between px-4 py-3 ${
-          globalBanner || localStorage.getItem('ipo_master_token') ? 'top-9' : 'top-0'
-        }`}
+        className={`md:hidden fixed left-0 right-0 z-30 flex items-center justify-between px-4 py-3 ${globalBanner || localStorage.getItem('ipo_master_token') ? 'top-9' : 'top-0'
+          }`}
         style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-2.5">
@@ -215,15 +214,14 @@ function App() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} brandName={brandName} />
 
       {/* Main content */}
-      <main className={`flex-1 overflow-y-auto relative z-10 flex flex-col ${
-        globalBanner || localStorage.getItem('ipo_master_token') ? 'pt-[92px] md:pt-0' : 'pt-[56px] md:pt-0'
-      } cyber-grid-bg`}>
+      <main className={`flex-1 overflow-y-auto relative z-10 flex flex-col ${globalBanner || localStorage.getItem('ipo_master_token') ? 'pt-[92px] md:pt-0' : 'pt-[56px] md:pt-0'
+        } cyber-grid-bg`}>
         <TradingTicker />
         <div className="flex-1 p-3 sm:p-4 md:p-8 pb-28 md:pb-8">
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
-              <Route path="/"         element={<AnimatedPage><Dashboard /></AnimatedPage>} />
-              <Route path="/records"  element={<AnimatedPage><Records /></AnimatedPage>} />
+              <Route path="/" element={<AnimatedPage><Dashboard /></AnimatedPage>} />
+              <Route path="/records" element={<AnimatedPage><Records /></AnimatedPage>} />
               <Route path="/accounts" element={<AnimatedPage><Accounts /></AnimatedPage>} />
               <Route path="/party-ledger" element={<AnimatedPage><PartyLedger /></AnimatedPage>} />
               <Route path="/expenses" element={<AnimatedPage><ExpenseTracker /></AnimatedPage>} />
@@ -234,10 +232,10 @@ function App() {
               <Route path="/allotted" element={<AnimatedPage><AllottedPortfolio /></AnimatedPage>} />
               <Route path="/analytics" element={<AnimatedPage><Analytics /></AnimatedPage>} />
               <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
-              <Route path="/profile"  element={<AnimatedPage><Profile /></AnimatedPage>} />
-              <Route path="/admin"    element={user?.role === 'admin' || user?.role === 'master' ? <AnimatedPage><AdminPanel /></AnimatedPage> : <AnimatedPage><Dashboard /></AnimatedPage>} />
-              <Route path="/offline"  element={<AnimatedPage><OfflinePage /></AnimatedPage>} />
-              <Route path="*"        element={<AnimatedPage><NotFound /></AnimatedPage>} />
+              <Route path="/profile" element={<AnimatedPage><Profile /></AnimatedPage>} />
+              <Route path="/admin" element={user?.role === 'admin' || user?.role === 'master' ? <AnimatedPage><AdminPanel /></AnimatedPage> : <AnimatedPage><Dashboard /></AnimatedPage>} />
+              <Route path="/offline" element={<AnimatedPage><OfflinePage /></AnimatedPage>} />
+              <Route path="*" element={<AnimatedPage><NotFound /></AnimatedPage>} />
             </Routes>
           </AnimatePresence>
         </div>

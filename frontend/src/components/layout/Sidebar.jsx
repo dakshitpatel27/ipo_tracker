@@ -38,7 +38,7 @@ const NotificationBell = () => {
     try {
       await api.markAllNotificationsRead();
       fetchNotifications();
-    } catch(e) {
+    } catch (e) {
       console.error(e);
     }
   };
@@ -47,7 +47,7 @@ const NotificationBell = () => {
     try {
       await api.markNotificationRead(id);
       fetchNotifications();
-    } catch(e) {
+    } catch (e) {
       console.error(e);
     }
   };
@@ -56,15 +56,15 @@ const NotificationBell = () => {
     try {
       await api.deleteNotification(id);
       fetchNotifications();
-    } catch(e) {
+    } catch (e) {
       console.error(e);
     }
   };
 
   return (
     <div className="relative">
-      <button 
-        onClick={() => setIsOpen(!isOpen)} 
+      <button
+        onClick={() => setIsOpen(!isOpen)}
         className="relative p-1.5 text-secondary hover:text-white hover:bg-white/5 rounded-lg transition-colors focus:outline-none flex items-center justify-center"
       >
         <Bell size={17} />
@@ -129,28 +129,28 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
     {
       label: 'Overview',
       items: [
-        { name: 'Dashboard',    icon: LayoutDashboard, path: '/' },
-        { name: 'Analytics',    icon: PieChart,        path: '/analytics' },
+        { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
+        { name: 'Analytics', icon: PieChart, path: '/analytics' },
       ]
     },
     {
       label: 'Management',
       items: [
-        { name: 'IPO Records',     icon: List,            path: '/records' },
-        { name: 'Accounts',        icon: Wallet,          path: '/accounts' },
-        { name: 'Expenses',         icon: Receipt,         path: '/expenses' },
-        { name: 'Party Ledger',    icon: BookOpen,        path: '/party-ledger' },
-        { name: 'Applicants',      icon: Users,           path: '/applicants' },
-        { name: 'IPO Master',      icon: Globe,           path: '/ipo-master' },
-        { name: 'Auto Allotment',  icon: Check,           path: '/allotment' },
-        { name: 'Allotted Desk',   icon: TrendingUp,      path: '/allotted' },
-        { name: 'IPO Calendar',    icon: CalendarDays,    path: '/calendar' },
+        { name: 'IPO Records', icon: List, path: '/records' },
+        { name: 'Accounts', icon: Wallet, path: '/accounts' },
+        { name: 'Expenses', icon: Receipt, path: '/expenses' },
+        { name: 'Party Ledger', icon: BookOpen, path: '/party-ledger' },
+        { name: 'Applicants', icon: Users, path: '/applicants' },
+        { name: 'IPO Master', icon: Globe, path: '/ipo-master' },
+        { name: 'Auto Allotment', icon: Check, path: '/allotment' },
+        { name: 'Allotted Desk', icon: TrendingUp, path: '/allotted' },
+        { name: 'IPO Calendar', icon: CalendarDays, path: '/calendar' },
       ]
     },
     {
       label: 'Account',
       items: [
-        { name: 'Settings',     icon: Settings,        path: '/settings' },
+        { name: 'Settings', icon: Settings, path: '/settings' },
       ]
     },
   ];
@@ -159,7 +159,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
 
   const getRoleBadge = () => {
     if (user?.role === 'master') return { label: 'Master Admin', color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' };
-    if (user?.role === 'admin')  return { label: 'Admin',        color: 'text-violet-400 bg-violet-400/10 border-violet-400/20' };
+    if (user?.role === 'admin') return { label: 'Admin', color: 'text-violet-400 bg-violet-400/10 border-violet-400/20' };
     return { label: user?.subscription === 'pro' ? 'Pro' : 'Free', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' };
   };
 
