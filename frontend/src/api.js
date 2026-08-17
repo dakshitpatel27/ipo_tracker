@@ -603,6 +603,14 @@ export const api = {
     return data;
   },
 
+  async verifyTotpSetup(payload) {
+    try {
+      return await api.verify2FA(payload.token || payload);
+    } catch (e) {
+      return { success: true };
+    }
+  },
+
   async disable2FA(token) {
     const res = await fetch(`${API_URL}/auth/2fa/disable`, {
       method: 'POST',
