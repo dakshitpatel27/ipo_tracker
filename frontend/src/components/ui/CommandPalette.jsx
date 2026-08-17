@@ -152,14 +152,14 @@ const CommandPalette = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-[#090d16]/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-black/60 backdrop-blur-sm">
       <div 
         ref={containerRef}
-        className="w-full max-w-xl bg-surface border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[500px]"
+        className="w-full max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[500px]"
         onKeyDown={handleKeyDown}
       >
         {/* Search Input Box */}
-        <div className="flex items-center px-4 py-3 border-b border-border gap-3">
+        <div className="flex items-center px-4 py-3 border-b border-[var(--border)] gap-3">
           <Search className="w-5 h-5 text-[var(--text-muted)]" />
           <input
             ref={inputRef}
@@ -170,11 +170,11 @@ const CommandPalette = () => {
               setSearch(e.target.value);
               setSelectedIndex(0);
             }}
-            className="flex-1 bg-transparent text-white placeholder-[var(--text-muted)] focus:outline-none text-[0.875rem]"
+            className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:[var(--text-muted)] focus:outline-none text-[0.875rem]"
           />
           <button 
             onClick={() => setIsOpen(false)}
-            className="p-1 rounded hover:bg-[#1f2937] text-[var(--text-muted)] transition-colors"
+            className="p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -196,17 +196,17 @@ const CommandPalette = () => {
                   onClick={() => executeAction(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`flex items-center px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                    isSelected ? 'bg-indigo-600/10 border border-indigo-500/20 text-white' : 'border border-transparent text-[var(--text-muted)]'
+                    isSelected ? 'bg-indigo-500/10 border border-indigo-500/20 text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-muted)]'
                   }`}
                 >
-                  <div className={`p-1.5 rounded mr-3 ${isSelected ? 'bg-indigo-600/20 text-indigo-400' : 'bg-[#1f2937] text-[var(--text-muted)]'}`}>
+                  <div className={`p-1.5 rounded mr-3 ${isSelected ? 'bg-indigo-500/20 text-indigo-500' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[0.8125rem] font-medium leading-none text-white">{item.title}</div>
+                    <div className="text-[0.8125rem] font-medium leading-none text-[var(--text-primary)]">{item.title}</div>
                     <div className="text-[0.7rem] text-[var(--text-muted)] mt-1 truncate">{item.subtitle}</div>
                   </div>
-                  <span className="text-[0.625rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-[#1f2937] px-1.5 py-0.5 rounded ml-2">
+                  <span className="text-[0.625rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded ml-2">
                     {item.category}
                   </span>
                 </div>
@@ -216,14 +216,14 @@ const CommandPalette = () => {
         </div>
 
         {/* Help Footer */}
-        <div className="px-4 py-2 bg-[#090d16] border-t border-border flex items-center justify-between text-[0.6875rem] text-[var(--text-muted)]">
+        <div className="px-4 py-2 bg-[var(--surface-2)] border-t border-[var(--border)] flex items-center justify-between text-[0.6875rem] text-[var(--text-muted)]">
           <div className="flex items-center gap-3">
-            <span><kbd className="bg-[#1f2937] px-1 py-0.5 rounded text-white mr-1">↑↓</kbd> Navigate</span>
-            <span><kbd className="bg-[#1f2937] px-1 py-0.5 rounded text-white mr-1">Enter</kbd> Select</span>
-            <span><kbd className="bg-[#1f2937] px-1 py-0.5 rounded text-white mr-1">Esc</kbd> Close</span>
+            <span><kbd className="bg-[var(--surface)] border border-[var(--border)] px-1 py-0.5 rounded text-[var(--text-primary)] mr-1">↑↓</kbd> Navigate</span>
+            <span><kbd className="bg-[var(--surface)] border border-[var(--border)] px-1 py-0.5 rounded text-[var(--text-primary)] mr-1">Enter</kbd> Select</span>
+            <span><kbd className="bg-[var(--surface)] border border-[var(--border)] px-1 py-0.5 rounded text-[var(--text-primary)] mr-1">Esc</kbd> Close</span>
           </div>
           <div>
-            <span>Press <kbd className="bg-[#1f2937] px-1 py-0.5 rounded text-white font-mono">ctrl+k</kbd> anytime</span>
+            <span>Press <kbd className="bg-[var(--surface)] border border-[var(--border)] px-1 py-0.5 rounded text-[var(--text-primary)] font-mono">ctrl+k</kbd> anytime</span>
           </div>
         </div>
       </div>

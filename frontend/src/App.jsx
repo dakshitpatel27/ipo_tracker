@@ -63,12 +63,8 @@ function App() {
   const [brandColor, setBrandColor] = useState('');
 
   React.useEffect(() => {
-    const savedTheme = localStorage.getItem('ipo_theme');
-    if (savedTheme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
-    }
+    document.documentElement.classList.remove('light');
+    try { localStorage.removeItem('ipo_theme'); } catch (e) {}
   }, []);
 
   React.useEffect(() => {
@@ -151,7 +147,7 @@ function App() {
   }
 
   return (
-    <div key="main-app" className="flex h-screen bg-[#09090b] text-[#f4f4f5] overflow-hidden font-sans relative">
+    <div key="main-app" className="flex h-screen bg-[var(--bg)] text-[var(--text-primary)] overflow-hidden font-sans relative">
       {/* Brand color override */}
       {brandColor && (
         <style>{`
@@ -185,7 +181,7 @@ function App() {
       {localStorage.getItem('ipo_master_token') && (
         <div className="fixed top-0 left-0 w-full z-[60] bg-indigo-600 text-white text-center py-2 px-4 flex justify-center items-center text-[0.8125rem] font-medium gap-3">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span>Impersonating <strong>{user.username}</strong></span>
+          <span>Impersonating <strong>{user?.username}</strong></span>
           <button
             onClick={() => {
               localStorage.setItem('ipo_token', localStorage.getItem('ipo_master_token'));
@@ -209,26 +205,26 @@ function App() {
           <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
             <TrendingUp size={15} />
           </div>
-          <span className="font-bold text-[0.9375rem] text-white tracking-tight">{brandName}</span>
+          <span className="font-bold text-[0.9375rem] text-[var(--text-primary)] tracking-tight">{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => navigate('/profile')}
-            className="p-1.5 text-zinc-300 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all border border-zinc-800 flex items-center justify-center"
+            className="p-1.5 text-[var(--text-secondary)] hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-all border border-[var(--border)] flex items-center justify-center"
             title="My Profile"
           >
             <UserCircle size={18} />
           </button>
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="p-1.5 text-zinc-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all border border-zinc-800 flex items-center justify-center"
+            className="p-1.5 text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all border border-[var(--border)] flex items-center justify-center"
             title="Log Out"
           >
             <LogOut size={17} />
           </button>
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/8 rounded-lg transition-all border border-[var(--border)] ml-0.5"
+            className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 rounded-lg transition-all border border-[var(--border)] ml-0.5"
             title="Menu"
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
@@ -240,7 +236,7 @@ function App() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} brandName={brandName} />
 
       {/* Main content */}
-      <main className={`flex-1 overflow-y-auto relative z-10 flex flex-col ${globalBanner || localStorage.getItem('ipo_master_token') ? 'pt-[92px] md:pt-0' : 'pt-[56px] md:pt-0'
+      <main className={`flex-1 overflow-y-auto relative z-10 flex flex-col bg-[var(--bg)] ${globalBanner || localStorage.getItem('ipo_master_token') ? 'pt-[92px] md:pt-0' : 'pt-[56px] md:pt-0'
         } cyber-grid-bg`}>
         <TradingTicker />
         <div className="flex-1 p-3 sm:p-4 md:p-8 pb-28 md:pb-8">
@@ -270,16 +266,16 @@ function App() {
         </div>
 
         {/* Footer */}
-        <footer className="px-8 py-4 border-t border-[var(--border)] shrink-0 bg-[#09090b] mb-14 md:mb-0">
+        <footer className="px-8 py-4 border-t border-[var(--border)] shrink-0 bg-[var(--surface)] mb-14 md:mb-0">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs">
+            <div className="flex items-center gap-2 text-indigo-500 font-semibold text-xs">
               <TrendingUp size={14} />
               <span className="tracking-tight">{brandName}</span>
             </div>
             <div className="flex gap-4 text-[0.75rem] text-[var(--text-muted)]">
-              <a href="#" className="hover:text-indigo-400 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-indigo-400 transition-colors">Terms</a>
-              <a href="https://github.com/dakshit" target="_blank" rel="noreferrer" className="hover:text-indigo-400 transition-colors">Support</a>
+              <a href="#" className="hover:text-indigo-500 transition-colors">Privacy</a>
+              <a href="#" className="hover:text-indigo-500 transition-colors">Terms</a>
+              <a href="https://github.com/dakshit" target="_blank" rel="noreferrer" className="hover:text-indigo-500 transition-colors">Support</a>
               <span className="text-[var(--text-muted)]">© 2026</span>
             </div>
           </div>

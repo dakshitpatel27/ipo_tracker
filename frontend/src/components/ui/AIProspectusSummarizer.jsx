@@ -36,29 +36,29 @@ const AIProspectusSummarizer = ({ ipoName = 'Sample IPO' }) => {
             <Sparkles size={18} />
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              AI DRHP Prospectus Analyzer <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-mono">PRO AI</span>
+            <h3 className="font-bold text-[var(--text-primary)] text-sm flex items-center gap-2">
+              AI DRHP Prospectus Analyzer <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-mono">PRO AI</span>
             </h3>
-            <p className="text-xs text-secondary">{ipoName} • Red Herring Prospectus Summary</p>
+            <p className="text-xs text-[var(--text-secondary)]">{ipoName} • Red Herring Prospectus Summary</p>
           </div>
         </div>
 
         <div className="flex gap-1.5 bg-surface-2 p-1 rounded-xl border border-border">
           <button
             onClick={() => setActiveTab('summary')}
-            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'summary' ? 'bg-indigo-600 text-white shadow' : 'text-secondary hover:text-white'}`}
+            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'summary' ? 'bg-indigo-600 text-white shadow' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
           >
             Overview
           </button>
           <button
             onClick={() => setActiveTab('peers')}
-            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'peers' ? 'bg-indigo-600 text-white shadow' : 'text-secondary hover:text-white'}`}
+            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'peers' ? 'bg-indigo-600 text-white shadow' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
           >
             Peer Matrix
           </button>
           <button
             onClick={() => setActiveTab('risks')}
-            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'risks' ? 'bg-indigo-600 text-white shadow' : 'text-secondary hover:text-white'}`}
+            className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all ${activeTab === 'risks' ? 'bg-indigo-600 text-white shadow' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
           >
             Risk Signals
           </button>
@@ -68,17 +68,17 @@ const AIProspectusSummarizer = ({ ipoName = 'Sample IPO' }) => {
       {/* Health Score Header */}
       <div className="bg-gradient-to-r from-indigo-500/10 via-surface-2 to-emerald-500/10 border border-indigo-500/20 rounded-xl p-4 flex items-center justify-between">
         <div>
-          <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block">AI Financial Health Rating</span>
-          <span className="text-2xl font-extrabold text-white font-mono">{MOCK_SUMMARY.financialHealthScore} <span className="text-xs text-emerald-400 font-normal">/ 100 (Strong Buy Outlook)</span></span>
+          <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block">AI Financial Health Rating</span>
+          <span className="text-2xl font-extrabold text-[var(--text-primary)] font-mono">{MOCK_SUMMARY.financialHealthScore} <span className="text-xs text-emerald-500 font-normal">/ 100 (Strong Buy Outlook)</span></span>
         </div>
         <div className="flex gap-4 text-xs">
           <div>
-            <span className="text-secondary block">Revenue Growth</span>
-            <strong className="text-emerald-400">{MOCK_SUMMARY.revenueGrowth}</strong>
+            <span className="text-[var(--text-secondary)] block">Revenue Growth</span>
+            <strong className="text-emerald-500">{MOCK_SUMMARY.revenueGrowth}</strong>
           </div>
           <div>
-            <span className="text-secondary block">EBITDA Margin</span>
-            <strong className="text-white">{MOCK_SUMMARY.ebitdaMargin}</strong>
+            <span className="text-[var(--text-secondary)] block">EBITDA Margin</span>
+            <strong className="text-[var(--text-primary)]">{MOCK_SUMMARY.ebitdaMargin}</strong>
           </div>
         </div>
       </div>
@@ -86,26 +86,26 @@ const AIProspectusSummarizer = ({ ipoName = 'Sample IPO' }) => {
       {activeTab === 'summary' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="p-3 bg-surface-2 border border-border rounded-xl space-y-1">
-            <span className="text-secondary font-bold uppercase text-[10px]">Issue Breakup</span>
-            <div className="flex justify-between text-white font-semibold">
+            <span className="text-[var(--text-secondary)] font-bold uppercase text-[10px]">Issue Breakup</span>
+            <div className="flex justify-between text-[var(--text-primary)] font-semibold">
               <span>Fresh Issue:</span>
-              <span className="font-mono text-emerald-400">{MOCK_SUMMARY.freshIssueAmt}</span>
+              <span className="font-mono text-emerald-500">{MOCK_SUMMARY.freshIssueAmt}</span>
             </div>
-            <div className="flex justify-between text-white font-semibold">
+            <div className="flex justify-between text-[var(--text-primary)] font-semibold">
               <span>Offer for Sale (OFS):</span>
-              <span className="font-mono text-amber-400">{MOCK_SUMMARY.offerForSaleAmt}</span>
+              <span className="font-mono text-amber-500">{MOCK_SUMMARY.offerForSaleAmt}</span>
             </div>
           </div>
 
           <div className="p-3 bg-surface-2 border border-border rounded-xl space-y-1">
-            <span className="text-secondary font-bold uppercase text-[10px]">Capital Structure</span>
-            <div className="flex justify-between text-white font-semibold">
+            <span className="text-[var(--text-secondary)] font-bold uppercase text-[10px]">Capital Structure</span>
+            <div className="flex justify-between text-[var(--text-primary)] font-semibold">
               <span>Debt-to-Equity:</span>
-              <span className="font-mono text-emerald-400">{MOCK_SUMMARY.debtToEquity}</span>
+              <span className="font-mono text-emerald-500">{MOCK_SUMMARY.debtToEquity}</span>
             </div>
-            <div className="flex justify-between text-white font-semibold">
+            <div className="flex justify-between text-[var(--text-primary)] font-semibold">
               <span>Post-IPO Promoter Holding:</span>
-              <span className="font-mono text-indigo-300">{MOCK_SUMMARY.promoterHoldingPost}</span>
+              <span className="font-mono text-indigo-500">{MOCK_SUMMARY.promoterHoldingPost}</span>
             </div>
           </div>
         </div>

@@ -5,10 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   server: {
     port: 5173,
-    hmr: {
-      protocol: 'ws',
-      host: 'localhost',
-      port: 5173
+    watch: {
+      ignored: ['**/dist/**', '**/.git/**']
     },
     proxy: {
       '/api': {
@@ -21,7 +19,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['app-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/api/],

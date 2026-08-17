@@ -23,6 +23,7 @@ import AllotmentBadges from '../components/ui/AllotmentBadges';
 import ThemeCustomizer from '../components/ui/ThemeCustomizer';
 import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
+import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
 import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 
 // Milestone thresholds (in ₹)
@@ -85,7 +86,7 @@ const StatCard = ({ title, value, rawValue, sub, icon: Icon, accent, trend, dela
               </div>
             )}
           </div>
-          <div className="stat-number text-lg sm:text-[1.75rem] text-white mb-1 truncate" title={value}>{value}</div>
+          <div className="stat-number text-lg sm:text-[1.75rem] text-[var(--text-primary)] mb-1 truncate" title={value}>{value}</div>
           <div className="section-label text-[0.65rem] sm:text-[0.7rem] truncate">{title}</div>
           {sub && <div className="text-[0.65rem] sm:text-[0.7rem] text-[var(--text-muted)] mt-1 truncate">{sub}</div>}
         </div>
@@ -473,9 +474,9 @@ const Dashboard = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="section-label flex items-center gap-1"><Zap size={10} /> Next Milestone</span>
-                  <span className="text-[0.7rem] font-semibold text-white">₹{next.toLocaleString()}</span>
+                  <span className="text-[0.7rem] font-semibold text-[var(--text-primary)]">₹{next.toLocaleString()}</span>
                 </div>
-                <div className="w-full bg-black/30 rounded-full h-1.5 overflow-hidden">
+                <div className="w-full bg-[var(--surface-2)] rounded-full h-1.5 overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${pct}%` }}
@@ -524,6 +525,7 @@ const Dashboard = () => {
         <KostakCalculator />
         <BenchmarkRadar records={records} />
         <AllotmentOddsCalculator />
+        <MonteCarloSimulator />
         <FundReservePlanner applicantsCount={3} />
       </div>
     </div>

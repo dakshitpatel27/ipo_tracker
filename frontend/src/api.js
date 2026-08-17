@@ -1360,4 +1360,9 @@ export const api = {
   async undoImportBatch(historyId) {
     return api.delete(`/imports/${historyId}/undo`);
   },
+
+  // --- Morning Digest API ---
+  async sendMorningDigest() {
+    return api.post('/digest/send-now');
+  },
 };

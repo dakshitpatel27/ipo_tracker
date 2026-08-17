@@ -586,7 +586,7 @@ const initSchema = () => {
         dealType TEXT DEFAULT 'KOSTAK',
         status TEXT DEFAULT 'ACTIVE',
         createdAt TEXT
-    )`);\n
+    )`);
     // 19. Watchlist (Feature 1)
     db.run(`CREATE TABLE IF NOT EXISTS watchlist (
         id TEXT PRIMARY KEY,

@@ -98,7 +98,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
           <div className="flex items-center gap-2.5">
             <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-8 h-8 rounded-lg object-cover shadow-md shadow-emerald-500/20 border border-emerald-500/30" />
             <div>
-              <div className="font-bold text-[0.875rem] text-white leading-tight tracking-tight">{brandName}</div>
+              <div className="font-bold text-[0.875rem] text-[var(--text-primary)] leading-tight tracking-tight">{brandName}</div>
               <div className="text-[0.6rem] text-[var(--text-muted)] font-medium tracking-wider uppercase mt-0.5">Portfolio Pro</div>
             </div>
           </div>
@@ -126,7 +126,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
                         <item.icon
                           size={16}
                           strokeWidth={isActive ? 2.5 : 1.8}
-                          className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-zinc-200 transition-colors'}
+                          className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors'}
                         />
                         <span className="flex-1 min-w-0 truncate">{item.name}</span>
                         {isActive && (
@@ -155,7 +155,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
                       <adminItem.icon
                         size={16}
                         strokeWidth={isActive ? 2.5 : 1.8}
-                        className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-zinc-200 transition-colors'}
+                        className={isActive ? 'text-indigo-400' : 'text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors'}
                       />
                       <span className="flex-1">{adminItem.name}</span>
                     </>
@@ -169,11 +169,11 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
           <div className="pt-2">
             <button
               onClick={() => setShowSmartImport(true)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 transition-all shadow-lg shadow-indigo-500/10 group"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 transition-all shadow-lg shadow-indigo-500/10 group"
             >
               <Sparkles size={15} className="text-indigo-400 group-hover:rotate-12 transition-transform" />
               <span>Smart Importer</span>
-              <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded uppercase font-bold">New</span>
+              <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded uppercase font-bold">New</span>
             </button>
           </div>
         </nav>
@@ -193,17 +193,15 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
             </div>
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="text-[0.78rem] font-semibold text-zinc-200 truncate leading-tight">{user?.name || user?.username}</div>
+              <div className="text-[0.78rem] font-semibold text-[var(--text-primary)] truncate leading-tight">{user?.name || user?.username}</div>
               <div className={`text-[0.58rem] font-bold uppercase tracking-wider mt-0.5 inline-flex items-center px-1.5 py-0.2 rounded border ${roleBadge.color}`}>
                 {roleBadge.label}
               </div>
             </div>
-            {/* Theme Toggle */}
-            <ThemeSwitcher compact />
             {/* Logout */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowLogoutConfirm(true); }}
-              className="p-1.5 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg transition-all shrink-0 border border-zinc-700/50"
+              className="p-1.5 text-[var(--text-secondary)] hover:text-rose-500 hover:bg-rose-500/15 rounded-lg transition-all shrink-0 border border-[var(--border)]"
               title="Log Out"
             >
               <LogOut size={14} />

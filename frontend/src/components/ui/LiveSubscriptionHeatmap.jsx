@@ -14,15 +14,15 @@ const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
     <div className="glass-card p-5 space-y-4 border border-indigo-500/20">
       <div className="flex justify-between items-center border-b border-border pb-3">
         <div>
-          <h3 className="font-bold text-white text-sm flex items-center gap-2">
-            <Activity size={16} className="text-emerald-400" /> Live Subscription Heatmap & Institutional Bidding Flow
+          <h3 className="font-bold text-[var(--text-primary)] text-sm flex items-center gap-2">
+            <Activity size={16} className="text-emerald-500" /> Live Subscription Heatmap & Institutional Bidding Flow
           </h3>
-          <p className="text-xs text-secondary mt-0.5">
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
             Real-time bidding multiples across investor categories for {ipoName}.
           </p>
         </div>
         <span className="badge badge-emerald flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live Bidding Flow
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Live Bidding Flow
         </span>
       </div>
 
@@ -37,17 +37,17 @@ const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: idx * 0.05 }}
               className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
-                isHeavy ? 'bg-emerald-500/10 border-emerald-500/30 text-white' : 'bg-surface-2 border-border text-secondary'
+                isHeavy ? 'bg-emerald-500/10 border-emerald-500/30 text-[var(--text-primary)]' : 'bg-surface-2 border-border text-[var(--text-secondary)]'
               }`}
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Icon size={15} className="text-emerald-400" /> {item.category}
+                  <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <Icon size={15} className="text-emerald-500" /> {item.category}
                   </span>
                 </div>
-                <div className="text-2xl font-extrabold text-white font-mono">{item.times}x</div>
-                <span className="text-[10px] font-bold text-emerald-400 block mt-0.5">{item.momentum}</span>
+                <div className="text-2xl font-extrabold text-[var(--text-primary)] font-mono">{item.times}x</div>
+                <span className="text-[10px] font-bold text-emerald-500 block mt-0.5">{item.momentum}</span>
               </div>
 
               <div className="mt-3">

@@ -24,10 +24,10 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
               <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2 border border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
                 <AlertTriangle size={32} />
               </div>
-              <h3 className="text-xl font-bold text-white">{title || "Are you sure?"}</h3>
-              <p className="text-sm text-secondary">{message}</p>
+              <h3 className="text-xl font-bold text-[var(--text-primary)]">{title || "Are you sure?"}</h3>
+              <p className="text-sm text-[var(--text-secondary)]">{message}</p>
             </div>
-            <div className="bg-black/20 p-4 flex gap-3 justify-end border-t border-border">
+            <div className="bg-[var(--surface-2)] p-4 flex gap-3 justify-end border-t border-[var(--border)]">
               <button onClick={onClose} className="btn-outline flex-1">
                 Cancel
               </button>

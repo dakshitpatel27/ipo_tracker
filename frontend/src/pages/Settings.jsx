@@ -68,37 +68,37 @@ const TelegramSettingsForm = () => {
   };
 
   return (
-    <form onSubmit={handleSave} className="bg-black/20 p-4 rounded-xl border border-border space-y-4">
+    <form onSubmit={handleSave} className="bg-surface-2 p-4 rounded-xl border border-[var(--border)] space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-white/80 mb-1">Telegram Bot Token (from @BotFather)</label>
+          <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Telegram Bot Token (from @BotFather)</label>
           <input
             type="password"
             placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRs..."
             value={telegramToken}
             onChange={e => setTelegramToken(e.target.value)}
-            className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+            className="input-field w-full font-mono text-xs"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-white/80 mb-1">Telegram Chat ID / Channel Username</label>
+          <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Telegram Chat ID / Channel Username</label>
           <input
             type="text"
             placeholder="e.g. 987654321 or @my_ipo_channel"
             value={telegramChatId}
             onChange={e => setTelegramChatId(e.target.value)}
-            className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+            className="input-field w-full font-mono text-xs"
           />
         </div>
       </div>
 
       <div className="flex items-center justify-between pt-2">
-        <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
           <input
             type="checkbox"
             checked={telegramAlerts}
             onChange={e => setTelegramAlerts(e.target.checked)}
-            className="rounded border-white/20 bg-transparent text-indigo-500"
+            className="rounded border-[var(--border)] bg-transparent text-indigo-500"
           />
           Enable Telegram Alerts for GMP Surges & Allotments
         </label>
@@ -107,7 +107,7 @@ const TelegramSettingsForm = () => {
             type="button"
             onClick={handleTest}
             disabled={testing}
-            className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-colors"
+            className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-colors"
           >
             {testing ? 'Sending Test...' : 'Send Test Alert'}
           </button>
@@ -173,28 +173,28 @@ const WhatsappSettingsForm = () => {
   };
 
   return (
-    <form onSubmit={handleSave} className="bg-black/20 p-4 rounded-xl border border-border space-y-4">
+    <form onSubmit={handleSave} className="bg-surface-2 p-4 rounded-xl border border-[var(--border)] space-y-4">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-emerald-400 font-bold text-xs">💬 WhatsApp Instant Gateway</span>
+        <span className="text-emerald-500 font-bold text-xs">💬 WhatsApp Instant Gateway</span>
       </div>
       <div>
-        <label className="block text-xs font-semibold text-white/80 mb-1">WhatsApp Mobile Number (with country code)</label>
+        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">WhatsApp Mobile Number (with country code)</label>
         <input
           type="text"
           placeholder="e.g. +919876543210"
           value={whatsappNumber}
           onChange={e => setWhatsappNumber(e.target.value)}
-          className="w-full bg-[#09090b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+          className="input-field w-full font-mono text-xs"
         />
       </div>
 
       <div className="flex items-center justify-between pt-2">
-        <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
           <input
             type="checkbox"
             checked={whatsappAlerts}
             onChange={e => setWhatsappAlerts(e.target.checked)}
-            className="rounded border-white/20 bg-transparent text-emerald-500"
+            className="rounded border-[var(--border)] bg-transparent text-emerald-500"
           />
           Enable Instant WhatsApp Alerts for Allotments & Live GMP Swings
         </label>
@@ -375,12 +375,12 @@ const Settings = () => {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">System Settings</h1>
-        <p className="text-sm text-secondary">Manage security, active sessions, layout preferences, and self-service data options.</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">System Settings</h1>
+        <p className="text-sm text-[var(--text-secondary)]">Manage security, active sessions, layout preferences, and self-service data options.</p>
       </div>
 
       {/* Settings Sub-navigation Tabs */}
-      <div className="flex border-b border-border gap-2 pb-px overflow-x-auto">
+      <div className="flex border-b border-[var(--border)] gap-2 pb-px overflow-x-auto">
         {[
           { id: 'app_download', label: 'Download App & PWA', icon: Download },
           { id: 'security', label: 'Security & Sessions', icon: ShieldAlert },
@@ -397,8 +397,8 @@ const Settings = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all ${
                 activeTab === tab.id
-                  ? 'border-indigo-500 text-white bg-indigo-500/5'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-white hover:bg-white/5'
+                  ? 'border-indigo-500 text-[var(--text-primary)] bg-indigo-500/10'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-black/5'
               }`}
             >
               <Icon size={14} />
@@ -421,11 +421,11 @@ const Settings = () => {
             <PasskeyAuth />
 
             <section className="space-y-4">
-              <h2 className="text-base font-bold text-white border-b border-border pb-2">Two-Factor Authentication (TOTP)</h2>
-              <div className="p-4 bg-black/20 border border-border rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <h2 className="text-base font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">Two-Factor Authentication (TOTP)</h2>
+              <div className="p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1">
-                  <h3 className="font-semibold text-white text-sm">Authenticator App (Google/Duo/Authy)</h3>
-                  <p className="text-xs text-secondary">Verify verification tokens upon login to lock access to Demat and Bank details.</p>
+                  <h3 className="font-semibold text-[var(--text-primary)] text-sm">Authenticator App (Google/Duo/Authy)</h3>
+                  <p className="text-xs text-[var(--text-secondary)]">Verify verification tokens upon login to lock access to Demat and Bank details.</p>
                   <div className="pt-1">
                     {is2FaEnabled ? (
                       <span className="badge badge-emerald">2FA Active</span>
@@ -538,12 +538,12 @@ const Settings = () => {
 
             {/* Session Management Section */}
             <section className="space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-2">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-white">Active Sessions & Device Management</h2>
+                  <h2 className="text-base font-bold text-[var(--text-primary)]">Active Sessions & Device Management</h2>
                   <button 
                     onClick={loadSessions} 
-                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-black/5 transition-colors"
                     title="Refresh Sessions"
                   >
                     <RefreshCw size={13} className={loadingSessions ? 'animate-spin' : ''} />
@@ -552,7 +552,7 @@ const Settings = () => {
                 {sessions.filter(s => !s.isCurrent).length > 0 && (
                   <button 
                     onClick={handleRevokeAllOtherSessions} 
-                    className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500 hover:text-white rounded-lg transition-colors text-xs font-semibold"
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white rounded-lg transition-colors text-xs font-semibold"
                   >
                     <LogOut size={13} /> Revoke All Other Devices ({sessions.filter(s => !s.isCurrent).length})
                   </button>
@@ -561,28 +561,28 @@ const Settings = () => {
 
               {/* Policy Banner */}
               {user?.subscription === 'free' && user?.role === 'user' ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
-                  <ShieldAlert size={16} className="shrink-0 mt-0.5 text-amber-400" />
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500 flex items-start gap-2.5">
+                  <ShieldAlert size={16} className="shrink-0 mt-0.5 text-amber-500" />
                   <div>
-                    <span className="font-bold text-amber-400 block mb-0.5">Free Tier Restriction — 1 Active Device Limit</span>
+                    <span className="font-bold text-amber-500 block mb-0.5">Free Tier Restriction — 1 Active Device Limit</span>
                     <span>Free accounts are restricted to <strong>1 active device login</strong> at a time. Logging in from a new device automatically terminates previous sessions. Upgrade to Pro for multi-device concurrent access.</span>
                   </div>
                 </div>
               ) : (
-                <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-500 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
                   <span><strong>{user?.role === 'master' ? 'Master Admin' : user?.role === 'admin' ? 'Admin' : 'Pro Tier'}</strong> — Multi-device concurrent session management is active.</span>
                 </div>
               )}
 
               {loadingSessions ? (
-                <div className="p-4 rounded-xl bg-black/20 border border-border text-xs text-[var(--text-muted)] animate-pulse flex items-center gap-2">
-                  <RefreshCw size={14} className="animate-spin text-indigo-400" />
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-muted)] animate-pulse flex items-center gap-2">
+                  <RefreshCw size={14} className="animate-spin text-indigo-500" />
                   Fetching active session records...
                 </div>
               ) : sessions.length === 0 ? (
-                <div className="p-6 rounded-xl bg-black/20 border border-border text-center text-xs text-[var(--text-muted)] space-y-2">
-                  <Monitor size={24} className="mx-auto text-zinc-600" />
+                <div className="p-6 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-center text-xs text-[var(--text-muted)] space-y-2">
+                  <Monitor size={24} className="mx-auto text-[var(--text-muted)]" />
                   <p>No active sessions tracked.</p>
                 </div>
               ) : (
@@ -593,21 +593,21 @@ const Settings = () => {
                       className={`p-4 border rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
                         sess.isCurrent 
                           ? 'bg-indigo-500/5 border-indigo-500/30 shadow-sm' 
-                          : 'bg-[#141418] border-border hover:border-zinc-700'
+                          : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-indigo-500/30'
                       }`}
                     >
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className={`p-2.5 rounded-lg shrink-0 ${sess.isCurrent ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'}`}>
+                        <div className={`p-2.5 rounded-lg shrink-0 ${sess.isCurrent ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' : 'bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)]'}`}>
                           <Monitor size={18} />
                         </div>
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             {user?.role === 'master' && sess.username && (
-                              <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-xs font-bold font-mono">
+                              <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-xs font-bold font-mono">
                                 @{sess.username}
                               </span>
                             )}
-                            <span className="text-sm font-semibold text-white truncate max-w-sm">
+                            <span className="text-sm font-semibold text-[var(--text-primary)] truncate max-w-sm">
                               {sess.deviceAgent}
                             </span>
                             {user?.role === 'master' && (
@@ -668,11 +668,6 @@ const Settings = () => {
                   </select>
                 </div>
               </div>
-
-              {/* Theme Switcher */}
-              <div className="pt-4 border-t border-border">
-                <ThemeSwitcher />
-              </div>
             </section>
 
             <section className="space-y-4">
@@ -703,45 +698,45 @@ const Settings = () => {
         {activeTab === 'notifications' && (
           <div className="space-y-6">
             <section className="space-y-4">
-              <h2 className="text-base font-bold text-white border-b border-border pb-2">Alert Notification Channels</h2>
+              <h2 className="text-base font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">Alert Notification Channels</h2>
               {loadingPrefs ? <div className="text-xs text-[var(--text-muted)]">Loading preferences...</div> : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-white text-sm">Email Alerts</h4>
-                      <p className="text-xs text-secondary mt-0.5">Receive daily digests and notifications via email.</p>
+                      <h4 className="font-medium text-[var(--text-primary)] text-sm">Email Alerts</h4>
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">Receive daily digests and notifications via email.</p>
                     </div>
                     <input 
                       type="checkbox" 
                       checked={prefs.emailNotifications === 1} 
                       onChange={e => setPrefs({...prefs, emailNotifications: e.target.checked ? 1 : 0})} 
-                      className="rounded border-border text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
+                      className="rounded border-[var(--border)] text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-white text-sm">Push Notifications</h4>
-                      <p className="text-xs text-secondary mt-0.5">Receive live browser alerts and updates.</p>
+                      <h4 className="font-medium text-[var(--text-primary)] text-sm">Push Notifications</h4>
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">Receive live browser alerts and updates.</p>
                     </div>
                     <input 
                       type="checkbox" 
                       checked={prefs.pushNotifications === 1} 
                       onChange={e => setPrefs({...prefs, pushNotifications: e.target.checked ? 1 : 0})} 
-                      className="rounded border-border text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
+                      className="rounded border-[var(--border)] text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-white text-sm">In-App Inbox Alerts</h4>
-                      <p className="text-xs text-secondary mt-0.5">Store notifications in your in-app inbox.</p>
+                      <h4 className="font-medium text-[var(--text-primary)] text-sm">In-App Inbox Alerts</h4>
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">Store notifications in your in-app inbox.</p>
                     </div>
                     <input 
                       type="checkbox" 
                       checked={prefs.inAppNotifications === 1} 
                       onChange={e => setPrefs({...prefs, inAppNotifications: e.target.checked ? 1 : 0})} 
-                      className="rounded border-border text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
+                      className="rounded border-[var(--border)] text-indigo-500 focus:ring-indigo-500 w-4 h-4 bg-transparent" 
                     />
                   </div>
                 </div>
@@ -759,7 +754,22 @@ const Settings = () => {
               <WhatsappSettingsForm />
             </section>
 
-            <div className="pt-6 border-t border-border flex justify-end">
+            <div className="pt-6 border-t border-border flex items-center justify-between">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    toast.loading('Generating Morning Digest...', { id: 'morning-digest' });
+                    const res = await api.sendMorningDigest();
+                    toast.success(res.message || 'Morning digest sent to notification inbox!', { id: 'morning-digest' });
+                  } catch (e) {
+                    toast.error('Failed to send digest: ' + e.message, { id: 'morning-digest' });
+                  }
+                }}
+                className="btn-outline text-xs flex items-center gap-1.5 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/10"
+              >
+                <BellRing size={14} /> Send Morning Digest Now
+              </button>
               <button className="btn-primary flex items-center gap-2" onClick={handleSavePreferences}>
                 <Save size={16} /> Save Alert Settings
               </button>

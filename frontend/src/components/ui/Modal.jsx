@@ -36,11 +36,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="glass-card relative w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden flex flex-col z-10 shadow-2xl"
           >
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border bg-black/20 shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-white truncate pr-2">{title}</h2>
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold text-[var(--text-primary)] truncate pr-2">{title}</h2>
               <button
                 onClick={onClose}
-                className="p-1.5 sm:p-2 text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors shrink-0"
+                className="p-1.5 sm:p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 rounded-full transition-colors shrink-0"
               >
                 <X size={18} />
               </button>

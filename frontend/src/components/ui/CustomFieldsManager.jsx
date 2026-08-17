@@ -80,12 +80,12 @@ const CustomFieldsManager = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center border-b border-border pb-4">
+      <div className="flex justify-between items-center border-b border-[var(--border)] pb-4">
         <div>
-          <h3 className="font-bold text-white text-base flex items-center gap-2">
-            <Layers size={18} className="text-indigo-400" /> Dynamic Schema & Custom Field Manager
+          <h3 className="font-bold text-[var(--text-primary)] text-base flex items-center gap-2">
+            <Layers size={18} className="text-indigo-500" /> Dynamic Schema & Custom Field Manager
           </h3>
-          <p className="text-xs text-secondary mt-0.5">
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
             Manage custom columns added dynamically via the Smart Import tool across database tables.
           </p>
         </div>
@@ -96,9 +96,9 @@ const CustomFieldsManager = () => {
 
       {Object.keys(grouped).length === 0 ? (
         <div className="text-center py-12 glass-card space-y-2">
-          <Database size={32} className="text-secondary mx-auto" />
-          <p className="font-semibold text-white text-sm">No Custom Columns Created Yet</p>
-          <p className="text-xs text-secondary">
+          <Database size={32} className="text-[var(--text-muted)] mx-auto" />
+          <p className="font-semibold text-[var(--text-primary)] text-sm">No Custom Columns Created Yet</p>
+          <p className="text-xs text-[var(--text-secondary)]">
             When you import files with extra columns using the Smart Data Import tool and select "Add to Table Schema", your custom fields will appear here for management.
           </p>
         </div>
@@ -106,11 +106,11 @@ const CustomFieldsManager = () => {
         <div className="space-y-6">
           {Object.entries(grouped).map(([tableName, fields]) => (
             <div key={tableName} className="glass-card p-5 space-y-3">
-              <div className="flex justify-between items-center border-b border-border pb-2">
-                <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles size={14} /> Table: <strong className="text-white">{tableName}</strong>
+              <div className="flex justify-between items-center border-b border-[var(--border)] pb-2">
+                <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles size={14} /> Table: <strong className="text-[var(--text-primary)]">{tableName}</strong>
                 </span>
-                <span className="text-xs text-secondary">{fields.length} custom field(s)</span>
+                <span className="text-xs text-[var(--text-secondary)]">{fields.length} custom field(s)</span>
               </div>
 
               <div className="space-y-2">
@@ -119,10 +119,10 @@ const CustomFieldsManager = () => {
                     key={f.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex items-center justify-between p-3 rounded-xl bg-surface-2 border border-border hover:border-indigo-500/30 transition-all text-xs"
+                    className="flex items-center justify-between p-3 rounded-xl bg-surface-2 border border-[var(--border)] hover:border-indigo-500/30 transition-all text-xs"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 font-mono font-bold">
+                      <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 font-mono font-bold">
                         {f.columnName}
                       </div>
                       <div>
@@ -134,23 +134,23 @@ const CustomFieldsManager = () => {
                               onChange={e => setEditLabel(e.target.value)}
                               className="input-field text-xs py-1 px-2 font-semibold"
                             />
-                            <button onClick={() => handleSaveLabel(f.id, f.isVisible)} className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded">
+                            <button onClick={() => handleSaveLabel(f.id, f.isVisible)} className="p-1 text-emerald-500 hover:bg-emerald-500/10 rounded">
                               <Check size={14} />
                             </button>
-                            <button onClick={() => setEditingId(null)} className="p-1 text-secondary hover:bg-white/10 rounded">
+                            <button onClick={() => setEditingId(null)} className="p-1 text-[var(--text-secondary)] hover:bg-black/5 rounded">
                               <X size={14} />
                             </button>
                           </div>
                         ) : (
-                          <div className="font-semibold text-white flex items-center gap-2">
+                          <div className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
                             {f.label}
-                            <button onClick={() => { setEditingId(f.id); setEditLabel(f.label); }} className="text-secondary hover:text-indigo-400">
+                            <button onClick={() => { setEditingId(f.id); setEditLabel(f.label); }} className="text-[var(--text-secondary)] hover:text-indigo-500">
                               <Edit2 size={12} />
                             </button>
                           </div>
                         )}
-                        <p className="text-[10px] text-secondary mt-0.5">
-                          Type: <code className="font-mono text-zinc-300">{f.dataType}</code> • Created: {new Date(f.createdAt).toLocaleDateString()}
+                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                          Type: <code className="font-mono text-[var(--text-secondary)]">{f.dataType}</code> • Created: {new Date(f.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>

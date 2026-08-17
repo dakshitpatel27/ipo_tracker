@@ -339,11 +339,11 @@ const IpoMaster = () => {
                   {/* Header: Title + Watchlist */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-bold text-white truncate leading-tight">
+                      <h3 className="text-base font-bold text-[var(--text-primary)] truncate leading-tight">
                         {ipo.name}
                       </h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-xs text-zinc-400">{ipo.type || 'Mainboard'}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{ipo.type || 'Mainboard'}</span>
                         <IpoScoreBadge gmp={gmpStr} price={upperPrice} qibSub={ipo.subscription?.qib} retailSub={ipo.subscription?.retail} />
                         <AiIpoRating
                           ipoName={ipo.name}
@@ -383,18 +383,18 @@ const IpoMaster = () => {
                   </div>
 
                   {/* Pricing & GMP Details */}
-                  <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-black/20 border border-[var(--border)] text-xs">
+                  <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-surface-2 border border-[var(--border)] text-xs">
                     <div>
                       <span className="section-label">Price Band</span>
-                      <div className="font-mono text-white font-semibold mt-0.5">{ipo.priceRange || 'N/A'}</div>
+                      <div className="font-mono text-[var(--text-primary)] font-semibold mt-0.5">{ipo.priceRange || 'N/A'}</div>
                     </div>
                     <div>
                       <span className="section-label">Lot Size</span>
-                      <div className="font-mono text-white font-semibold mt-0.5">{ipo.lotSize || ipo.lot || 'N/A'}</div>
+                      <div className="font-mono text-[var(--text-primary)] font-semibold mt-0.5">{ipo.lotSize || ipo.lot || 'N/A'}</div>
                     </div>
                     <div>
                       <span className="section-label">Dates</span>
-                      <div className="text-[0.7rem] text-zinc-300 mt-0.5">
+                      <div className="text-[0.7rem] text-[var(--text-secondary)] mt-0.5">
                         {ipo.schedule?.startDate || '—'} to {ipo.schedule?.endDate || '—'}
                       </div>
                     </div>

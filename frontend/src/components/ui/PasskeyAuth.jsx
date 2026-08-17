@@ -26,12 +26,12 @@ const PasskeyAuth = () => {
 
   return (
     <div className="glass-card p-5 space-y-4 border border-indigo-500/20">
-      <div className="flex justify-between items-center border-b border-border pb-3">
+      <div className="flex justify-between items-center border-b border-[var(--border)] pb-3">
         <div>
-          <h3 className="font-bold text-white text-sm flex items-center gap-2">
-            <Fingerprint size={18} className="text-indigo-400" /> Biometric Passkey Authentication (WebAuthn)
+          <h3 className="font-bold text-[var(--text-primary)] text-sm flex items-center gap-2">
+            <Fingerprint size={18} className="text-indigo-500" /> Biometric Passkey Authentication (WebAuthn)
           </h3>
-          <p className="text-xs text-secondary mt-0.5">
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
             Passwordless login using Touch ID, Face ID, or Windows Hello.
           </p>
         </div>
@@ -46,14 +46,14 @@ const PasskeyAuth = () => {
 
       <div className="space-y-2">
         {passkeys.map(pk => (
-          <div key={pk.id} className="p-3 rounded-xl bg-surface-2 border border-border flex items-center justify-between text-xs">
+          <div key={pk.id} className="p-3 rounded-xl bg-surface-2 border border-[var(--border)] flex items-center justify-between text-xs">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
                 <ShieldCheck size={16} />
               </div>
               <div>
-                <span className="font-bold text-white text-sm block">{pk.name}</span>
-                <span className="text-[10px] text-secondary">Added on {pk.createdAt}</span>
+                <span className="font-bold text-[var(--text-primary)] text-sm block">{pk.name}</span>
+                <span className="text-[10px] text-[var(--text-secondary)]">Added on {pk.createdAt}</span>
               </div>
             </div>
             <span className="badge badge-emerald text-[10px]">Active</span>

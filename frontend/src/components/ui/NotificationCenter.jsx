@@ -67,12 +67,12 @@ const NotificationCenter = () => {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-zinc-300 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-zinc-800 flex items-center justify-center"
+        className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 rounded-xl transition-all border border-[var(--border)] flex items-center justify-center"
         title="Notifications"
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-black text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -94,13 +94,13 @@ const NotificationCenter = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed top-0 right-0 h-full w-full max-w-md bg-[#0d0d10] border-l border-border z-20 shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 h-full w-full max-w-md bg-[var(--sidebar-bg)] border-l border-[var(--border)] z-20 shadow-2xl flex flex-col"
             >
               {/* Drawer Header */}
-              <div className="p-4 border-b border-border flex items-center justify-between bg-surface shrink-0">
+              <div className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-2)] shrink-0">
                 <div className="flex items-center gap-2">
                   <Bell size={18} className="text-indigo-400" />
-                  <h3 className="font-bold text-white text-base">Notifications</h3>
+                  <h3 className="font-bold text-[var(--text-primary)] text-base">Notifications</h3>
                   {unreadCount > 0 && (
                     <span className="badge badge-emerald text-[10px]">{unreadCount} unread</span>
                   )}
@@ -117,7 +117,7 @@ const NotificationCenter = () => {
                   )}
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="p-1 text-secondary hover:text-white rounded-lg hover:bg-white/10"
+                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-black/5"
                   >
                     <X size={18} />
                   </button>
@@ -127,10 +127,10 @@ const NotificationCenter = () => {
               {/* Notification List */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                 {notifications.length === 0 ? (
-                  <div className="text-center py-16 text-secondary space-y-3">
-                    <Bell size={36} className="mx-auto text-zinc-600 opacity-50" />
-                    <p className="text-sm font-semibold text-white">No notifications</p>
-                    <p className="text-xs text-zinc-500">All alerts and system announcements will appear here.</p>
+                  <div className="text-center py-16 text-[var(--text-muted)] space-y-3">
+                    <Bell size={36} className="mx-auto text-[var(--text-muted)] opacity-50" />
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">No notifications</p>
+                    <p className="text-xs text-[var(--text-muted)]">All alerts and system announcements will appear here.</p>
                   </div>
                 ) : (
                   notifications.map((n) => {
@@ -143,7 +143,7 @@ const NotificationCenter = () => {
                         className={`p-3.5 rounded-xl border text-left transition-all relative group ${
                           n.isRead === 0
                             ? 'bg-indigo-500/5 border-indigo-500/20 shadow-sm'
-                            : 'bg-surface/50 border-border/50 opacity-75'
+                            : 'bg-[var(--surface)] border-[var(--border)] opacity-75'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -152,7 +152,7 @@ const NotificationCenter = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <p className={`text-xs font-semibold ${n.isRead === 0 ? 'text-white' : 'text-zinc-300'}`}>
+                              <p className={`text-xs font-semibold ${n.isRead === 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                                 {n.title}
                               </p>
                               {n.isRead === 0 && (

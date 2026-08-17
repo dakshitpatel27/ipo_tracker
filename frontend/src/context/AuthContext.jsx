@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       if (pollInterval.current) clearInterval(pollInterval.current);
     };
-  }, [user, isSuspended]);
+  }, [user?.id, isSuspended]);
 
   const login = async (username, password) => {
     const data = await api.login({ username, password });

@@ -36,9 +36,9 @@ export default function TradingTicker() {
   const duplicatedItems = [...tickerItems, ...tickerItems, ...tickerItems];
 
   return (
-    <div className="w-full bg-[#0c0c0e] border-b border-[#27272a] py-1.5 px-4 overflow-hidden relative select-none flex items-center">
-      <div className="flex items-center gap-2 pr-3 z-10 bg-[#0c0c0e] text-[10px] font-bold tracking-widest text-indigo-400 uppercase shrink-0 border-r border-[#27272a]">
-        <Activity size={12} className="animate-pulse text-emerald-400" />
+    <div className="w-full bg-[var(--surface-2)] border-b border-[var(--border)] py-1.5 px-4 overflow-hidden relative select-none flex items-center">
+      <div className="flex items-center gap-2 pr-3 z-10 bg-[var(--surface-2)] text-[10px] font-bold tracking-widest text-indigo-500 uppercase shrink-0 border-r border-[var(--border)]">
+        <Activity size={12} className="animate-pulse text-emerald-500" />
         <span>LIVE GMP DESK</span>
       </div>
 
@@ -46,9 +46,9 @@ export default function TradingTicker() {
         <div className="trading-ticker gap-6 items-center">
           {duplicatedItems.map((item, idx) => (
             <div key={idx} className="inline-flex items-center gap-2 text-[11px] font-mono shrink-0">
-              <span className="font-bold text-zinc-300">{item.name}</span>
+              <span className="font-bold text-[var(--text-primary)]">{item.name}</span>
               <span className={`px-1.5 py-0.2 rounded font-extrabold flex items-center gap-1 ${
-                item.isPositive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                item.isPositive ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
               }`}>
                 {item.isPositive ? <TrendingUp size={10} /> : null}
                 {item.gmp}

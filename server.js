@@ -2771,6 +2771,32 @@ app.delete('/api/imports/:id/undo', authMiddleware, (req, res) => {
 });
 
 // ===========================
+// DAILY MORNING DIGEST API
+// ===========================
+app.post('/api/digest/send-now', authMiddleware, (req, res) => {
+    // Generate notification item for in-app inbox & Telegram
+    const notificationId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+    const createdAt = new Date().toISOString();
+    const todayStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+
+    db.all('SELECT * FROM watchlist WHERE userId = ?', [req.user.id], (err, watchItems) => {
+        const watchCount = (watchItems || []).length;
+        const title = `🌅 Morning IPO Digest — ${todayStr}`;
+        const body = `Good morning! You are tracking ${watchCount} IPOs on your watchlist. Check live GMP trends, subscription multiples, and upcoming allotment dates for today!`;
+
+        db.run(
+            `INSERT INTO user_notifications (id, userId, title, body, type, isRead, createdAt)
+             VALUES (?, ?, ?, ?, 'system', 0, ?)`,
+            [notificationId, req.user.id, title, body, createdAt],
+            function (insertErr) {
+                if (insertErr) return res.status(500).json({ error: insertErr.message });
+                res.json({ message: 'Morning digest generated & sent to notification inbox!', title, body });
+            }
+        );
+    });
+});
+
+// ===========================
 // USER PREFERENCES API (Feature 2)
 // ===========================
 app.get('/api/users/preferences', authMiddleware, (req, res) => {

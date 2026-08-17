@@ -207,7 +207,7 @@ const Watchlist = () => {
                     {item.openDate && (
                       <div className="bg-surface/50 border border-border/50 rounded-lg px-2.5 py-1.5">
                         <div className="section-label text-[0.6rem]">Open Date</div>
-                        <div className="text-xs font-semibold text-white">{new Date(item.openDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                        <div className="text-xs font-semibold text-[var(--text-primary)]">{new Date(item.openDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                         {getCountdown(item.openDate) && (
                           <div className={`text-[10px] font-bold mt-0.5 ${getCountdown(item.openDate) === 'Past' ? 'text-zinc-500' : getCountdown(item.openDate) === 'Today' ? 'text-emerald-400' : 'text-amber-400'}`}>
                             {getCountdown(item.openDate)}
@@ -218,7 +218,7 @@ const Watchlist = () => {
                     {item.closeDate && (
                       <div className="bg-surface/50 border border-border/50 rounded-lg px-2.5 py-1.5">
                         <div className="section-label text-[0.6rem]">Close Date</div>
-                        <div className="text-xs font-semibold text-white">{new Date(item.closeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                        <div className="text-xs font-semibold text-[var(--text-primary)]">{new Date(item.closeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                         {getCountdown(item.closeDate) && (
                           <div className={`text-[10px] font-bold mt-0.5 ${getCountdown(item.closeDate) === 'Past' ? 'text-zinc-500' : getCountdown(item.closeDate) === 'Today' ? 'text-rose-400' : 'text-amber-400'}`}>
                             {getCountdown(item.closeDate)}

@@ -787,7 +787,7 @@ const Records = () => {
                 </div>
               ) : (
                 <table className="data-table whitespace-nowrap">
-                  <thead className="sticky top-0 z-10" style={{ background: 'rgba(8,11,18,0.95)', backdropFilter: 'blur(12px)' }}>
+                  <thead className="sticky top-0 z-10 bg-[var(--surface-2)] backdrop-blur-md">
                     <tr>
                       <th>IPO Name</th>
                       <th>Applicant</th>
@@ -809,7 +809,7 @@ const Records = () => {
                       >
                         <td>
                           <div className="flex flex-col gap-1">
-                            <span className="font-semibold text-white text-[0.8125rem]">{record.ipoName}</span>
+                            <span className="font-semibold text-[var(--text-primary)] text-[0.8125rem]">{record.ipoName}</span>
                             {record.listingDate && (
                               <CountdownBadge targetDate={record.listingDate} label="Lists" variant="listing" />
                             )}

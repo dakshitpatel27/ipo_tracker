@@ -14,7 +14,7 @@ export default function MobileBottomNav() {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09090b]/95 backdrop-blur-xl border-t border-[#27272a] px-1 sm:px-3 py-1 sm:py-1.5 flex items-center justify-around select-none shadow-2xl pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--sidebar-bg)]/95 backdrop-blur-xl border-t border-[var(--border)] px-1 sm:px-3 py-1 sm:py-1.5 flex items-center justify-around select-none shadow-2xl pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.path;
@@ -24,8 +24,8 @@ export default function MobileBottomNav() {
             to={item.path}
             className={`flex flex-col items-center justify-center py-1 px-1.5 sm:px-2 rounded-xl transition-all min-w-[56px] ${
               isActive
-                ? 'text-indigo-400 font-bold scale-105'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'text-indigo-500 font-bold scale-105'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
             <div className={`p-1.5 rounded-xl ${isActive ? 'bg-indigo-500/15 border border-indigo-500/30' : ''}`}>

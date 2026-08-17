@@ -100,15 +100,15 @@ const Profile = () => {
       {/* Page Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] tracking-tight flex items-center gap-2.5">
             <User className="text-indigo-400" size={28} /> My Profile
           </h1>
-          <p className="text-xs sm:text-sm text-secondary mt-0.5">Manage your personal details, account settings & security preferences.</p>
+          <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-0.5">Manage your personal details, account settings & security preferences.</p>
         </div>
 
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-semibold text-xs hover:bg-rose-500/20 transition-all shadow-lg shadow-rose-500/5 cursor-pointer shrink-0"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 font-semibold text-xs hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/5 cursor-pointer shrink-0"
         >
           <LogOut size={16} />
           <span>Log Out</span>
@@ -121,16 +121,16 @@ const Profile = () => {
         
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10 text-center sm:text-left">
           {/* Avatar circle */}
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-indigo-500/20 via-indigo-600/10 to-indigo-800/20 border-2 border-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-[0_0_30px_rgba(99,102,241,0.2)] shrink-0 select-none">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-indigo-500/20 via-indigo-600/10 to-indigo-800/20 border-2 border-indigo-500/30 text-indigo-500 flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-[0_0_30px_rgba(99,102,241,0.2)] shrink-0 select-none">
             {user?.name ? user.name.charAt(0).toUpperCase() : (user?.username ? user.username.charAt(0).toUpperCase() : <User size={48} />)}
           </div>
 
           <div className="flex-1 min-w-0 space-y-2.5">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight leading-tight">
                 {user?.name || user?.username}
               </h2>
-              <div className="text-sm text-indigo-400 font-medium tracking-tight mt-0.5">
+              <div className="text-sm text-indigo-500 font-medium tracking-tight mt-0.5">
                 @{user?.username}
               </div>
             </div>
@@ -142,24 +142,24 @@ const Profile = () => {
                 {roleBadge.label}
               </span>
 
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${user?.subscription === 'pro' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${user?.subscription === 'pro' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)]'}`}>
                 <Sparkles size={13} />
                 {user?.subscription === 'pro' ? 'Pro Plan' : 'Free Tier'}
               </span>
 
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold uppercase tracking-wider">
                 <CheckCircle size={13} /> Active Account
               </span>
             </div>
 
             {/* Account Metadata */}
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-secondary pt-2">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-[var(--text-secondary)] pt-2">
               <div className="flex items-center gap-1.5">
-                <Mail size={14} className="text-indigo-400/70" />
+                <Mail size={14} className="text-indigo-500/70" />
                 <span>{user?.email || 'No email attached'}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Calendar size={14} className="text-indigo-400/70" />
+                <Calendar size={14} className="text-indigo-500/70" />
                 <span>Member since {joinedDate}</span>
               </div>
             </div>
@@ -172,9 +172,9 @@ const Profile = () => {
         {/* Section 1: Edit Personal Details */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-              <User size={18} className="text-indigo-400" />
-              <h3 className="text-base font-bold text-white tracking-tight">Personal Information</h3>
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border)]">
+              <User size={18} className="text-indigo-500" />
+              <h3 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Personal Information</h3>
             </div>
 
             <form onSubmit={handleUpdateProfile} className="space-y-4">

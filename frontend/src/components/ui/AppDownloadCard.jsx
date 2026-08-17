@@ -90,21 +90,21 @@ const AppDownloadCard = () => {
           <span className="badge badge-indigo text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5 w-fit">
             <Sparkles size={12} /> Native Web App (PWA)
           </span>
-          <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">
-            <Download size={18} className="text-indigo-400 shrink-0" /> Download & Install IPO Tracker App
+          <h3 className="font-bold text-[var(--text-primary)] text-base sm:text-lg flex items-center gap-2">
+            <Download size={18} className="text-indigo-500 shrink-0" /> Download & Install IPO Tracker App
           </h3>
-          <p className="text-xs text-secondary mt-1">
+          <p className="text-xs text-[var(--text-secondary)] mt-1">
             Install IPO Tracker on your Mobile or Desktop for 1-click home screen access, offline support & real-time alerts.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border flex items-center gap-1.5 ${isOnline ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+          <div className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border flex items-center gap-1.5 ${isOnline ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 'bg-amber-500/10 text-amber-500 border-amber-500/30'}`}>
             <Wifi size={12} /> {isOnline ? 'PWA Online' : 'Offline Mode'}
           </div>
           {isInstalled && (
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-emerald-400" /> App Installed
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/30 flex items-center gap-1">
+              <CheckCircle2 size={12} className="text-emerald-500" /> App Installed
             </span>
           )}
         </div>
@@ -113,12 +113,12 @@ const AppDownloadCard = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Column: Direct Install Buttons */}
         <div className="md:col-span-2 space-y-4">
-          <div className="bg-gradient-to-br from-indigo-900/40 via-surface-2 to-surface-1 p-4 sm:p-5 rounded-2xl border border-indigo-500/30 flex flex-col justify-between space-y-4">
+          <div className="bg-gradient-to-br from-indigo-500/10 via-surface-2 to-surface-1 p-4 sm:p-5 rounded-2xl border border-indigo-500/30 flex flex-col justify-between space-y-4">
               <div className="flex items-center gap-3">
                 <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover shadow-lg shadow-emerald-500/30 shrink-0 border border-emerald-500/30" />
                 <div>
-                  <h4 className="font-bold text-white text-sm sm:text-base">IPO Tracker Native App</h4>
-                  <p className="text-[11px] sm:text-xs text-secondary">Instant Home Screen access • Dedicated window • Offline ready</p>
+                  <h4 className="font-bold text-[var(--text-primary)] text-sm sm:text-base">IPO Tracker Native App</h4>
+                  <p className="text-[11px] sm:text-xs text-[var(--text-secondary)]">Instant Home Screen access • Dedicated window • Offline ready</p>
                 </div>
               </div>
             </div>
@@ -133,7 +133,7 @@ const AppDownloadCard = () => {
 
               <button
                 onClick={handleDownloadDesktopApp}
-                className="btn-outline py-2 px-3 text-xs font-semibold text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 flex items-center gap-1.5 flex-1 sm:flex-initial justify-center"
+                className="btn-outline py-2 px-3 text-xs font-semibold text-indigo-500 border-indigo-500/30 hover:bg-indigo-500/10 flex items-center gap-1.5 flex-1 sm:flex-initial justify-center"
                 title="Download Desktop App shortcut icon for Windows & Mac"
               >
                 <Monitor size={14} /> Desktop App (.url)
@@ -141,7 +141,7 @@ const AppDownloadCard = () => {
 
               <button
                 onClick={handleDownloadAndroidLauncher}
-                className="btn-outline py-2 px-3 text-xs font-semibold text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 flex items-center gap-1.5 flex-1 sm:flex-initial justify-center"
+                className="btn-outline py-2 px-3 text-xs font-semibold text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10 flex items-center gap-1.5 flex-1 sm:flex-initial justify-center"
                 title="Download Android WebApp configuration package"
               >
                 <Smartphone size={14} /> Package (.webmanifest)
@@ -164,27 +164,27 @@ const AppDownloadCard = () => {
             <div className="flex border-b border-border text-xs font-semibold gap-3 overflow-x-auto custom-scrollbar pb-0.5">
               <button
                 onClick={() => setActiveTab('android')}
-                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'android' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-secondary hover:text-white'}`}
+                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'android' ? 'border-indigo-500 text-indigo-500 font-bold' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               >
                 <Smartphone size={14} /> Android (Chrome)
               </button>
               <button
                 onClick={() => setActiveTab('ios')}
-                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'ios' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-secondary hover:text-white'}`}
+                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'ios' ? 'border-indigo-500 text-indigo-500 font-bold' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               >
                 <Smartphone size={14} /> iPhone / iPad (Safari)
               </button>
               <button
                 onClick={() => setActiveTab('desktop')}
-                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'desktop' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-secondary hover:text-white'}`}
+                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'desktop' ? 'border-indigo-500 text-indigo-500 font-bold' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               >
                 <Monitor size={14} /> Windows / Mac Desktop
               </button>
             </div>
 
-            <div className="bg-surface-2 p-4 rounded-xl text-xs space-y-2 text-secondary border border-border">
+            <div className="bg-surface-2 p-4 rounded-xl text-xs space-y-2 text-[var(--text-secondary)] border border-border">
               {activeTab === 'android' && (
-                <ol className="list-decimal list-inside space-y-1.5 text-zinc-300">
+                <ol className="list-decimal list-inside space-y-1.5 text-[var(--text-primary)]">
                   <li>Open <strong>IPO Tracker</strong> in Chrome on your Android phone.</li>
                   <li>Tap the <strong>three dots (⋮)</strong> menu in top-right corner.</li>
                   <li>Select <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home screen&quot;</strong>.</li>
@@ -193,7 +193,7 @@ const AppDownloadCard = () => {
               )}
 
               {activeTab === 'ios' && (
-                <ol className="list-decimal list-inside space-y-1.5 text-zinc-300">
+                <ol className="list-decimal list-inside space-y-1.5 text-[var(--text-primary)]">
                   <li>Open <strong>IPO Tracker</strong> in <strong>Safari</strong> on iPhone or iPad.</li>
                   <li>Tap the <strong>Share button (Square with arrow ↑)</strong> at bottom.</li>
                   <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong>.</li>
@@ -202,7 +202,7 @@ const AppDownloadCard = () => {
               )}
 
               {activeTab === 'desktop' && (
-                <ol className="list-decimal list-inside space-y-1.5 text-zinc-300">
+                <ol className="list-decimal list-inside space-y-1.5 text-[var(--text-primary)]">
                   <li>Open this URL in Google Chrome or Microsoft Edge.</li>
                   <li>Look for the <strong>Install icon (⊕)</strong> in your browser address bar.</li>
                   <li>Click <strong>Install IPO Tracker</strong> to run as a standalone desktop software!</li>
@@ -222,8 +222,8 @@ const AppDownloadCard = () => {
           </div>
 
           <div>
-            <h5 className="font-bold text-white text-xs flex items-center justify-center gap-1.5">
-              <QrCode size={14} className="text-indigo-400" /> Scan Mobile QR Code
+            <h5 className="font-bold text-[var(--text-primary)] text-xs flex items-center justify-center gap-1.5">
+              <QrCode size={14} className="text-indigo-500" /> Scan Mobile QR Code
             </h5>
             <p className="text-[11px] text-secondary mt-0.5">
               Scan with your phone camera to instantly open IPO Tracker on your mobile browser.

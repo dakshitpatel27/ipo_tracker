@@ -9,6 +9,7 @@ import confetti from 'canvas-confetti';
 import Trading3DCard from '../components/ui/Trading3DCard';
 import AsbaOpportunityLoss from '../components/ui/AsbaOpportunityLoss';
 import FamilyProfitLedger from '../components/ui/FamilyProfitLedger';
+import ShareableGainCard from '../components/ui/ShareableGainCard';
 import { getRecordProfit } from '../utils/profitCalculator';
 
 export default function AllottedPortfolio() {
@@ -19,6 +20,7 @@ export default function AllottedPortfolio() {
 
   // Sold Action Modal State
   const [selectedRecordForSale, setSelectedRecordForSale] = useState(null);
+  const [selectedRecordForShare, setSelectedRecordForShare] = useState(null);
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
   const [sellDate, setSellDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -151,66 +153,66 @@ export default function AllottedPortfolio() {
       {/* Portfolio KPI Summary Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Trading3DCard glowColor="emerald" className="rounded-xl">
-          <div className="p-4 bg-[#141418] border border-[#27272a] hover:border-emerald-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
+          <div className="p-4 bg-surface-2 border border-border hover:border-emerald-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">Total Allotted Value</span>
-              <span className="text-xl font-black font-mono text-emerald-400">₹{totalAllottedVal.toLocaleString('en-IN')}</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">Total Allotted Value</span>
+              <span className="text-xl font-black font-mono text-emerald-500">₹{totalAllottedVal.toLocaleString('en-IN')}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 trading-pulse-emerald">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 trading-pulse-emerald">
               <CheckCircle2 size={20} />
             </div>
           </div>
         </Trading3DCard>
 
         <Trading3DCard glowColor="rose" className="rounded-xl">
-          <div className="p-4 bg-[#141418] border border-[#27272a] hover:border-rose-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
+          <div className="p-4 bg-surface-2 border border-border hover:border-rose-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">Pending Mandate Refunds</span>
-              <span className="text-xl font-black font-mono text-rose-400">₹{totalPendingRefunds.toLocaleString('en-IN')}</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">Pending Mandate Refunds</span>
+              <span className="text-xl font-black font-mono text-rose-500">₹{totalPendingRefunds.toLocaleString('en-IN')}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
               <XCircle size={20} />
             </div>
           </div>
         </Trading3DCard>
 
         <Trading3DCard glowColor="indigo" className="rounded-xl">
-          <div className="p-4 bg-[#141418] border border-[#27272a] hover:border-indigo-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
+          <div className="p-4 bg-surface-2 border border-border hover:border-indigo-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">Total Realized Sales Profit</span>
-              <span className={`text-xl font-black font-mono ${totalRealizedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">Total Realized Sales Profit</span>
+              <span className={`text-xl font-black font-mono ${totalRealizedProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                 {totalRealizedProfit >= 0 ? `+₹${totalRealizedProfit.toLocaleString('en-IN')}` : `-₹${Math.abs(totalRealizedProfit).toLocaleString('en-IN')}`}
               </span>
             </div>
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 trading-pulse-indigo">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 trading-pulse-indigo">
               <TrendingUp size={20} />
             </div>
           </div>
         </Trading3DCard>
 
         <Trading3DCard glowColor="amber" className="rounded-xl">
-          <div className="p-4 bg-[#141418] border border-[#27272a] hover:border-amber-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
+          <div className="p-4 bg-surface-2 border border-border hover:border-amber-500/40 rounded-xl flex items-center justify-between transition-all shadow-lg">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">Est. STCG Tax (@ 20%)</span>
-              <span className="text-xl font-black font-mono text-amber-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">Est. STCG Tax (@ 20%)</span>
+              <span className="text-xl font-black font-mono text-amber-500">
                 ₹{(totalRealizedProfit > 0 ? totalRealizedProfit * 0.20 : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </span>
               <div className="flex flex-wrap gap-2 mt-1">
                 <button
                   onClick={() => window.open('/api/reports/ca-tax-audit-pdf?token=' + localStorage.getItem('ipo_token'), '_blank')}
-                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold block underline"
+                  className="text-[10px] text-indigo-500 hover:text-indigo-600 font-bold block underline"
                 >
                   🖨️ CA Audit PDF
                 </button>
                 <button
                   onClick={() => window.open('/api/reports/itr2-json?token=' + localStorage.getItem('ipo_token'), '_blank')}
-                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold block underline"
+                  className="text-[10px] text-emerald-500 hover:text-emerald-600 font-bold block underline"
                 >
                   📑 ITR-2 JSON
                 </button>
               </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
               <ShieldCheck size={20} />
             </div>
           </div>
@@ -224,7 +226,7 @@ export default function AllottedPortfolio() {
       </div>
 
       {/* Tabs Header */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-[#27272a] pb-1">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border pb-1">
         <button
           onClick={() => setActiveTab('allotted')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
@@ -416,6 +418,15 @@ export default function AllottedPortfolio() {
                                   Hold
                                 </button>
                               )}
+                              {r.holdingStatus === 'Sold' && (
+                                <button
+                                  onClick={() => setSelectedRecordForShare(r)}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white transition-colors text-xs font-bold"
+                                  title="Export Victory Card"
+                                >
+                                  Share Card 🏆
+                                </button>
+                              )}
                               {r.holdingStatus !== 'Sold' && (
                                 <button
                                   onClick={() => {
@@ -562,6 +573,17 @@ export default function AllottedPortfolio() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Shareable Victory Card Popup */}
+      <ShareableGainCard
+        isOpen={!!selectedRecordForShare}
+        onClose={() => setSelectedRecordForShare(null)}
+        ipoName={selectedRecordForShare?.ipoName || 'IPO Application'}
+        profit={selectedRecordForShare ? getRecordProfit(selectedRecordForShare) : 0}
+        returnPct={selectedRecordForShare ? Math.round(((getRecordProfit(selectedRecordForShare) / (parseFloat(selectedRecordForShare.amount) || 15000)) * 100)) : 0}
+        applicant={selectedRecordForShare?.applicantName || 'Primary'}
+        lotCount={selectedRecordForShare ? Math.ceil((parseFloat(selectedRecordForShare.shares) || 15) / 15) : 1}
+      />
     </div>
   );
 }

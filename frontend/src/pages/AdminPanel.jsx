@@ -510,10 +510,10 @@ const AdminPanel = () => {
     <div className="space-y-6 flex-1 w-full h-full flex flex-col">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
             <Shield className="text-emerald-500" /> Admin Panel
           </h1>
-          <p className="text-sm text-secondary">Manage the platform.</p>
+          <p className="text-sm text-[var(--text-secondary)]">Manage the platform.</p>
         </div>
       </motion.div>
       
@@ -524,7 +524,7 @@ const AdminPanel = () => {
                  <button 
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-surface/50 text-secondary hover:text-white border border-transparent'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' : 'bg-surface/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)]'}`}
                  >
                      <Icon size={16} /> {tab.label}
                  </button>
@@ -537,23 +537,23 @@ const AdminPanel = () => {
             <div className="flex flex-col h-full">
               {selectedUsers.length > 0 && (
                 <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-3 flex justify-between items-center text-sm">
-                  <div className="text-emerald-400 font-medium">
+                  <div className="text-emerald-500 font-medium">
                     {selectedUsers.length} user(s) selected
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleBulkRole('admin')} className="px-3 py-1 bg-surface border border-border rounded hover:bg-white/5 transition-colors">Make Admins</button>
-                    <button onClick={() => handleBulkRole('user')} className="px-3 py-1.5 bg-black/20 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg border border-border transition-colors">Make Users</button>
-                    <button onClick={handleBulkNotifyClick} className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/30 transition-colors">Send Message</button>
-                    <button onClick={() => setSelectedUsers([])} className="px-3 py-1.5 text-secondary text-xs hover:text-white transition-colors">Cancel</button>
+                    <button onClick={() => handleBulkRole('admin')} className="px-3 py-1 bg-surface border border-border rounded hover:bg-black/5 transition-colors">Make Admins</button>
+                    <button onClick={() => handleBulkRole('user')} className="px-3 py-1.5 bg-surface-2 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold rounded-lg border border-border transition-colors">Make Users</button>
+                    <button onClick={handleBulkNotifyClick} className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 text-xs font-bold rounded-lg border border-blue-500/30 transition-colors">Send Message</button>
+                    <button onClick={() => setSelectedUsers([])} className="px-3 py-1.5 text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] transition-colors">Cancel</button>
                   </div>
                 </div>
               )}
               <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
-                <table className="w-full text-left text-sm text-gray-300">
-                  <thead className="text-xs uppercase bg-black/40 text-secondary font-semibold sticky top-0 z-10 backdrop-blur-md">
+                <table className="w-full text-left text-sm text-[var(--text-primary)]">
+                  <thead className="text-xs uppercase bg-[var(--surface-2)] text-[var(--text-muted)] font-semibold sticky top-0 z-10 backdrop-blur-md border-b border-[var(--border)]">
                     <tr>
                       <th className="px-4 py-4 w-12 text-center">
-                        <input type="checkbox" className="rounded bg-black/20 border-border cursor-pointer accent-emerald-500" 
+                        <input type="checkbox" className="rounded bg-surface-2 border-border cursor-pointer accent-emerald-500" 
                                checked={selectedUsers.length > 0 && selectedUsers.length === users.length} 
                                onChange={selectAllUsers} />
                       </th>
@@ -567,9 +567,9 @@ const AdminPanel = () => {
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {users.map((user) => (
-                    <tr key={user.id} className={`hover:bg-white/5 transition-colors ${selectedUsers.includes(user.id) ? 'bg-emerald-500/5' : ''}`}>
+                    <tr key={user.id} className={`hover:bg-surface-hover transition-colors ${selectedUsers.includes(user.id) ? 'bg-emerald-500/5' : ''}`}>
                       <td className="px-4 py-4 text-center">
-                        <input type="checkbox" className="rounded bg-black/20 border-border cursor-pointer accent-emerald-500" 
+                        <input type="checkbox" className="rounded bg-surface-2 border-border cursor-pointer accent-emerald-500" 
                                checked={selectedUsers.includes(user.id)} 
                                onChange={() => toggleSelectUser(user.id)} />
                       </td>
@@ -579,7 +579,7 @@ const AdminPanel = () => {
                             <User size={14} />
                           </div>
                           <div>
-                            <div className="font-bold text-gray-100">{user.name || user.username}</div>
+                            <div className="font-bold text-[var(--text-primary)]">{user.name || user.username}</div>
                             <div className="text-xs text-secondary">{user.email} • @{user.username}</div>
                           </div>
                         </div>
