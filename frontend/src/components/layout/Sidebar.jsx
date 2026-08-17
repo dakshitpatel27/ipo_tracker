@@ -150,6 +150,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
     {
       label: 'Account',
       items: [
+        { name: 'My Profile', icon: UserCircle, path: '/profile' },
         { name: 'Settings', icon: Settings, path: '/settings' },
       ]
     },
@@ -175,7 +176,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-30"
+            className="md:hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-40"
             onClick={() => setIsOpen(false)}
           />
         )}
@@ -186,7 +187,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         className={`
-          fixed md:sticky top-0 left-0 h-screen w-64 z-40
+          fixed md:sticky top-0 left-0 h-screen w-64 z-50
           flex flex-col shrink-0
           border-r border-[var(--border)]
           transition-transform duration-300 ease-in-out
@@ -280,7 +281,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
         </nav>
 
         {/* User Footer */}
-        <div className="shrink-0 px-2.5 py-3 border-t border-[var(--border)]">
+        <div className="shrink-0 px-2.5 py-3 border-t border-[var(--border)] mb-14 md:mb-0">
           <div
             onClick={() => { navigate('/profile'); setIsOpen(false); }}
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer
@@ -289,12 +290,12 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
               transition-all duration-150 group"
           >
             {/* Avatar */}
-            <div className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
-              <UserCircle size={16} />
+            <div className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 font-bold text-xs">
+              {user?.name ? user.name.charAt(0).toUpperCase() : <UserCircle size={16} />}
             </div>
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="text-[0.78rem] font-semibold text-zinc-200 truncate leading-tight">{user?.username}</div>
+              <div className="text-[0.78rem] font-semibold text-zinc-200 truncate leading-tight">{user?.name || user?.username}</div>
               <div className={`text-[0.58rem] font-bold uppercase tracking-wider mt-0.5 inline-flex items-center px-1.5 py-0.2 rounded border ${roleBadge.color}`}>
                 {roleBadge.label}
               </div>
@@ -302,7 +303,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
             {/* Logout */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowLogoutConfirm(true); }}
-              className="p-1 text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all shrink-0"
+              className="p-1.5 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg transition-all shrink-0 border border-zinc-700/50"
               title="Log Out"
             >
               <LogOut size={14} />

@@ -308,7 +308,7 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <div>
           <h1 className="page-title">
-            {greeting()}, {user?.username?.split(' ')[0] || 'Trader'} 👋
+            {greeting()}, {user?.name || user?.username || 'Trader'} 👋
           </h1>
           <p className="page-subtitle">
             Here's your portfolio snapshot · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}

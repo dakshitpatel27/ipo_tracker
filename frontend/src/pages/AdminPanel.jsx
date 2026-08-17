@@ -579,8 +579,8 @@ const AdminPanel = () => {
                             <User size={14} />
                           </div>
                           <div>
-                            <div className="font-bold text-gray-100">{user.username}</div>
-                            <div className="text-xs text-secondary">{user.email}</div>
+                            <div className="font-bold text-gray-100">{user.name || user.username}</div>
+                            <div className="text-xs text-secondary">{user.email} • @{user.username}</div>
                           </div>
                         </div>
                       </td>

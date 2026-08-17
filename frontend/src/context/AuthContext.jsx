@@ -17,8 +17,18 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('ipo_token');
     const storedUser = localStorage.getItem('ipo_user');
     if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
       api.setToken(token);
+      
+      // Fetch latest profile from server
+      api.getMe().then(res => {
+        if (res.user) {
+          const freshUser = { ...parsedUser, ...res.user };
+          setUser(freshUser);
+          localStorage.setItem('ipo_user', JSON.stringify(freshUser));
+        }
+      }).catch(() => {});
     }
     setLoading(false);
     
@@ -70,8 +80,13 @@ export const AuthProvider = ({ children }) => {
             if (res.user.status === 'rejected') {
               setIsSuspended(true);
               clearInterval(pollInterval.current);
-            } else if (res.user.role !== user.role || res.user.status !== user.status) {
-              // Update user if role/status changed
+            } else if (
+              res.user.name !== user.name ||
+              res.user.email !== user.email ||
+              res.user.role !== user.role ||
+              res.user.status !== user.status
+            ) {
+              // Update user if profile changed
               const updatedUser = { ...user, ...res.user };
               setUser(updatedUser);
               localStorage.setItem('ipo_user', JSON.stringify(updatedUser));
@@ -119,8 +134,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const register = async (username, password, email) => {
-    const data = await api.register({ username, password, email });
+  const register = async (name, username, password, email) => {
+    const data = await api.register({ name, username, password, email });
     if (data.message === 'registered_pending') {
       return data;
     }
@@ -128,6 +143,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('ipo_user', JSON.stringify(data.user));
     setUser(data.user);
     api.setToken(data.token);
+    return data;
+  };
+
+  const updateUserProfile = async (profileData) => {
+    const data = await api.updateProfile(profileData);
+    if (data.user) {
+      const updatedUser = { ...user, ...data.user };
+      setUser(updatedUser);
+      localStorage.setItem('ipo_user', JSON.stringify(updatedUser));
+    }
     return data;
   };
 
@@ -141,7 +166,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, login2FA, register, logout, loading, subscriptionTiers }}>
+    <AuthContext.Provider value={{ user, login, login2FA, register, updateUserProfile, logout, loading, subscriptionTiers }}>
       {children}
       
       <AnimatePresence>

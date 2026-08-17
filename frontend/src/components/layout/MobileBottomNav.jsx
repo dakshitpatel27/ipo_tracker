@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, List, Wallet, Receipt, Settings } from 'lucide-react';
+import { LayoutDashboard, List, Wallet, Receipt, UserCircle } from 'lucide-react';
 
 export default function MobileBottomNav() {
   const location = useLocation();
@@ -10,7 +10,7 @@ export default function MobileBottomNav() {
     { path: '/records', label: 'Records', icon: List },
     { path: '/expenses', label: 'Expenses', icon: Receipt },
     { path: '/accounts', label: 'Accounts', icon: Wallet },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/profile', label: 'Profile', icon: UserCircle },
   ];
 
   return (

@@ -13,6 +13,7 @@ const features = [
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -41,7 +42,7 @@ const Auth = () => {
           }
         }
       } else {
-        const res = await register(username, password, email);
+        const res = await register(name, username, password, email);
         if (res?.message === 'registered_pending') {
           setPendingMessage(true);
         }
@@ -213,24 +214,45 @@ const Auth = () => {
                     <>
                       <AnimatePresence>
                         {!isLogin && (
-                          <motion.div
-                            key="email"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden"
-                          >
-                            <label className="section-label block mb-1.5">Email</label>
-                            <input
-                              type="email"
-                              required
-                              value={email}
-                              onChange={e => setEmail(e.target.value)}
-                              className="input-field"
-                              placeholder="you@example.com"
-                            />
-                          </motion.div>
+                          <>
+                            <motion.div
+                              key="name"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden mb-3"
+                            >
+                              <label className="section-label block mb-1.5">Full Name</label>
+                              <input
+                                type="text"
+                                required
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                className="input-field"
+                                placeholder="Enter your full name"
+                              />
+                            </motion.div>
+
+                            <motion.div
+                              key="email"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden mb-3"
+                            >
+                              <label className="section-label block mb-1.5">Email</label>
+                              <input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                className="input-field"
+                                placeholder="you@example.com"
+                              />
+                            </motion.div>
+                          </>
                         )}
                       </AnimatePresence>
 

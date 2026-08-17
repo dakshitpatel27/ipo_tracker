@@ -191,6 +191,7 @@ const initSchema = () => {
         username TEXT UNIQUE,
         password TEXT,
         email TEXT,
+        name TEXT,
         createdAt TEXT,
         fcmTokens TEXT,
         role TEXT,
@@ -215,6 +216,7 @@ const initSchema = () => {
         biometricEnabled INTEGER DEFAULT 0,
         themeAccent TEXT DEFAULT 'emerald'
     )`, () => {
+        db.run(`ALTER TABLE users ADD COLUMN name TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN fcmTokens TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN role TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN status TEXT`, () => { });

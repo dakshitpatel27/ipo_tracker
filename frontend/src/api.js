@@ -129,6 +129,7 @@ export const api = {
   login: async (credentials) => api.post('/auth/login', credentials),
   register: async (credentials) => api.post('/auth/register', credentials),
   getMe: async () => api.get('/auth/me'),
+  updateProfile: async (data) => api.put('/users/profile', data),
 
   async checkAllotmentBulk(ipoName, registrar, applicants) {
     return api.post('/allotment/check-bulk', { ipoName, registrar, applicants });

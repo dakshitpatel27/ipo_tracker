@@ -205,7 +205,7 @@ if (!process.env.JWT_SECRET) {
 
 // --- AUTH API ---
 app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, res) => {
-    const { username, password, email } = req.body;
+    const { username, password, email, name } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
     try {
@@ -219,8 +219,8 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
             const status = isFirstUser ? 'approved' : 'pending';
 
             db.run(
-                'INSERT INTO users (id, username, password, email, createdAt, role, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [id, username, hashedPassword, email, createdAt, role, status],
+                'INSERT INTO users (id, username, password, email, name, createdAt, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, username, hashedPassword, email || null, name || null, createdAt, role, status],
                 function (err) {
                     if (err) {
                         if (err.message.includes('UNIQUE')) {
@@ -255,10 +255,10 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
                     }
 
                     if (status === 'pending') {
-                        res.json({ message: 'registered_pending', user: { id, username, email, role, status } });
+                        res.json({ message: 'registered_pending', user: { id, username, name: name || null, email, role, status, createdAt } });
                     } else {
                         const token = jwt.sign({ id, username, role, status }, JWT_SECRET, { expiresIn: '7d' });
-                        res.json({ message: 'success', token, user: { id, username, email, role, status } });
+                        res.json({ message: 'success', token, user: { id, username, name: name || null, email, role, status, createdAt } });
                     }
                 }
             );
@@ -306,7 +306,7 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
             const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
             db.run('UPDATE sessions SET token = ? WHERE id = ?', [token, sessionId]);
 
-            res.json({ message: 'success', token, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
+            res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
         });
     });
 });
@@ -332,7 +332,7 @@ app.post('/api/auth/login/2fa', authRateLimiter(10, 15 * 60 * 1000), (req, res) 
         const decryptedSecret = totp.decrypt(user.totpSecret);
         const isValid = totp.verifyTOTP(token, decryptedSecret);
         if (!isValid) {
-            return res.status(401).json({ error: 'Invalid 2FA token' });
+            return res.status(401).json({ error: 'Invalid TOTP token' });
         }
 
         createSession(user.id, req, (err, sessionId) => {
@@ -341,9 +341,33 @@ app.post('/api/auth/login/2fa', authRateLimiter(10, 15 * 60 * 1000), (req, res) 
             const jwtToken = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
             db.run('UPDATE sessions SET token = ? WHERE id = ?', [jwtToken, sessionId]);
 
-            res.json({ message: 'success', token: jwtToken, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status } });
+            res.json({ message: 'success', token: jwtToken, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
         });
     });
+});
+
+// GET current user profile
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+    db.get('SELECT id, username, name, email, role, status, subscription, createdAt FROM users WHERE id = ?', [req.user.id], (err, user) => {
+        if (err || !user) return res.status(404).json({ error: 'User not found' });
+        res.json({ message: 'success', user });
+    });
+});
+
+// PUT update user profile (Name & Email)
+app.put('/api/users/profile', authMiddleware, (req, res) => {
+    const { name, email } = req.body;
+    db.run(
+        'UPDATE users SET name = COALESCE(?, name), email = COALESCE(?, email) WHERE id = ?',
+        [name !== undefined ? name : null, email !== undefined ? email : null, req.user.id],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            db.get('SELECT id, username, name, email, role, status, subscription, createdAt FROM users WHERE id = ?', [req.user.id], (err2, userRow) => {
+                if (err2 || !userRow) return res.status(500).json({ error: 'Failed to retrieve updated profile' });
+                res.json({ message: 'success', user: userRow });
+            });
+        }
+    );
 });
 
 // --- 2FA Setup Endpoints (Authenticated) ---
@@ -2679,7 +2703,7 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
 
 // GET current user state
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-    db.get('SELECT id, username, email, role, status FROM users WHERE id = ?', [req.user.id], (err, user) => {
+    db.get('SELECT id, username, name, email, role, status, subscription, createdAt FROM users WHERE id = ?', [req.user.id], (err, user) => {
         if (err || !user) return res.status(404).json({ error: 'User not found' });
         res.json({ message: 'success', user });
     });
@@ -3928,7 +3952,7 @@ app.post('/api/admin/users/bulk-update', authMiddleware, isAdmin, (req, res) => 
 
 // GET all users (Master Admin / Admin Only)
 const handleGetUsers = (req, res) => {
-    db.all('SELECT id, username, email, role, status, subscription, createdAt FROM users ORDER BY createdAt DESC', [], (err, rows) => {
+    db.all('SELECT id, username, name, email, role, status, subscription, createdAt FROM users ORDER BY createdAt DESC', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success', data: rows || [] });
     });

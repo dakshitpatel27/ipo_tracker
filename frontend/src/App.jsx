@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Records from './pages/Records';
@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast, ToastBar } from 'react-hot-toast';
 import { requestForToken, onMessageListener } from './firebase';
 import { api } from './api';
-import { Menu, X, TrendingUp } from 'lucide-react';
+import { Menu, X, TrendingUp, UserCircle, LogOut } from 'lucide-react';
 import CommandPalette from './components/ui/CommandPalette';
 import RealtimeNotificationListener from './components/ui/RealtimeNotificationListener';
 import TradingTicker from './components/ui/TradingTicker';
@@ -31,6 +31,7 @@ import AnimatedPage from './components/ui/AnimatedPage';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineSyncBanner from './components/ui/OfflineSyncBanner';
 import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
+import ConfirmModal from './components/ui/ConfirmModal';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (
@@ -49,9 +50,11 @@ const GlobalLoader = ({ text, brandName }) => {
 };
 
 function App() {
-  const { user, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [globalBanner, setGlobalBanner] = useState('');
   const [brandName, setBrandName] = useState('IPO Tracker');
   const [brandColor, setBrandColor] = useState('');
@@ -192,22 +195,39 @@ function App() {
 
       {/* Mobile Topbar */}
       <div
-        className={`md:hidden fixed left-0 right-0 z-30 flex items-center justify-between px-4 py-3 ${globalBanner || localStorage.getItem('ipo_master_token') ? 'top-9' : 'top-0'
+        className={`md:hidden fixed left-0 right-0 z-30 flex items-center justify-between px-4 py-2.5 ${globalBanner || localStorage.getItem('ipo_master_token') ? 'top-9' : 'top-0'
           }`}
         style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
             <TrendingUp size={15} />
           </div>
           <span className="font-bold text-[0.9375rem] text-white tracking-tight">{brandName}</span>
         </div>
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/8 rounded-md transition-all border border-[var(--border)]"
-        >
-          {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => navigate('/profile')}
+            className="p-1.5 text-zinc-300 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all border border-zinc-800 flex items-center justify-center"
+            title="My Profile"
+          >
+            <UserCircle size={18} />
+          </button>
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className="p-1.5 text-zinc-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all border border-zinc-800 flex items-center justify-center"
+            title="Log Out"
+          >
+            <LogOut size={17} />
+          </button>
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-1.5 text-[var(--text-secondary)] hover:text-white hover:bg-white/8 rounded-lg transition-all border border-[var(--border)] ml-0.5"
+            title="Menu"
+          >
+            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}
@@ -298,6 +318,14 @@ function App() {
       </Toaster>
       <CommandPalette />
       <RealtimeNotificationListener />
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+        title="Log Out"
+        message="Are you sure you want to log out of your session?"
+        confirmText="Log Out"
+      />
     </div>
   );
 }
