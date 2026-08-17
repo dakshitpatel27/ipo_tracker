@@ -22,11 +22,12 @@ import ExpenseTracker from './pages/ExpenseTracker';
 import NotFound from './pages/NotFound';
 import OfflinePage from './pages/OfflinePage';
 import { useAuth } from './context/AuthContext';
+import { PrivacyProvider, usePrivacy } from './context/PrivacyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast, ToastBar } from 'react-hot-toast';
 import { requestForToken, onMessageListener } from './firebase';
 import { api } from './api';
-import { Menu, X, TrendingUp, UserCircle, LogOut } from 'lucide-react';
+import { Menu, X, TrendingUp, UserCircle, LogOut, Eye, EyeOff } from 'lucide-react';
 import CommandPalette from './components/ui/CommandPalette';
 import RealtimeNotificationListener from './components/ui/RealtimeNotificationListener';
 import TradingTicker from './components/ui/TradingTicker';
@@ -208,6 +209,7 @@ function App() {
           <span className="font-bold text-[0.9375rem] text-[var(--text-primary)] tracking-tight">{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <StealthHeaderButton />
           <button
             onClick={() => navigate('/profile')}
             className="p-1.5 text-[var(--text-secondary)] hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-all border border-[var(--border)] flex items-center justify-center"
@@ -335,4 +337,28 @@ function App() {
   );
 }
 
-export default App;
+const StealthHeaderButton = () => {
+  const { isStealth, toggleStealth } = usePrivacy();
+  return (
+    <button
+      onClick={toggleStealth}
+      className={`p-1.5 rounded-lg transition-all border flex items-center justify-center ${
+        isStealth
+          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+          : 'text-[var(--text-secondary)] hover:text-indigo-500 hover:bg-indigo-500/10 border-[var(--border)]'
+      }`}
+      title={isStealth ? 'Stealth Mode Active (Click to Unmask)' : 'Toggle Stealth Mode (Mask Values)'}
+    >
+      {isStealth ? <EyeOff size={17} /> : <Eye size={17} />}
+    </button>
+  );
+};
+
+export default function AppWithPrivacy() {
+  return (
+    <PrivacyProvider>
+      <App />
+    </PrivacyProvider>
+  );
+}
+

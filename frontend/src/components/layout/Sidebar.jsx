@@ -4,10 +4,11 @@ import {
   LayoutDashboard, List, Settings, PieChart, Users,
   Globe, Shield, LogOut, UserCircle, CalendarDays,
   TrendingUp, ChevronRight, Bell, Check, Trash, Wallet, BookOpen, Receipt,
-  FileSpreadsheet, Sparkles, Eye, Clock, UsersRound
+  FileSpreadsheet, Sparkles, Eye, Clock, UsersRound, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { usePrivacy } from '../../context/PrivacyContext';
 import { api } from '../../api';
 import ConfirmModal from '../ui/ConfirmModal';
 import SmartImportModal from '../ui/SmartImportModal';
@@ -16,6 +17,7 @@ import NotificationCenter from '../ui/NotificationCenter';
 
 const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
   const { user, logout } = useAuth();
+  const { isStealth, toggleStealth } = usePrivacy();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSmartImport, setShowSmartImport] = useState(false);
   const navigate = useNavigate();
@@ -165,8 +167,8 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
             </div>
           )}
 
-          {/* Quick Smart Import Action */}
-          <div className="pt-2">
+          {/* Quick Actions */}
+          <div className="pt-2 space-y-1.5">
             <button
               onClick={() => setShowSmartImport(true)}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 transition-all shadow-lg shadow-indigo-500/10 group"
@@ -174,6 +176,20 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
               <Sparkles size={15} className="text-indigo-400 group-hover:rotate-12 transition-transform" />
               <span>Smart Importer</span>
               <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded uppercase font-bold">New</span>
+            </button>
+            <button
+              onClick={toggleStealth}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                isStealth
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10'
+                  : 'text-[var(--text-secondary)] bg-[var(--surface-2)] border-[var(--border)] hover:text-[var(--text-primary)] hover:border-indigo-500/30'
+              }`}
+            >
+              {isStealth ? <EyeOff size={15} className="text-amber-400" /> : <Eye size={15} className="text-indigo-400" />}
+              <span>{isStealth ? 'Stealth Mode (ON)' : 'Stealth Mode'}</span>
+              <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${isStealth ? 'bg-amber-500/30 text-amber-300' : 'bg-black/20 text-[var(--text-muted)]'}`}>
+                {isStealth ? 'Active' : 'Off'}
+              </span>
             </button>
           </div>
         </nav>

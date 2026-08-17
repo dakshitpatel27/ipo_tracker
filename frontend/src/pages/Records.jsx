@@ -4,13 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, SlidersHorizontal, Trash2, Edit2,
   Upload, Download, ExternalLink, RotateCcw, RefreshCw,
-  ChevronDown, X, FileText, AlertCircle, FileSpreadsheet, Sparkles, Trophy
+  ChevronDown, X, FileText, AlertCircle, FileSpreadsheet, Sparkles, Trophy, QrCode
 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import UpgradeModal from '../components/ui/UpgradeModal';
 import SmartImportModal from '../components/ui/SmartImportModal';
 import AllotmentVictoryModal from '../components/ui/AllotmentVictoryModal';
+import UpiQrModal from '../components/ui/UpiQrModal';
 import IpoForm from '../components/forms/IpoForm';
 import BatchAsbaModal from '../components/forms/BatchAsbaModal';
 import CountdownBadge from '../components/ui/CountdownBadge';
@@ -21,6 +22,7 @@ import IpoProbabilityPredictorModal from '../components/ui/IpoProbabilityPredict
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
+import { usePrivacy } from '../context/PrivacyContext';
 
 import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 
@@ -57,6 +59,7 @@ const StatusBadge = ({ applied, alloted }) => {
 /* ── Records Page ── */
 const Records = () => {
   const { user, subscriptionTiers } = useAuth();
+  const { maskAmount, maskPan } = usePrivacy();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -76,6 +79,8 @@ const Records = () => {
   const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const [victoryRecord, setVictoryRecord] = useState(null);
   const [isVictoryModalOpen, setIsVictoryModalOpen] = useState(false);
+  const [qrRecord, setQrRecord] = useState(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const fileInputRef = useRef(null);
   const filterRef = useRef(null);
 
@@ -838,13 +843,20 @@ const Records = () => {
                           <StatusBadge applied={record.applied} alloted={record.alloted} />
                         </td>
                         <td className="text-right font-mono-num text-[var(--text-secondary)]">
-                          ₹{parseFloat(record.amount || 0).toLocaleString('en-IN')}
+                          {maskAmount(parseFloat(record.amount || 0))}
                         </td>
                         <td className={`text-right font-mono-num font-semibold ${parseFloat(record.profit) > 0 ? 'text-emerald-400' : parseFloat(record.profit) < 0 ? 'text-rose-400' : 'text-[var(--text-muted)]'}`}>
-                          {parseFloat(record.profit) > 0 ? '+' : ''}{parseFloat(record.profit || 0).toLocaleString('en-IN')}
+                          {parseFloat(record.profit) > 0 ? '+' : ''}{maskAmount(parseFloat(record.profit || 0), '')}
                         </td>
                         <td className="text-center">
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => { setQrRecord(record); setIsQrModalOpen(true); }}
+                              className="p-1.5 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                              title="Pay / Mandate via Scannable UPI QR"
+                            >
+                              <QrCode size={14} />
+                            </button>
                             {(String(record.status || '').toUpperCase() === 'ALLOTTED' || parseFloat(record.alloted) > 0) && (
                               <button
                                 onClick={() => { setVictoryRecord(record); setIsVictoryModalOpen(true); }}
@@ -972,6 +984,12 @@ const Records = () => {
       <IpoProbabilityPredictorModal
         isOpen={isPredictorOpen}
         onClose={() => setIsPredictorOpen(false)}
+      />
+
+      <UpiQrModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        record={qrRecord}
       />
     </div>
   );

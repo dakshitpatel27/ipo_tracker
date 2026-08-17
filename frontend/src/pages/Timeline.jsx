@@ -11,11 +11,14 @@ const eventConfig = {
   profit_booked: { icon: DollarSign,   color: 'amber',    bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   dot: 'bg-amber-400',   label: 'Sold' },
 };
 
+import BankRefundTracker from '../components/ui/BankRefundTracker';
+
 const Timeline = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [visibleCount, setVisibleCount] = useState(30);
+  const [activeView, setActiveView] = useState('timeline');
 
   const load = useCallback(async () => {
     try {
@@ -60,15 +63,43 @@ const Timeline = () => {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <div>
-          <h1 className="page-title">Activity Timeline 📋</h1>
-          <p className="page-subtitle">Your complete IPO journey · {events.length} event{events.length !== 1 ? 's' : ''}</p>
+          <h1 className="page-title">Timeline & Refund Tracker 📋</h1>
+          <p className="page-subtitle">Your complete IPO journey & ASBA bank refund schedules</p>
         </div>
-        <button onClick={load} className="btn-outline flex items-center gap-2 text-sm">
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex p-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">
+            <button
+              onClick={() => setActiveView('timeline')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeView === 'timeline'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-[var(--text-muted)] hover:text-white'
+              }`}
+            >
+              Activity Timeline
+            </button>
+            <button
+              onClick={() => setActiveView('refund')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeView === 'refund'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-[var(--text-muted)] hover:text-white'
+              }`}
+            >
+              <span>Bank Refunds</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            </button>
+          </div>
+          <button onClick={load} className="btn-outline flex items-center gap-2 text-sm">
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </motion.div>
 
-      {/* Filters */}
+      {activeView === 'refund' ? (
+        <BankRefundTracker />
+      ) : (
+        <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex items-center gap-2 overflow-x-auto pb-1">
         <Filter size={14} className="text-secondary shrink-0" />
         {[
@@ -175,6 +206,8 @@ const Timeline = () => {
             </motion.div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

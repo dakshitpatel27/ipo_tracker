@@ -25,6 +25,7 @@ import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
 import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
 import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
+import { usePrivacy } from '../context/PrivacyContext';
 
 // Milestone thresholds (in ₹)
 const MILESTONES = [10000, 25000, 50000, 100000, 250000, 500000, 1000000];
@@ -253,7 +254,8 @@ const Dashboard = () => {
     setSyncing(false);
   };
 
-  const fmt = (val) => '₹' + Number(val).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const { maskAmount } = usePrivacy();
+  const fmt = (val) => maskAmount(Number(val) || 0);
 
   const greeting = () => {
     const h = new Date().getHours();

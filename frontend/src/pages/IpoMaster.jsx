@@ -16,6 +16,7 @@ import AnchorLockinTracker from '../components/ui/AnchorLockinTracker';
 import LiveSubscriptionHeatmap from '../components/ui/LiveSubscriptionHeatmap';
 import SmeMarketHub from '../components/ui/SmeMarketHub';
 import AiIpoRating from '../components/ui/AiIpoRating';
+import SmeRiskCard from '../components/ui/SmeRiskCard';
 
 // ─── Feature 6: GMP Sparkline ──────────────────────────────────
 const GmpSparkline = ({ trends }) => {
@@ -404,9 +405,11 @@ const IpoMaster = () => {
                         {gmp}
                         {gmpPercent && <span className="text-[10px] opacity-80">({gmpPercent})</span>}
                       </div>
-                      <GmpSparkline trends={gmpTrends} />
                     </div>
                   </div>
+
+                  {/* SME Risk Suite Warning Card */}
+                  <SmeRiskCard ipo={ipo} />
 
                   {/* Feature 8: Subscription Live Bars */}
                   <SubscriptionBar subscription={ipo.subscription || { overall: ipo.subscriptionRatio }} />
