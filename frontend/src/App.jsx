@@ -40,9 +40,7 @@ import ConfirmModal from './components/ui/ConfirmModal';
 const GlobalLoader = ({ text, brandName }) => {
   return (
     <div className="fixed inset-0 bg-[#09090b] z-[9999] flex flex-col items-center justify-center select-none" style={{ pointerEvents: 'all' }}>
-      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 border border-white/10 mb-4">
-        <TrendingUp size={28} />
-      </div>
+      <img src="/app-icon.png" alt="IPO Tracker Logo" className="w-14 h-14 rounded-2xl object-cover shadow-xl shadow-indigo-500/20 border border-white/10 mb-4 animate-pulse" />
       <div className="text-xs uppercase tracking-widest font-bold text-indigo-400 animate-pulse">
         {brandName}
       </div>
@@ -203,9 +201,11 @@ function App() {
         style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <TrendingUp size={15} />
-          </div>
+          <img
+            src="/app-icon.png"
+            alt="IPO Tracker Logo"
+            className="w-7 h-7 rounded-lg object-cover shadow-md shadow-indigo-500/20 border border-indigo-500/30"
+          />
           <span className="font-bold text-[0.9375rem] text-[var(--text-primary)] tracking-tight">{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
