@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Zap, Users, CheckCircle2, ChevronRight, ChevronLeft, ShieldCheck, Calculator, Wallet, AlertTriangle } from 'lucide-react';
 import { api } from '../../api';
 import toast from 'react-hot-toast';
@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
   const [step, setStep] = useState(1); // Step 1: Select IPO & Applicants | Step 2: Bidding & Lots
   const [ipos, setIpos] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('LIVE'); // 'LIVE', 'CLOSED', 'ALL'
   const [applicants, setApplicants] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [selectedIpo, setSelectedIpo] = useState(null);
@@ -33,12 +34,16 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
 
       setApplicants(appData || []);
       setBankAccounts(acctData || []);
-      const liveIpos = (ipoRes.data || []).filter(i => (i.status || '').toUpperCase() === 'LIVE' || (i.status || '').toUpperCase() === 'UPCOMING');
-      setIpos(liveIpos.length > 0 ? liveIpos : ipoRes.data || []);
+      const allFetchedIpos = ipoRes.data || [];
+      setIpos(allFetchedIpos);
       
+      const liveIpos = allFetchedIpos.filter(i => (i.status || '').toUpperCase() === 'LIVE' || (i.status || '').toUpperCase() === 'UPCOMING');
       if (liveIpos.length > 0) {
         setSelectedIpo(liveIpos[0]);
+      } else if (allFetchedIpos.length > 0) {
+        setSelectedIpo(allFetchedIpos[0]);
       }
+
       if (appData && appData.length > 0) {
         setSelectedApplicantIds(appData.map(a => a.id));
       }
@@ -48,6 +53,23 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
       setLoading(false);
     }
   };
+
+  const filteredIpos = useMemo(() => {
+    if (statusFilter === 'LIVE') {
+      const live = ipos.filter(i => {
+        const s = (i.status || '').toUpperCase();
+        return s === 'LIVE' || s === 'UPCOMING';
+      });
+      return live.length > 0 ? live : ipos;
+    }
+    if (statusFilter === 'CLOSED') {
+      return ipos.filter(i => {
+        const s = (i.status || '').toUpperCase();
+        return s === 'CLOSED' || s === 'LISTED';
+      });
+    }
+    return ipos;
+  }, [ipos, statusFilter]);
 
   if (!isOpen) return null;
 
@@ -161,7 +183,49 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
         {step === 1 && (
           <div className="space-y-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">Select Active IPO</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">Select IPO</label>
+                <div className="flex items-center gap-1 bg-[#141418] p-0.5 rounded-lg border border-[#27272a]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter('LIVE');
+                      const live = ipos.filter(i => (i.status || '').toUpperCase() === 'LIVE' || (i.status || '').toUpperCase() === 'UPCOMING');
+                      if (live.length > 0) setSelectedIpo(live[0]);
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
+                      statusFilter === 'LIVE' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Live & Upcoming
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter('CLOSED');
+                      const closed = ipos.filter(i => (i.status || '').toUpperCase() === 'CLOSED' || (i.status || '').toUpperCase() === 'LISTED');
+                      if (closed.length > 0) setSelectedIpo(closed[0]);
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
+                      statusFilter === 'CLOSED' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Closed / Listed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter('ALL');
+                      if (ipos.length > 0) setSelectedIpo(ipos[0]);
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
+                      statusFilter === 'ALL' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    All ({ipos.length})
+                  </button>
+                </div>
+              </div>
               <select
                 value={selectedIpo?.name || ''}
                 onChange={e => {
@@ -170,9 +234,9 @@ export default function AutomatedIpoFormModal({ isOpen, onClose, onApplied }) {
                 }}
                 className="w-full bg-[#141418] border border-[#27272a] rounded-xl px-4 py-3 text-sm text-white font-semibold focus:outline-none focus:border-indigo-500"
               >
-                {ipos.map((ipo, idx) => (
+                {filteredIpos.map((ipo, idx) => (
                   <option key={idx} value={ipo.name}>
-                    {ipo.name} ({ipo.priceRange || `₹${ipo.price || 0}`} • Lot: {ipo.lotSize || 1})
+                    [{ipo.status || 'Active'}] {ipo.name} ({ipo.priceRange || `₹${ipo.price || 0}`} • Lot: {ipo.lotSize || 1})
                   </option>
                 ))}
               </select>

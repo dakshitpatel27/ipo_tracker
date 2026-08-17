@@ -137,8 +137,10 @@ const IpoMaster = () => {
       const ipoStatus = (ipo.status || '').toUpperCase();
       let matchStatus = statusFilter === 'ALL';
       if (!matchStatus) {
-        if (statusFilter === 'LISTED') {
-          matchStatus = ipoStatus === 'LISTED' || ipoStatus === 'CLOSED';
+        if (statusFilter === 'CLOSED') {
+          matchStatus = ipoStatus === 'CLOSED' || ipoStatus === 'LISTED';
+        } else if (statusFilter === 'LISTED') {
+          matchStatus = ipoStatus === 'LISTED';
         } else {
           matchStatus = ipoStatus === statusFilter;
         }
@@ -225,7 +227,8 @@ const IpoMaster = () => {
                 <option value="ALL">All Status</option>
                 <option value="LIVE">Live Now</option>
                 <option value="UPCOMING">Upcoming</option>
-                <option value="LISTED">Listed / Closed</option>
+                <option value="CLOSED">Closed</option>
+                <option value="LISTED">Listed</option>
               </select>
 
               <select
