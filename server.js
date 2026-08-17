@@ -2701,7 +2701,421 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
     }
 });
 
-// GET current user state
+// ===========================
+// WATCHLIST API (Feature 1)
+// ===========================
+app.get('/api/watchlist', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM watchlist WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.post('/api/watchlist', authMiddleware, (req, res) => {
+    const { ipoName, ipoId, priceBand, openDate, closeDate, listingDate, alertGmpAbove, alertGmpBelow, alertOnAllotment, alertOnListing } = req.body;
+    if (!ipoName) return res.status(400).json({ error: 'IPO name is required' });
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const createdAt = new Date().toISOString();
+
+    db.run(
+        `INSERT INTO watchlist (id, userId, ipoName, ipoId, priceBand, openDate, closeDate, listingDate, alertGmpAbove, alertGmpBelow, alertOnAllotment, alertOnListing, isActive, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        [id, req.user.id, ipoName, ipoId || '', priceBand || '', openDate || '', closeDate || '', listingDate || '', alertGmpAbove || null, alertGmpBelow || null, alertOnAllotment ? 1 : 0, alertOnListing ? 1 : 0, createdAt],
+        function (err) {
+            if (err) return res.status(400).json({ error: err.message });
+            res.json({ message: 'Added to watchlist', id });
+        }
+    );
+});
+
+app.put('/api/watchlist/:id', authMiddleware, (req, res) => {
+    const { alertGmpAbove, alertGmpBelow, alertOnAllotment, alertOnListing, isActive } = req.body;
+    db.run(
+        `UPDATE watchlist SET alertGmpAbove = ?, alertGmpBelow = ?, alertOnAllotment = ?, alertOnListing = ?, isActive = ? WHERE id = ? AND userId = ?`,
+        [alertGmpAbove || null, alertGmpBelow || null, alertOnAllotment ? 1 : 0, alertOnListing ? 1 : 0, isActive !== undefined ? (isActive ? 1 : 0) : 1, req.params.id, req.user.id],
+        function (err) {
+            if (err) return res.status(400).json({ error: err.message });
+            res.json({ message: 'Watchlist alert updated', changes: this.changes });
+        }
+    );
+});
+
+// ===========================
+// BROKER IMPORT UNDO API (Feature 10)
+// ===========================
+app.delete('/api/imports/:id/undo', authMiddleware, (req, res) => {
+    const historyId = req.params.id;
+    db.get('SELECT * FROM import_history WHERE id = ? AND userId = ?', [historyId, req.user.id], (err, historyRecord) => {
+        if (err || !historyRecord) return res.status(404).json({ error: 'Import history session not found' });
+
+        let recordIds = [];
+        try { recordIds = JSON.parse(historyRecord.importedRecordIds || '[]'); } catch (e) {}
+
+        const tableName = historyRecord.tableName || 'records';
+        if (!recordIds || recordIds.length === 0) {
+            db.run('DELETE FROM import_history WHERE id = ?', [historyId], () => {
+                res.json({ message: 'Import history entry removed (0 records were associated)' });
+            });
+            return;
+        }
+
+        const placeholders = recordIds.map(() => '?').join(',');
+        db.run(`DELETE FROM ${tableName} WHERE id IN (${placeholders}) AND userId = ?`, [...recordIds, req.user.id], function (delErr) {
+            if (delErr) return res.status(500).json({ error: delErr.message });
+            db.run('DELETE FROM import_history WHERE id = ?', [historyId], () => {
+                res.json({ message: `Successfully undone import! Reverted ${this.changes} records.`, deletedCount: this.changes });
+            });
+        });
+    });
+});
+
+// ===========================
+// USER PREFERENCES API (Feature 2)
+// ===========================
+app.get('/api/users/preferences', authMiddleware, (req, res) => {
+    db.get('SELECT preferences FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        let prefs = {};
+        try { prefs = JSON.parse(row?.preferences || '{}'); } catch (e) {}
+        res.json({ message: 'success', data: prefs });
+    });
+});
+
+app.put('/api/users/preferences', authMiddleware, (req, res) => {
+    const prefs = JSON.stringify(req.body || {});
+    db.run('UPDATE users SET preferences = ? WHERE id = ?', [prefs, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Preferences saved successfully' });
+    });
+});
+
+// ===========================
+// FAMILY ANALYTICS API (Feature 3)
+// ===========================
+app.get('/api/analytics/family', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!records || records.length === 0) {
+            return res.json({ message: 'success', data: { applicants: [], totals: { totalInvested: 0, totalProfit: 0, totalRecords: 0, allotmentRate: 0 } } });
+        }
+
+        const applicantMap = {};
+        records.forEach(r => {
+            const name = r.applicantName || 'Unknown';
+            if (!applicantMap[name]) {
+                applicantMap[name] = { name, pan: r.pan || '', totalInvested: 0, totalProfit: 0, applied: 0, allotted: 0, recordCount: 0, records: [] };
+            }
+            const a = applicantMap[name];
+            a.recordCount++;
+            a.totalInvested += parseFloat(r.amount) || 0;
+            const profit = parseFloat(r.profit) || ((parseFloat(r.sellPrice) || 0) - (parseFloat(r.price) || 0)) * (parseFloat(r.shares) || 1);
+            a.totalProfit += profit;
+            if (r.applied === 'Yes') a.applied++;
+            const allotted = String(r.alloted || '').toLowerCase();
+            if (allotted === 'allotted' || allotted === 'yes' || (parseInt(r.alloted) > 0 && allotted !== '0')) {
+                a.allotted++;
+            }
+            a.records.push({ ipoName: r.ipoName, amount: parseFloat(r.amount) || 0, profit, listingDate: r.listingDate });
+        });
+
+        const applicants = Object.values(applicantMap).map(a => ({
+            ...a,
+            allotmentRate: a.applied > 0 ? ((a.allotted / a.applied) * 100).toFixed(1) : '0',
+            roi: a.totalInvested > 0 ? ((a.totalProfit / a.totalInvested) * 100).toFixed(1) : '0',
+            records: undefined // Don't send full records in summary
+        }));
+
+        const totals = {
+            totalInvested: applicants.reduce((s, a) => s + a.totalInvested, 0),
+            totalProfit: applicants.reduce((s, a) => s + a.totalProfit, 0),
+            totalRecords: records.length,
+            totalApplicants: applicants.length,
+            totalApplied: applicants.reduce((s, a) => s + a.applied, 0),
+            totalAllotted: applicants.reduce((s, a) => s + a.allotted, 0),
+            allotmentRate: (() => {
+                const totalApplied = applicants.reduce((s, a) => s + a.applied, 0);
+                const totalAllotted = applicants.reduce((s, a) => s + a.allotted, 0);
+                return totalApplied > 0 ? ((totalAllotted / totalApplied) * 100).toFixed(1) : '0';
+            })()
+        };
+
+        res.json({ message: 'success', data: { applicants, totals } });
+    });
+});
+
+// ===========================
+// TIMELINE / ACTIVITY FEED API (Feature 4)
+// ===========================
+app.get('/api/timeline', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const events = [];
+        (records || []).forEach(r => {
+            // Applied event
+            if (r.applied === 'Yes') {
+                events.push({
+                    id: r.id + '_applied',
+                    type: 'applied',
+                    ipoName: r.ipoName,
+                    applicant: r.applicantName,
+                    amount: parseFloat(r.amount) || 0,
+                    shares: parseFloat(r.shares) || 0,
+                    date: r.createdAt,
+                    description: `Applied for ${r.ipoName} with ${r.lotSize || 1} lot(s) (${r.applicantName})`
+                });
+            }
+
+            // Allotment event
+            const allotted = String(r.alloted || '').toLowerCase();
+            if (allotted === 'allotted' || allotted === 'yes' || (parseInt(r.alloted) > 0 && allotted !== '0' && allotted !== 'pending')) {
+                events.push({
+                    id: r.id + '_allotted',
+                    type: 'allotted',
+                    ipoName: r.ipoName,
+                    applicant: r.applicantName,
+                    shares: parseFloat(r.shares) || 0,
+                    price: parseFloat(r.price) || 0,
+                    date: r.listingDate || r.createdAt,
+                    description: `🎉 Allotted ${r.shares || 1} shares of ${r.ipoName} @ ₹${r.price || 0}`
+                });
+            } else if (allotted === 'not allotted' || allotted === 'no' || allotted === '0') {
+                events.push({
+                    id: r.id + '_notallotted',
+                    type: 'not_allotted',
+                    ipoName: r.ipoName,
+                    applicant: r.applicantName,
+                    date: r.listingDate || r.createdAt,
+                    description: `Not allotted for ${r.ipoName} (${r.applicantName}). Refund initiated.`
+                });
+            }
+
+            // Listed event
+            if (r.listingPrice && parseFloat(r.listingPrice) > 0) {
+                const listingGain = ((parseFloat(r.listingPrice) - parseFloat(r.price)) / parseFloat(r.price) * 100).toFixed(1);
+                events.push({
+                    id: r.id + '_listed',
+                    type: 'listed',
+                    ipoName: r.ipoName,
+                    listingPrice: parseFloat(r.listingPrice),
+                    issuePrice: parseFloat(r.price),
+                    gain: listingGain,
+                    date: r.listingDate,
+                    description: `${r.ipoName} listed at ₹${r.listingPrice} (${listingGain >= 0 ? '+' : ''}${listingGain}%)`
+                });
+            }
+
+            // Sold / Profit booked event
+            if (r.holdingStatus === 'Sold' && r.sellPrice) {
+                const profit = parseFloat(r.profit) || ((parseFloat(r.sellPrice) - parseFloat(r.price)) * (parseFloat(r.shares) || 1));
+                events.push({
+                    id: r.id + '_sold',
+                    type: 'profit_booked',
+                    ipoName: r.ipoName,
+                    applicant: r.applicantName,
+                    sellPrice: parseFloat(r.sellPrice),
+                    profit,
+                    date: r.sellDate || r.listingDate,
+                    description: `Sold ${r.shares || 1} shares of ${r.ipoName} @ ₹${r.sellPrice}. Profit: ₹${profit.toLocaleString()}`
+                });
+            }
+        });
+
+        // Sort by date descending
+        events.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+        res.json({ message: 'success', data: events });
+    });
+});
+
+// ===========================
+// USER NOTIFICATIONS INBOX API (Feature 7)
+// ===========================
+app.get('/api/user-notifications', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM user_notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT 100', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.put('/api/user-notifications/:id/read', authMiddleware, (req, res) => {
+    db.run('UPDATE user_notifications SET isRead = 1 WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Marked as read' });
+    });
+});
+
+app.put('/api/user-notifications/read-all', authMiddleware, (req, res) => {
+    db.run('UPDATE user_notifications SET isRead = 1 WHERE userId = ?', [req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'All marked as read', changes: this.changes });
+    });
+});
+
+app.delete('/api/user-notifications/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM user_notifications WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Notification deleted' });
+    });
+});
+
+// ===========================
+// YoY & SECTOR ANALYTICS API (Feature 6)
+// ===========================
+app.get('/api/analytics/sectors', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const sectorMap = {};
+        (records || []).forEach(r => {
+            const sector = r.sector || 'Uncategorized';
+            if (!sectorMap[sector]) sectorMap[sector] = { sector, count: 0, totalInvested: 0, totalProfit: 0, bestIpo: '', bestProfit: 0 };
+            const s = sectorMap[sector];
+            s.count++;
+            s.totalInvested += parseFloat(r.amount) || 0;
+            const profit = parseFloat(r.profit) || ((parseFloat(r.sellPrice) || 0) - (parseFloat(r.price) || 0)) * (parseFloat(r.shares) || 1);
+            s.totalProfit += profit;
+            if (profit > s.bestProfit) { s.bestProfit = profit; s.bestIpo = r.ipoName; }
+        });
+
+        res.json({ message: 'success', data: Object.values(sectorMap) });
+    });
+});
+
+app.get('/api/analytics/registrars', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM records WHERE userId = ? AND applied = ?', [req.user.id, 'Yes'], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const regMap = {};
+        (records || []).forEach(r => {
+            const reg = r.registrar || 'Unknown';
+            if (!regMap[reg]) regMap[reg] = { registrar: reg, applied: 0, allotted: 0 };
+            regMap[reg].applied++;
+            const allotted = String(r.alloted || '').toLowerCase();
+            if (allotted === 'allotted' || allotted === 'yes' || (parseInt(r.alloted) > 0 && allotted !== '0')) {
+                regMap[reg].allotted++;
+            }
+        });
+
+        const data = Object.values(regMap).map(r => ({
+            ...r,
+            allotmentRate: r.applied > 0 ? ((r.allotted / r.applied) * 100).toFixed(1) : '0'
+        }));
+
+        res.json({ message: 'success', data });
+    });
+});
+
+// ===========================
+// MONTHLY REPORT API (Feature 8)
+// ===========================
+app.get('/api/reports/monthly', authMiddleware, (req, res) => {
+    const { month, year } = req.query;
+    const m = parseInt(month) || (new Date().getMonth() + 1);
+    const y = parseInt(year) || new Date().getFullYear();
+
+    db.all('SELECT * FROM records WHERE userId = ?', [req.user.id], (err, records) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const filtered = (records || []).filter(r => {
+            const d = new Date(r.listingDate || r.createdAt);
+            return d.getMonth() + 1 === m && d.getFullYear() === y;
+        });
+
+        const totalApplied = filtered.filter(r => r.applied === 'Yes').length;
+        const totalAllotted = filtered.filter(r => {
+            const a = String(r.alloted || '').toLowerCase();
+            return a === 'allotted' || a === 'yes' || (parseInt(r.alloted) > 0 && a !== '0');
+        }).length;
+        const totalInvested = filtered.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+        const totalProfit = filtered.reduce((s, r) => {
+            return s + (parseFloat(r.profit) || ((parseFloat(r.sellPrice) || 0) - (parseFloat(r.price) || 0)) * (parseFloat(r.shares) || 1));
+        }, 0);
+
+        const top3 = [...filtered]
+            .map(r => ({ ipoName: r.ipoName, profit: parseFloat(r.profit) || ((parseFloat(r.sellPrice) || 0) - (parseFloat(r.price) || 0)) * (parseFloat(r.shares) || 1) }))
+            .sort((a, b) => b.profit - a.profit)
+            .slice(0, 3);
+
+        res.json({
+            message: 'success',
+            data: {
+                month: m, year: y,
+                totalRecords: filtered.length,
+                totalApplied, totalAllotted, totalInvested, totalProfit,
+                allotmentRate: totalApplied > 0 ? ((totalAllotted / totalApplied) * 100).toFixed(1) : '0',
+                top3Ipos: top3
+            }
+        });
+    });
+});
+
+// ===========================
+// AI IPO RATING API (Feature 9)
+// ===========================
+app.get('/api/ipo/rating', authMiddleware, (req, res) => {
+    const { ipoName, gmp, price, subscriptionRetail, subscriptionQib, subscriptionNii, sector } = req.query;
+
+    let score = 0;
+    const factors = [];
+
+    // GMP Strength (0-2 pts)
+    const gmpVal = parseFloat(gmp) || 0;
+    const priceVal = parseFloat(price) || 100;
+    const gmpRatio = (gmpVal / priceVal) * 100;
+    if (gmpRatio >= 30) { score += 2; factors.push({ name: 'GMP Strength', score: 2, max: 2, detail: `GMP at ${gmpRatio.toFixed(0)}% of issue price` }); }
+    else if (gmpRatio >= 10) { score += 1; factors.push({ name: 'GMP Strength', score: 1, max: 2, detail: `GMP at ${gmpRatio.toFixed(0)}% of issue price` }); }
+    else { factors.push({ name: 'GMP Strength', score: 0, max: 2, detail: `GMP at ${gmpRatio.toFixed(0)}% — weak signal` }); }
+
+    // Subscription Trend (0-2 pts)
+    const subRetail = parseFloat(subscriptionRetail) || 0;
+    const subQib = parseFloat(subscriptionQib) || 0;
+    const subNii = parseFloat(subscriptionNii) || 0;
+    const avgSub = (subRetail + subQib + subNii) / 3;
+    if (avgSub >= 10) { score += 2; factors.push({ name: 'Subscription Trend', score: 2, max: 2, detail: `Avg subscription ${avgSub.toFixed(1)}x` }); }
+    else if (avgSub >= 3) { score += 1; factors.push({ name: 'Subscription Trend', score: 1, max: 2, detail: `Avg subscription ${avgSub.toFixed(1)}x` }); }
+    else { factors.push({ name: 'Subscription Trend', score: 0, max: 2, detail: `Avg subscription ${avgSub.toFixed(1)}x — low demand` }); }
+
+    // Sector Performance (0-2 pts) — based on known strong sectors
+    const strongSectors = ['IT', 'Technology', 'BFSI', 'Finance', 'Healthcare', 'Pharma', 'Consumer'];
+    const sectorVal = sector || '';
+    if (strongSectors.some(s => sectorVal.toLowerCase().includes(s.toLowerCase()))) {
+        score += 2; factors.push({ name: 'Sector Performance', score: 2, max: 2, detail: `${sectorVal} is a historically strong sector` });
+    } else if (sectorVal) {
+        score += 1; factors.push({ name: 'Sector Performance', score: 1, max: 2, detail: `${sectorVal} — moderate historical returns` });
+    } else {
+        factors.push({ name: 'Sector Performance', score: 0, max: 2, detail: 'No sector data available' });
+    }
+
+    // Market Context (0-2 pts) — placeholder, always gives 1 for now
+    score += 1; factors.push({ name: 'Market Sentiment', score: 1, max: 2, detail: 'Market conditions neutral' });
+
+    // Pricing (0-2 pts) — based on GMP being positive
+    if (gmpVal > 0) { score += 2; factors.push({ name: 'Pricing Signal', score: 2, max: 2, detail: `Positive GMP of ₹${gmpVal}` }); }
+    else if (gmpVal === 0) { score += 1; factors.push({ name: 'Pricing Signal', score: 1, max: 2, detail: 'GMP is flat' }); }
+    else { factors.push({ name: 'Pricing Signal', score: 0, max: 2, detail: `Negative GMP of ₹${gmpVal}` }); }
+
+    const maxScore = 10;
+    const rating = Math.min(score, maxScore);
+    let recommendation = 'Neutral';
+    if (rating >= 8) recommendation = 'Strong Buy';
+    else if (rating >= 6) recommendation = 'Buy';
+    else if (rating >= 4) recommendation = 'Neutral';
+    else if (rating >= 2) recommendation = 'Avoid';
+    else recommendation = 'Strong Avoid';
+
+    res.json({
+        message: 'success',
+        data: {
+            ipoName: ipoName || 'Unknown IPO',
+            rating, maxScore, recommendation, factors,
+            confidence: factors.filter(f => f.score > 0).length >= 3 ? 'High' : factors.filter(f => f.score > 0).length >= 2 ? 'Medium' : 'Low'
+        }
+    });
+});
+
+
 app.get('/api/auth/me', authMiddleware, (req, res) => {
     db.get('SELECT id, username, name, email, role, status, subscription, createdAt FROM users WHERE id = ?', [req.user.id], (err, user) => {
         if (err || !user) return res.status(404).json({ error: 'User not found' });

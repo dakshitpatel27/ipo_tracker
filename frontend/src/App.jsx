@@ -15,6 +15,9 @@ import Calendar from './pages/Calendar';
 import AllotmentChecker from './pages/AllotmentChecker';
 import AllottedPortfolio from './pages/AllottedPortfolio';
 import PartyLedger from './pages/PartyLedger';
+import Watchlist from './pages/Watchlist';
+import Timeline from './pages/Timeline';
+import FamilyPortfolio from './pages/FamilyPortfolio';
 import ExpenseTracker from './pages/ExpenseTracker';
 import NotFound from './pages/NotFound';
 import OfflinePage from './pages/OfflinePage';
@@ -131,6 +134,9 @@ function App() {
       '/allotment',
       '/allotted',
       '/analytics',
+      '/watchlist',
+      '/timeline',
+      '/family',
       '/settings',
       '/profile',
       '/admin',
@@ -251,6 +257,9 @@ function App() {
               <Route path="/allotment" element={<AnimatedPage><AllotmentChecker /></AnimatedPage>} />
               <Route path="/allotted" element={<AnimatedPage><AllottedPortfolio /></AnimatedPage>} />
               <Route path="/analytics" element={<AnimatedPage><Analytics /></AnimatedPage>} />
+              <Route path="/watchlist" element={<AnimatedPage><Watchlist /></AnimatedPage>} />
+              <Route path="/timeline" element={<AnimatedPage><Timeline /></AnimatedPage>} />
+              <Route path="/family" element={<AnimatedPage><FamilyPortfolio /></AnimatedPage>} />
               <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
               <Route path="/profile" element={<AnimatedPage><Profile /></AnimatedPage>} />
               <Route path="/admin" element={user?.role === 'admin' || user?.role === 'master' ? <AnimatedPage><AdminPanel /></AnimatedPage> : <AnimatedPage><Dashboard /></AnimatedPage>} />

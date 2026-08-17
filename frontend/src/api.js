@@ -1280,5 +1280,84 @@ export const api = {
   getICalUrl() {
     const baseUrl = API_URL.replace(/\/api$/, '') + '/api';
     return `${baseUrl}/calendar/feed.ics?token=${authToken || ''}`;
-  }
+  },
+
+  // --- Watchlist API (Feature 1) ---
+  async getWatchlist() {
+    const data = await api.get('/watchlist');
+    return data.data || [];
+  },
+  async addToWatchlist(item) {
+    return api.post('/watchlist', item);
+  },
+  async updateWatchlistAlert(id, alertConfig) {
+    return api.put(`/watchlist/${id}`, alertConfig);
+  },
+  async removeFromWatchlist(id) {
+    return api.delete(`/watchlist/${id}`);
+  },
+
+  // --- User Preferences API (Feature 2) ---
+  async getUserPreferences() {
+    const data = await api.get('/users/preferences');
+    return data.data || {};
+  },
+  async saveUserPreferences(prefs) {
+    return api.put('/users/preferences', prefs);
+  },
+
+  // --- Family Analytics API (Feature 3) ---
+  async getFamilyAnalytics() {
+    const data = await api.get('/analytics/family');
+    return data.data || { applicants: [], totals: {} };
+  },
+
+  // --- Timeline API (Feature 4) ---
+  async getTimeline() {
+    const data = await api.get('/timeline');
+    return data.data || [];
+  },
+
+  // --- User Notifications Inbox API (Feature 7) ---
+  async getUserNotifications() {
+    const data = await api.get('/user-notifications');
+    return data.data || [];
+  },
+  async markUserNotificationRead(id) {
+    return api.put(`/user-notifications/${id}/read`);
+  },
+  async markAllUserNotificationsRead() {
+    return api.put('/user-notifications/read-all');
+  },
+  async deleteUserNotification(id) {
+    return api.delete(`/user-notifications/${id}`);
+  },
+
+  // --- Sector & Registrar Analytics API (Feature 6) ---
+  async getSectorAnalytics() {
+    const data = await api.get('/analytics/sectors');
+    return data.data || [];
+  },
+  async getRegistrarAnalytics() {
+    const data = await api.get('/analytics/registrars');
+    return data.data || [];
+  },
+
+  // --- Monthly Report API (Feature 8) ---
+  async getMonthlyReport(month, year) {
+    const data = await api.get(`/reports/monthly?month=${month}&year=${year}`);
+    return data.data || {};
+  },
+
+  // --- AI IPO Rating API (Feature 9) ---
+  async getIpoRating(params) {
+    const qs = new URLSearchParams(params).toString();
+    const data = await api.get(`/ipo/rating?${qs}`);
+    return data.data || {};
+  },
+
+  // --- Broker Import Undo API (Feature 10) ---
+  async undoImportBatch(historyId) {
+    return api.delete(`/imports/${historyId}/undo`);
+  },
 };

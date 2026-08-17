@@ -4,120 +4,15 @@ import {
   LayoutDashboard, List, Settings, PieChart, Users,
   Globe, Shield, LogOut, UserCircle, CalendarDays,
   TrendingUp, ChevronRight, Bell, Check, Trash, Wallet, BookOpen, Receipt,
-  FileSpreadsheet, Sparkles
+  FileSpreadsheet, Sparkles, Eye, Clock, UsersRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 import ConfirmModal from '../ui/ConfirmModal';
 import SmartImportModal from '../ui/SmartImportModal';
-const NotificationBell = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const fetchNotifications = async () => {
-    try {
-      const data = await api.getNotifications();
-      if (Array.isArray(data)) {
-        setNotifications(data);
-        setUnreadCount(data.filter(n => n.status === 'unread').length);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // poll every 15s
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleMarkAllRead = async () => {
-    try {
-      await api.markAllNotificationsRead();
-      fetchNotifications();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleMarkRead = async (id) => {
-    try {
-      await api.markNotificationRead(id);
-      fetchNotifications();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await api.deleteNotification(id);
-      fetchNotifications();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-1.5 text-secondary hover:text-white hover:bg-white/5 rounded-lg transition-colors focus:outline-none flex items-center justify-center"
-      >
-        <Bell size={17} />
-        {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-        )}
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 mt-2 w-72 bg-surface-2 border border-border rounded-xl shadow-xl z-[101] overflow-hidden flex flex-col max-h-96">
-            <div className="p-3 border-b border-border flex justify-between items-center bg-surface shrink-0">
-              <span className="font-semibold text-xs text-white">Notifications ({unreadCount})</span>
-              {unreadCount > 0 && (
-                <button onClick={handleMarkAllRead} className="text-[10px] text-emerald-400 hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                  Mark all read
-                </button>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-              {notifications.length === 0 ? (
-                <div className="text-center text-xs text-secondary py-8">Inbox is empty</div>
-              ) : (
-                notifications.map(n => (
-                  <div key={n.id} className={`p-2 rounded-lg border text-left transition-all ${n.status === 'unread' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-transparent border-transparent'}`}>
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs text-white font-medium ${n.status === 'unread' ? 'font-bold' : ''}`}>{n.title}</p>
-                        <p className="text-[10px] text-secondary mt-0.5 break-words">{n.body}</p>
-                        <p className="text-[8px] text-secondary mt-1">{new Date(n.createdAt).toLocaleDateString()}</p>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        {n.status === 'unread' && (
-                          <button onClick={() => handleMarkRead(n.id)} className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded bg-transparent border-0 cursor-pointer" title="Mark as read">
-                            <Check size={10} />
-                          </button>
-                        )}
-                        <button onClick={() => handleDelete(n.id)} className="p-1 text-secondary hover:text-rose-400 hover:bg-rose-500/10 rounded bg-transparent border-0 cursor-pointer" title="Delete">
-                          <Trash size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+import ThemeSwitcher from '../ui/ThemeSwitcher';
+import NotificationCenter from '../ui/NotificationCenter';
 
 const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
   const { user, logout } = useAuth();
@@ -131,6 +26,8 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
       items: [
         { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
         { name: 'Analytics', icon: PieChart, path: '/analytics' },
+        { name: 'Watchlist', icon: Eye, path: '/watchlist' },
+        { name: 'Timeline', icon: Clock, path: '/timeline' },
       ]
     },
     {
@@ -145,6 +42,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
         { name: 'Auto Allotment', icon: Check, path: '/allotment' },
         { name: 'Allotted Desk', icon: TrendingUp, path: '/allotted' },
         { name: 'IPO Calendar', icon: CalendarDays, path: '/calendar' },
+        { name: 'Family Portfolio', icon: UsersRound, path: '/family' },
       ]
     },
     {
@@ -204,7 +102,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
               <div className="text-[0.6rem] text-[var(--text-muted)] font-medium tracking-wider uppercase mt-0.5">Portfolio Pro</div>
             </div>
           </div>
-          <NotificationBell />
+          <NotificationCenter />
         </div>
 
         {/* Navigation */}
@@ -300,6 +198,8 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
                 {roleBadge.label}
               </div>
             </div>
+            {/* Theme Toggle */}
+            <ThemeSwitcher compact />
             {/* Logout */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowLogoutConfirm(true); }}

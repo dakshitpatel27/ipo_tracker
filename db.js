@@ -586,7 +586,44 @@ const initSchema = () => {
         dealType TEXT DEFAULT 'KOSTAK',
         status TEXT DEFAULT 'ACTIVE',
         createdAt TEXT
+    )`);\n
+    // 19. Watchlist (Feature 1)
+    db.run(`CREATE TABLE IF NOT EXISTS watchlist (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        ipoName TEXT,
+        ipoId TEXT,
+        priceBand TEXT,
+        openDate TEXT,
+        closeDate TEXT,
+        listingDate TEXT,
+        alertGmpAbove REAL,
+        alertGmpBelow REAL,
+        alertOnAllotment INTEGER DEFAULT 0,
+        alertOnListing INTEGER DEFAULT 0,
+        isActive INTEGER DEFAULT 1,
+        createdAt TEXT
     )`);
+
+    // 20. User Notifications Inbox (Feature 7)
+    db.run(`CREATE TABLE IF NOT EXISTS user_notifications (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        title TEXT,
+        body TEXT,
+        type TEXT DEFAULT 'system',
+        isRead INTEGER DEFAULT 0,
+        createdAt TEXT
+    )`);
+
+    // Add preferences column to users for dashboard layout, theme, etc.
+    db.run(`ALTER TABLE users ADD COLUMN preferences TEXT`, () => { });
+
+    // Add importBatchId column to records for undo support
+    db.run(`ALTER TABLE records ADD COLUMN importBatchId TEXT`, () => { });
+
+    // Add source column to import_history
+    db.run(`ALTER TABLE import_history ADD COLUMN source TEXT`, () => { });
 };
 // Initialize schema
 initSchema();

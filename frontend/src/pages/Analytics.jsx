@@ -8,20 +8,31 @@ import PageLoader from '../components/ui/PageLoader';
 import ApplicantHeatmap from '../components/ui/ApplicantHeatmap';
 import TaxHarvestingPlanner from '../components/ui/TaxHarvestingPlanner';
 import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
+import MonthlyReportGenerator from '../components/ui/MonthlyReportGenerator';
 import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#8b5cf6'];
 
 const Analytics = () => {
   const [records, setRecords] = useState([]);
+  const [sectorData, setSectorData] = useState([]);
+  const [registrarData, setRegistrarData] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'sector', 'registrar'
+  const [showReportModal, setShowReportModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const printRef = useRef();
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await api.getRecords();
-        setRecords(data);
+        const [recs, sectors, registrars] = await Promise.all([
+          api.getRecords(),
+          api.getSectorAnalytics().catch(() => []),
+          api.getRegistrarAnalytics().catch(() => [])
+        ]);
+        setRecords(recs);
+        setSectorData(sectors);
+        setRegistrarData(registrars);
       } catch (err) {
         console.error(err);
       } finally {
@@ -113,17 +124,49 @@ const Analytics = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="page-title">Analytics & Family Insights</h1>
-          <p className="page-subtitle">P&L breakdowns, applicant leaderboards, and tax estimation.</p>
+          <h1 className="page-title">Analytics & Deep Insights 📊</h1>
+          <p className="page-subtitle">P&L breakdowns, sector analytics, registrar stats, and tax estimation.</p>
         </div>
-        <button
-          onClick={handlePrint}
-          className="btn-outline flex items-center gap-2 print-hidden"
-        >
-          <Printer size={15} />
-          Export PDF
-        </button>
+        <div className="flex items-center gap-2 print-hidden">
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="btn-primary flex items-center gap-2 text-xs"
+          >
+            <Crown size={14} /> Monthly Report
+          </button>
+          <button
+            onClick={handlePrint}
+            className="btn-outline flex items-center gap-2 text-xs"
+          >
+            <Printer size={15} />
+            Export PDF
+          </button>
+        </div>
       </div>
+
+      {/* Analytics Sub-nav Tabs */}
+      <div className="flex border-b border-border gap-2 pb-px overflow-x-auto print-hidden">
+        {[
+          { id: 'overview', label: 'Portfolio Overview & Tax' },
+          { id: 'sector', label: `Sector Analysis (${sectorData.length})` },
+          { id: 'registrar', label: `Registrar Performance (${registrarData.length})` },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all ${
+              activeTab === tab.id
+                ? 'border-indigo-500 text-white bg-indigo-500/5'
+                : 'border-transparent text-[var(--text-muted)] hover:text-white hover:bg-white/5'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
 
       {/* ─── Top KPI Cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -322,6 +365,113 @@ const Analytics = () => {
 
       {/* Tax Loss Harvesting Assistant */}
       <TaxHarvestingPlanner records={records} />
+      </div>
+      )}
+
+      {/* --- SECTOR ANALYSIS TAB --- */}
+      {activeTab === 'sector' && (
+        <div className="space-y-6">
+          <div className="glass-card p-6">
+            <h3 className="text-lg font-bold text-white mb-4">Sector Breakdown</h3>
+            {sectorData.length === 0 ? (
+              <p className="text-secondary text-sm">No sector data tagged in records yet. Edit records to add sector information.</p>
+            ) : (
+              <div className="space-y-6">
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={sectorData.map(s => ({ name: s.sector, value: s.count }))} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                        {sectorData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px' }} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-black/30 text-secondary font-semibold">
+                      <tr>
+                        <th className="px-4 py-3">Sector</th>
+                        <th className="px-4 py-3 text-right"># IPOs</th>
+                        <th className="px-4 py-3 text-right">Total Invested</th>
+                        <th className="px-4 py-3 text-right">Total Profit</th>
+                        <th className="px-4 py-3">Top Performer</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {sectorData.map(s => (
+                        <tr key={s.sector} className="hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 font-semibold text-white">{s.sector}</td>
+                          <td className="px-4 py-3 text-right text-secondary font-mono">{s.count}</td>
+                          <td className="px-4 py-3 text-right text-white font-mono">₹{s.totalInvested?.toLocaleString('en-IN')}</td>
+                          <td className={`px-4 py-3 text-right font-mono font-bold ${s.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            ₹{s.totalProfit?.toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3 text-indigo-400 text-xs font-semibold">{s.bestIpo || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- REGISTRAR PERFORMANCE TAB --- */}
+      {activeTab === 'registrar' && (
+        <div className="space-y-6">
+          <div className="glass-card p-6">
+            <h3 className="text-lg font-bold text-white mb-4">Registrar Allotment Success Rates</h3>
+            {registrarData.length === 0 ? (
+              <p className="text-secondary text-sm">No registrar data recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-black/30 text-secondary font-semibold">
+                    <tr>
+                      <th className="px-4 py-3">Registrar</th>
+                      <th className="px-4 py-3 text-right">Applied</th>
+                      <th className="px-4 py-3 text-right">Allotted</th>
+                      <th className="px-4 py-3 text-right">Win Rate</th>
+                      <th className="px-4 py-3 pl-6">Win Rate Bar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {registrarData.map(r => (
+                      <tr key={r.registrar} className="hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 font-semibold text-white">{r.registrar}</td>
+                        <td className="px-4 py-3 text-right text-secondary font-mono">{r.applied}</td>
+                        <td className="px-4 py-3 text-right text-emerald-400 font-mono font-bold">{r.allotted}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            parseFloat(r.allotmentRate) >= 50 ? 'bg-emerald-500/10 text-emerald-400' :
+                            parseFloat(r.allotmentRate) >= 20 ? 'bg-amber-500/10 text-amber-400' :
+                            'bg-rose-500/10 text-rose-400'
+                          }`}>{r.allotmentRate}%</span>
+                        </td>
+                        <td className="px-4 py-3 pl-6">
+                          <div className="bg-black/30 rounded-full h-2 w-full max-w-[200px]">
+                            <div
+                              className="bg-indigo-500 h-2 rounded-full"
+                              style={{ width: `${Math.min(parseFloat(r.allotmentRate), 100)}%` }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── Feature 7: Print-only Full Table ──────────────────────────────── */}
       <div className="hidden print:block mt-8">
@@ -354,6 +504,8 @@ const Analytics = () => {
         </table>
         <p className="text-xs text-gray-400 mt-4">Generated by IPO Tracker on {new Date().toLocaleDateString('en-IN')}</p>
       </div>
+
+      <MonthlyReportGenerator isOpen={showReportModal} onClose={() => setShowReportModal(false)} />
     </div>
   );
 };

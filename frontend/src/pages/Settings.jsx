@@ -9,6 +9,7 @@ import CustomFieldsManager from '../components/ui/CustomFieldsManager';
 import ImportHistoryDrawer from '../components/ui/ImportHistoryDrawer';
 import PasskeyAuth from '../components/ui/PasskeyAuth';
 import ThemeStudio from '../components/ui/ThemeStudio';
+import ThemeSwitcher from '../components/ui/ThemeSwitcher';
 import AppDownloadCard from '../components/ui/AppDownloadCard';
 import { useNavigate } from 'react-router-dom';
 
@@ -666,13 +667,11 @@ const Settings = () => {
                     <option value="USD">$ USD (US Dollar)</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Theme</label>
-                  <select value={theme} onChange={e => setTheme(e.target.value)} className="input-field bg-black/40">
-                    <option value="dark">Terminal Dark (Default)</option>
-                    <option value="light">Light Mode</option>
-                  </select>
-                </div>
+              </div>
+
+              {/* Theme Switcher */}
+              <div className="pt-4 border-t border-border">
+                <ThemeSwitcher />
               </div>
             </section>
 

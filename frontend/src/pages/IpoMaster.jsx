@@ -15,6 +15,7 @@ import AIProspectusSummarizer from '../components/ui/AIProspectusSummarizer';
 import AnchorLockinTracker from '../components/ui/AnchorLockinTracker';
 import LiveSubscriptionHeatmap from '../components/ui/LiveSubscriptionHeatmap';
 import SmeMarketHub from '../components/ui/SmeMarketHub';
+import AiIpoRating from '../components/ui/AiIpoRating';
 
 // ─── Feature 6: GMP Sparkline ──────────────────────────────────
 const GmpSparkline = ({ trends }) => {
@@ -344,6 +345,15 @@ const IpoMaster = () => {
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-xs text-zinc-400">{ipo.type || 'Mainboard'}</span>
                         <IpoScoreBadge gmp={gmpStr} price={upperPrice} qibSub={ipo.subscription?.qib} retailSub={ipo.subscription?.retail} />
+                        <AiIpoRating
+                          ipoName={ipo.name}
+                          gmp={gmpStr}
+                          price={upperPrice}
+                          subscriptionRetail={ipo.subscription?.retail}
+                          subscriptionQib={ipo.subscription?.qib}
+                          subscriptionNii={ipo.subscription?.nii}
+                          sector={ipo.sector || ipo.category}
+                        />
                         {smartTag && <span className={`badge ${smartTag.color}`}>{smartTag.label}</span>}
                       </div>
                     </div>
