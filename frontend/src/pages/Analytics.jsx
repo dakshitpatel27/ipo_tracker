@@ -125,7 +125,7 @@ const Analytics = () => {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="page-title">Analytics & Deep Insights 📊</h1>
-          <p className="page-subtitle">P&L breakdowns, sector analytics, registrar stats, and tax estimation.</p>
+          <p className="page-subtitle">P&L breakdowns, sector analytics, registrar win rates, and return performance.</p>
         </div>
         <div className="flex items-center gap-2 print-hidden">
           <button
@@ -147,7 +147,7 @@ const Analytics = () => {
       {/* Analytics Sub-nav Tabs */}
       <div className="flex border-b border-border gap-2 pb-px overflow-x-auto print-hidden">
         {[
-          { id: 'overview', label: 'Portfolio Overview & Tax' },
+          { id: 'overview', label: 'Portfolio Overview & Gains' },
           { id: 'sector', label: `Sector Analysis (${sectorData.length})` },
           { id: 'registrar', label: `Registrar Performance (${registrarData.length})` },
         ].map((tab) => (
