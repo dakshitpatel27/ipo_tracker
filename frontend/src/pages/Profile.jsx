@@ -274,10 +274,14 @@ const Profile = () => {
         <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full filter blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10 text-center sm:text-left">
-          {/* Avatar circle with live custom accent theme */}
-          <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br border-2 flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-xl shrink-0 select-none transition-all ${getAvatarGradient()}`}>
+          {/* Avatar circle with floating pulse animation & live custom accent theme */}
+          <motion.div
+            animate={{ scale: [1, 1.03, 1] }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br border-2 flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-xl shrink-0 select-none transition-all ${getAvatarGradient()}`}
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : (user?.username ? user.username.charAt(0).toUpperCase() : <User size={48} />)}
-          </div>
+          </motion.div>
 
           <div className="flex-1 min-w-0 space-y-3">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -290,14 +294,16 @@ const Profile = () => {
                 </div>
               </div>
 
-              {/* Avatar Theme Color Accent Picker */}
+              {/* Avatar Theme Color Accent Picker with Tap & Hover Animations */}
               <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
                 <Palette size={13} className="text-[var(--text-muted)] ml-1" />
                 {['indigo', 'emerald', 'violet', 'amber', 'rose'].map((col) => (
-                  <button
+                  <motion.button
                     key={col}
+                    whileHover={{ scale: 1.3 }}
+                    whileTap={{ scale: 0.85 }}
                     onClick={() => handleSelectAvatarColor(col)}
-                    className={`w-5 h-5 rounded-full transition-transform ${avatarColor === col ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'} ${
+                    className={`w-5 h-5 rounded-full transition-all cursor-pointer ${avatarColor === col ? 'ring-2 ring-white scale-110 shadow-md' : 'opacity-70 hover:opacity-100'} ${
                       col === 'indigo' ? 'bg-indigo-500' :
                       col === 'emerald' ? 'bg-emerald-500' :
                       col === 'violet' ? 'bg-violet-500' :
@@ -338,24 +344,24 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* Investor Performance Bar (Feature 1) */}
+            {/* Investor Performance Bar with Hover Lift Motion */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-[var(--border)] mt-3">
-              <div className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left">
+              <motion.div whileHover={{ y: -3, scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left cursor-default">
                 <div className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Applications</div>
                 <div className="text-sm font-extrabold text-[var(--text-primary)]">{userStats.applied}</div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left">
+              </motion.div>
+              <motion.div whileHover={{ y: -3, scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left cursor-default">
                 <div className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Allotments Won</div>
                 <div className="text-sm font-extrabold text-emerald-400">{userStats.allotted}</div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left">
+              </motion.div>
+              <motion.div whileHover={{ y: -3, scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left cursor-default">
                 <div className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Win Rate</div>
                 <div className="text-sm font-extrabold text-indigo-400">{userStats.winRate}%</div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left">
+              </motion.div>
+              <motion.div whileHover={{ y: -3, scale: 1.02 }} transition={{ type: 'spring', stiffness: 300 }} className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-left cursor-default">
                 <div className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Total Gains</div>
                 <div className="text-sm font-extrabold text-amber-400">{maskAmount(userStats.profit)}</div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </div>
@@ -558,11 +564,14 @@ const Profile = () => {
           {milestoneBadges.map((b, idx) => {
             const IconComp = b.icon;
             return (
-              <div
+              <motion.div
                 key={idx}
-                className={`p-3.5 rounded-2xl border text-left space-y-2 transition-all ${
+                whileHover={{ scale: 1.04, y: -4 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+                className={`p-3.5 rounded-2xl border text-left space-y-2 cursor-pointer transition-all ${
                   b.unlocked
-                    ? 'bg-[var(--surface-2)] border-[var(--border)] shadow-md'
+                    ? 'bg-[var(--surface-2)] border-[var(--border)] shadow-lg shadow-indigo-500/5'
                     : 'bg-black/20 border-white/5 opacity-40 grayscale'
                 }`}
               >
@@ -578,7 +587,7 @@ const Profile = () => {
                     {b.unlocked ? 'Unlocked' : 'Locked'}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
