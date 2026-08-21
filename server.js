@@ -270,11 +270,11 @@ app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, 
 
 app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
-    db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
-        if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+    db.get('SELECT * FROM users WHERE username = ? OR email = ?', [username, username], async (err, user) => {
+        if (err || !user) return res.status(404).json({ error: 'Account not found. Please sign up first.' });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!isMatch) return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
 
         // Auto-approve Master Admin and ensure role is master
         if (user.username === 'dakshitpatel27' && user.role !== 'master') {
@@ -288,11 +288,11 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
             });
         }
 
-        if (user.status !== 'approved') {
-            return res.status(403).json({ error: 'Account is pending admin approval' });
+        if (user.status === 'pending') {
+            return res.status(403).json({ error: 'Account is pending admin approval', message: 'registered_pending' });
         }
         if (user.status === 'rejected') {
-            return res.status(403).json({ error: 'Account has been rejected' });
+            return res.status(403).json({ error: 'Account has been rejected by an administrator' });
         }
 
         // 2FA Intercept Flow
@@ -308,6 +308,98 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
 
             res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
         });
+    });
+});
+
+// Google Sign-In / Sign-Up Backend Verification & Auto-Registration Endpoint
+app.post('/api/auth/google-auth', async (req, res) => {
+    const { email, name, uid, isSignup } = req.body;
+    if (!email && !uid) return res.status(400).json({ error: 'Email or UID required' });
+
+    const username = email ? email.split('@')[0] : uid;
+
+    db.get('SELECT * FROM users WHERE email = ? OR username = ? OR id = ?', [email, username, uid], async (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (!user) {
+            if (!isSignup) {
+                return res.status(404).json({ error: 'Account not found. Please sign up with Google first.' });
+            }
+
+            const id = uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
+            const createdAt = new Date().toISOString();
+            const isMaster = (username === 'dakshitpatel27' || email === 'gajiparadakshit@gmail.com');
+            const status = isMaster ? 'approved' : 'pending';
+            const role = isMaster ? 'master' : 'user';
+
+            db.run(
+                'INSERT INTO users (id, username, email, name, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, username, email || null, name || null, createdAt, role, status, 'pro'],
+                (inErr) => {
+                    if (inErr) return res.status(400).json({ error: inErr.message });
+                    if (status === 'pending') {
+                        return res.json({ message: 'registered_pending', user: { id, username, name, email, role, status, createdAt } });
+                    }
+                    const token = jwt.sign({ id, username, role, status }, JWT_SECRET, { expiresIn: '7d' });
+                    res.json({ message: 'success', token, user: { id, username, name, email, role, status, createdAt } });
+                }
+            );
+        } else {
+            if (user.status === 'pending') {
+                return res.status(403).json({ error: 'Account is pending admin approval', message: 'registered_pending' });
+            }
+            if (user.status === 'rejected') {
+                return res.status(403).json({ error: 'Account has been rejected by an administrator' });
+            }
+
+            createSession(user.id, req, (sessErr, sessionId) => {
+                const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+                res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || name || null, email: user.email || email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
+            });
+        }
+    });
+});
+
+// Phone Sign-In / Sign-Up Backend Verification & Auto-Registration Endpoint
+app.post('/api/auth/phone-auth', async (req, res) => {
+    const { phoneNumber, uid, isSignup } = req.body;
+    if (!phoneNumber && !uid) return res.status(400).json({ error: 'Phone number or UID required' });
+
+    db.get('SELECT * FROM users WHERE phoneNumber = ? OR id = ?', [phoneNumber, uid], async (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (!user) {
+            if (!isSignup) {
+                return res.status(404).json({ error: 'Phone number not registered. Please sign up first.' });
+            }
+
+            const id = uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
+            const createdAt = new Date().toISOString();
+            const username = `user_${phoneNumber.replace(/\D/g, '').slice(-6)}`;
+            const status = 'pending';
+            const role = 'user';
+
+            db.run(
+                'INSERT INTO users (id, username, phoneNumber, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [id, username, phoneNumber, createdAt, role, status, 'pro'],
+                (inErr) => {
+                    if (inErr) return res.status(400).json({ error: inErr.message });
+                    res.json({ message: 'registered_pending', user: { id, username, phoneNumber, role, status, createdAt } });
+                }
+            );
+        } else {
+            if (user.status === 'pending') {
+                return res.status(403).json({ error: 'Account is pending admin approval', message: 'registered_pending' });
+            }
+            if (user.status === 'rejected') {
+                return res.status(403).json({ error: 'Account has been rejected by an administrator' });
+            }
+
+            createSession(user.id, req, (sessErr, sessionId) => {
+                const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+                res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
+            });
+        }
     });
 });
 
@@ -3838,6 +3930,33 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
             const tokens = JSON.parse(row.fcmTokens);
             if (tokens.length === 0) return res.status(404).json({ error: 'No active push tokens found for your account.' });
 
+function buildFcmPayload({ title, body, tokens, token }) {
+    const payload = {
+        notification: { title, body },
+        android: {
+            priority: 'high',
+            notification: {
+                sound: 'default',
+                channelId: 'ipo_alerts',
+                icon: 'ic_notification',
+                color: '#6366f1'
+            }
+        },
+        apns: {
+            payload: {
+                aps: {
+                    alert: { title, body },
+                    sound: 'default',
+                    badge: 1
+                }
+            }
+        }
+    };
+    if (tokens) payload.tokens = tokens;
+    if (token) payload.token = token;
+    return payload;
+}
+
             const title = '🚀 Test FCM Push Alert';
             const body = `Hello ${row.username || 'Investor'}! Firebase Cloud Messaging push notification system is 100% operational.`;
 
@@ -3845,10 +3964,7 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
                 throw new Error('Firebase Admin is running in placeholder mode. Add Firebase credentials in firebase-admin.js for live push.');
             }
 
-            const message = {
-                notification: { title, body },
-                tokens: tokens
-            };
+            const message = buildFcmPayload({ title, body, tokens });
 
             const response = await admin.messaging().sendEachForMulticast(message);
 
@@ -3964,7 +4080,7 @@ app.post('/api/admin/fcm/send-direct', authMiddleware, isAdmin, async (req, res)
     }
 
     try {
-        const message = { notification: { title, body }, token };
+        const message = buildFcmPayload({ title, body, token });
         const response = await admin.messaging().send(message);
 
         db.run(
@@ -4258,10 +4374,7 @@ app.post('/api/admin/notifications/broadcast', authMiddleware, isAdmin, (req, re
                 throw new Error('Firebase Admin is in placeholder mode! Add your Firebase keys in firebase-admin.js to send actual push notifications.');
             }
 
-            const message = {
-                notification: { title, body },
-                tokens: uniqueTokens
-            };
+            const message = buildFcmPayload({ title, body, tokens: uniqueTokens });
 
             const response = await admin.messaging().sendEachForMulticast(message);
 
@@ -4394,7 +4507,11 @@ app.post('/api/admin/users/bulk-update', authMiddleware, isAdmin, (req, res) => 
 const handleGetUsers = (req, res) => {
     db.all('SELECT id, username, name, email, role, status, subscription, createdAt FROM users ORDER BY createdAt DESC', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'success', data: rows || [] });
+        const sanitizedRows = (rows || []).map(u => ({
+            ...u,
+            createdAt: u.createdAt && !isNaN(new Date(u.createdAt).getTime()) ? u.createdAt : new Date().toISOString()
+        }));
+        res.json({ message: 'success', data: sanitizedRows });
     });
 };
 app.get('/api/users', authMiddleware, isAdmin, handleGetUsers);
@@ -4610,10 +4727,11 @@ const ensureMasterAdmin = async () => {
         const rawPassword = 'Daksh@2707';
 
         db.get('SELECT id FROM users WHERE username = ? OR email = ?', [username, email], async (err, row) => {
+            const nowIso = new Date().toISOString();
             if (!err && row) {
-                // User exists, promote them to master admin
-                db.run('UPDATE users SET role = ?, status = ?, subscription = ? WHERE id = ?',
-                    ['master', 'approved', 'pro', row.id],
+                // User exists, promote them to master admin and ensure createdAt is set
+                db.run("UPDATE users SET role = ?, status = ?, subscription = ?, createdAt = COALESCE(NULLIF(createdAt, ''), ?) WHERE id = ?",
+                    ['master', 'approved', 'pro', nowIso, row.id],
                     (updateErr) => {
                         if (!updateErr) console.log('Existing user promoted to Master Admin.');
                     }
@@ -4622,16 +4740,18 @@ const ensureMasterAdmin = async () => {
                 // User does not exist, insert them
                 const hashedPassword = await bcrypt.hash(rawPassword, 10);
                 const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
-                const createdAt = new Date().toISOString();
 
                 db.run('INSERT INTO users (id, username, password, email, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [id, username, hashedPassword, email, createdAt, 'master', 'approved', 'pro'],
+                    [id, username, hashedPassword, email, nowIso, 'master', 'approved', 'pro'],
                     (insertErr) => {
                         if (!insertErr) console.log('Master Admin seeded successfully.');
                         else console.error('Failed to seed Master Admin', insertErr);
                     }
                 );
             }
+
+            // Backfill any other users in DB missing createdAt
+            db.run("UPDATE users SET createdAt = ? WHERE createdAt IS NULL OR createdAt = '' OR createdAt = 'undefined'", [nowIso]);
         });
     } catch (e) {
         console.error('Master admin seed error', e);

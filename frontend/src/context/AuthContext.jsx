@@ -1,5 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import { 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  firebaseSignOut, 
+  onAuthStateChanged,
+  signInWithPhoneNumber,
+  RecaptchaVerifier
+} from '../firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ban } from 'lucide-react';
 
@@ -7,39 +18,66 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [firebaseUser, setFirebaseUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
   const pollInterval = useRef(null);
-
   const [subscriptionTiers, setSubscriptionTiers] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('ipo_token');
-    const storedUser = localStorage.getItem('ipo_user');
-    if (token && storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      api.setToken(token);
-      
-      // Fetch latest profile from server
-      api.getMe().then(res => {
-        if (res.user) {
-          const freshUser = { ...parsedUser, ...res.user };
-          setUser(freshUser);
-          localStorage.setItem('ipo_user', JSON.stringify(freshUser));
+    // Firebase Auth State Listener
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+      const token = localStorage.getItem('ipo_token');
+      if (token) {
+        api.setToken(token);
+        try {
+          const res = await api.getMe();
+          if (res.user && res.user.status === 'approved') {
+            setUser(res.user);
+            localStorage.setItem('ipo_user', JSON.stringify(res.user));
+          } else {
+            setUser(null);
+            localStorage.removeItem('ipo_token');
+            localStorage.removeItem('ipo_user');
+            api.setToken(null);
+          }
+        } catch (e) {
+          const savedUserStr = localStorage.getItem('ipo_user');
+          if (savedUserStr) {
+            try {
+              const savedUser = JSON.parse(savedUserStr);
+              if (savedUser && savedUser.status === 'approved') {
+                setUser(savedUser);
+              } else {
+                setUser(null);
+              }
+            } catch (err) {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
         }
-      }).catch(() => {});
-    }
-    setLoading(false);
-    
+      } else {
+        setUser(null);
+        localStorage.removeItem('ipo_user');
+        api.setToken(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     // Fetch public settings for global state
     const fetchSettings = async () => {
        try {
            const data = await api.getPublicSettings();
-           if (data.subscriptionTiers) {
+           if (data?.subscriptionTiers) {
                setSubscriptionTiers(JSON.parse(data.subscriptionTiers));
            } else {
-               // Default tiers if none set in DB
                setSubscriptionTiers({
                   free: { name: 'Free', maxApplicants: 2, maxRecords: 10, hasAnalytics: false },
                   pro: { name: 'Pro', maxApplicants: 1000, maxRecords: 10000, hasAnalytics: true }
@@ -50,100 +88,119 @@ export const AuthProvider = ({ children }) => {
     fetchSettings();
   }, []);
 
-  // Auto-detect and register real FCM device token for logged-in user
-  const autoRegisterDeviceToken = async (loggedInUser) => {
-    if (!loggedInUser) return;
-    try {
-      const deviceType = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile Device' : 'Desktop Browser';
-      
-      const { requestForToken } = await import('../firebase');
-      const token = await requestForToken();
+  // Email/Password Login
+  const login = async (usernameOrEmail, password) => {
+    const res = await api.login({ username: usernameOrEmail, password });
+    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+      return { message: 'registered_pending', user: res.user };
+    }
+    if (res.token && res.user) {
+      setUser(res.user);
+      localStorage.setItem('ipo_token', res.token);
+      localStorage.setItem('ipo_user', JSON.stringify(res.user));
+      api.setToken(res.token);
+    }
+    return res;
+  };
 
-      // Only register real, valid Firebase FCM tokens (no dummy tokens)
-      if (token && token.length >= 30 && !token.startsWith('fcm_token_')) {
-        await api.post('/notifications/register', { token, deviceType });
+  // Google Sign-In & Sign-Up
+  const loginWithGoogle = async (isSignup = false) => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      
+      const res = await api.googleAuth({
+        email: fbUser.email,
+        name: fbUser.displayName,
+        uid: fbUser.uid,
+        isSignup
+      });
+
+      if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+        try { await firebaseSignOut(auth); } catch (e) {}
+        return { message: 'registered_pending', user: res.user };
       }
+
+      if (res.token && res.user && res.user.status === 'approved') {
+        setUser(res.user);
+        localStorage.setItem('ipo_token', res.token);
+        localStorage.setItem('ipo_user', JSON.stringify(res.user));
+        api.setToken(res.token);
+        return res.user;
+      }
+
+      try { await firebaseSignOut(auth); } catch (e) {}
+      throw new Error(res.error || 'Account not found. Please sign up first.');
     } catch (err) {
-      console.warn('[FCM Auto-Register Warning]:', err.message);
+      try { await firebaseSignOut(auth); } catch (e) {}
+      throw new Error(err.message || 'Google authentication failed');
     }
   };
 
-  useEffect(() => {
-    if (user && !isSuspended) {
-      autoRegisterDeviceToken(user);
+  // Phone Auth Setup Recaptcha
+  const setupRecaptcha = (containerId = 'recaptcha-container') => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+        size: 'invisible',
+        callback: () => {}
+      });
+    }
+    return window.recaptchaVerifier;
+  };
 
-      pollInterval.current = setInterval(async () => {
-        try {
-          const res = await api.getMe();
-          if (res.user) {
-            // Check suspension
-            if (res.user.status === 'rejected') {
-              setIsSuspended(true);
-              clearInterval(pollInterval.current);
-            } else if (
-              res.user.name !== user.name ||
-              res.user.email !== user.email ||
-              res.user.role !== user.role ||
-              res.user.status !== user.status
-            ) {
-              // Update user if profile changed
-              const updatedUser = { ...user, ...res.user };
-              setUser(updatedUser);
-              localStorage.setItem('ipo_user', JSON.stringify(updatedUser));
-            }
-          }
-        } catch (e) {
-          if (
-            e.status === 401 ||
-            e.message === 'Invalid token' ||
-            e.message === 'Unauthorized' ||
-            e.message?.includes('revoked') ||
-            e.message?.includes('logged out')
-          ) {
-            logout();
-          } else {
-            console.error('Polling error:', e.message);
-          }
-        }
-      }, 60000); // Check every 60 seconds
+  // Send SMS Code for Phone Auth
+  const sendPhoneOtp = async (phoneNumber, isSignup = false) => {
+    if (!isSignup) {
+      // Verify phone number exists in backend before sending SMS
+      const checkRes = await api.phoneAuth({ phoneNumber, isSignup: false });
+      if (checkRes.message === 'registered_pending' || checkRes.user?.status === 'pending') {
+        throw new Error('Account is pending admin approval');
+      }
+    }
+    const verifier = setupRecaptcha();
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+    window.confirmationResult = confirmationResult;
+    return confirmationResult;
+  };
+
+  // Verify SMS Code
+  const verifyPhoneOtp = async (code, isSignup = false, phoneNumber = '') => {
+    if (!window.confirmationResult) {
+      throw new Error('Please request OTP first');
+    }
+    const result = await window.confirmationResult.confirm(code);
+    const fbUser = result.user;
+
+    const res = await api.phoneAuth({
+      phoneNumber: fbUser.phoneNumber || phoneNumber,
+      uid: fbUser.uid,
+      isSignup
+    });
+
+    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+      try { await firebaseSignOut(auth); } catch (e) {}
+      return { message: 'registered_pending', user: res.user };
     }
 
-    return () => {
-      if (pollInterval.current) clearInterval(pollInterval.current);
-    };
-  }, [user?.id, isSuspended]);
-
-  const login = async (username, password) => {
-    const data = await api.login({ username, password });
-    if (data.message === 'require_2fa') {
-      return data;
+    if (res.token && res.user && res.user.status === 'approved') {
+      setUser(res.user);
+      localStorage.setItem('ipo_token', res.token);
+      localStorage.setItem('ipo_user', JSON.stringify(res.user));
+      api.setToken(res.token);
+      return res.user;
     }
-    localStorage.setItem('ipo_token', data.token);
-    localStorage.setItem('ipo_user', JSON.stringify(data.user));
-    setUser(data.user);
-    api.setToken(data.token);
-    return data;
+
+    try { await firebaseSignOut(auth); } catch (e) {}
+    throw new Error(res.error || 'Account not found. Please sign up first.');
+````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````  };
+
+  // Email/Password Registration
+  const register = async (name, username, password, email) => {
+    return api.register({ name, username, password, email });
   };
 
   const login2FA = async (username, token) => {
-    const data = await api.login2FA(username, token);
-    localStorage.setItem('ipo_token', data.token);
-    localStorage.setItem('ipo_user', JSON.stringify(data.user));
-    setUser(data.user);
-    api.setToken(data.token);
-    return data;
-  };
-
-  const register = async (name, username, password, email) => {
-    const data = await api.register({ name, username, password, email });
-    if (data.message === 'registered_pending') {
-      return data;
-    }
-    localStorage.setItem('ipo_token', data.token);
-    localStorage.setItem('ipo_user', JSON.stringify(data.user));
-    setUser(data.user);
-    api.setToken(data.token);
-    return data;
+    return api.login2FA(username, token);
   };
 
   const updateUserProfile = async (profileData) => {
@@ -156,7 +213,10 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {}
     localStorage.removeItem('ipo_token');
     localStorage.removeItem('ipo_user');
     setUser(null);
@@ -166,7 +226,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, login2FA, register, updateUserProfile, logout, loading, subscriptionTiers }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      firebaseUser,
+      login, 
+      loginWithGoogle,
+      setupRecaptcha,
+      sendPhoneOtp,
+      verifyPhoneOtp,
+      login2FA, 
+      register, 
+      updateUserProfile, 
+      logout, 
+      loading, 
+      subscriptionTiers 
+    }}>
       {children}
       
       <AnimatePresence>

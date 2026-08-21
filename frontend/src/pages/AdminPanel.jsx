@@ -9,6 +9,18 @@ import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 import PageLoader from '../components/ui/PageLoader';
 
+const formatDate = (dateStr, options = { year: 'numeric', month: 'short', day: 'numeric' }) => {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString('en-IN', options);
+};
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString('en-IN');
+};
+
 const AdminPanel = () => {
   const { user: currentUser } = useAuth();
   
@@ -604,7 +616,7 @@ const AdminPanel = () => {
                          </span>
                       </td>
                       <td className="px-6 py-4 text-secondary">
-                        {new Date(user.createdAt).toLocaleDateString()}
+                        {formatDate(user.createdAt)}
                       </td>
                       <td className="px-6 py-4 text-right flex justify-end gap-2">
                         {user.status === 'pending' && (
@@ -1207,7 +1219,7 @@ const AdminPanel = () => {
                 <tbody className="divide-y divide-border/50">
                   {auditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-secondary">{new Date(log.createdAt).toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-secondary">{formatDateTime(log.createdAt)}</td>
                       <td className="px-6 py-4 font-bold text-gray-200">{log.adminUsername}</td>
                       <td className="px-6 py-4"><span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-xs font-mono">{log.action}</span></td>
                       <td className="px-6 py-4 text-xs font-mono text-secondary">{log.target}</td>

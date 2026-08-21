@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1076943564993",
+    "project_id": "ipo-tracker-cba4e",
+    "storage_bucket": "ipo-tracker-cba4e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1076943564993:android:6ef06660fbdb28b9263f35",
+        "android_client_info": {
+          "package_name": "com.ipotracker.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyZVQM8yHSboZlF4R-KxbL_bJyRQ5UeiE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

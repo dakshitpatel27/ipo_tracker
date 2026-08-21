@@ -22,6 +22,7 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['app-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'apple-touch-icon.png'],
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/api/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [

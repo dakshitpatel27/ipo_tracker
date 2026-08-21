@@ -10,7 +10,8 @@ const generateId = () => {
 
 const getHeaders = () => {
   const headers = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const token = authToken || localStorage.getItem('ipo_token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
 };
 
@@ -128,12 +129,14 @@ export const api = {
 
   login: async (credentials) => api.post('/auth/login', credentials),
   register: async (credentials) => api.post('/auth/register', credentials),
+  googleAuth: async (data) => api.post('/auth/google-auth', data),
+  phoneAuth: async (data) => api.post('/auth/phone-auth', data),
   getMe: async () => api.get('/auth/me'),
   updateProfile: async (data) => api.put('/users/profile', data),
 
   async checkAllotmentBulk(ipoName, registrar, applicants) {
     return api.post('/allotment/check-bulk', { ipoName, registrar, applicants });
-  },
+  },  
 
   async predictAllotment(payload) {
     return api.post('/allotment/predict', payload);
@@ -915,40 +918,35 @@ export const api = {
   },
 
   async getImportHistory() {
-    const res = await fetch(`${API_URL}/import/history`, { headers: getHeaders() });
-    const data = await parseResponse(res);
-    return data.data || [];
+    try {
+      const data = await api.get('/import/history');
+      return data.data || [];
+    } catch (e) {
+      console.warn('Failed to load import history:', e.message);
+      return [];
+    }
   },
 
   async undoImportSession(historyId) {
-    const res = await fetch(`${API_URL}/import/history/${historyId}/undo`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-    return parseResponse(res);
+    return api.post(`/import/history/${historyId}/undo`, {});
   },
 
   async getCustomFields() {
-    const res = await fetch(`${API_URL}/import/custom-fields`, { headers: getHeaders() });
-    const data = await parseResponse(res);
-    return data.data || [];
+    try {
+      const data = await api.get('/import/custom-fields');
+      return data.data || [];
+    } catch (e) {
+      console.warn('Failed to load custom fields:', e.message);
+      return [];
+    }
   },
 
   async updateCustomField(id, data) {
-    const res = await fetch(`${API_URL}/import/custom-fields/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(data)
-    });
-    return parseResponse(res);
+    return api.put(`/import/custom-fields/${id}`, data);
   },
 
   async deleteCustomField(id) {
-    const res = await fetch(`${API_URL}/import/custom-fields/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    });
-    return parseResponse(res);
+    return api.delete(`/import/custom-fields/${id}`);
   },
 
   // Bank Accounts & Passbook API

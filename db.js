@@ -239,6 +239,7 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN advanceTaxEst REAL DEFAULT 0`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN biometricEnabled INTEGER DEFAULT 0`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN themeAccent TEXT DEFAULT 'emerald'`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN phoneNumber TEXT`, () => { });
     });
 
     // 2. Records

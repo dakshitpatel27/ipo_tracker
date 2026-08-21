@@ -1,0 +1,19 @@
+{
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "ipo-tracker-cba4e.firebaseapp.com",
+      "ipo-tracker-cba4e.web.app"
+    ],
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "IPO Tracker",
+        "supportEmail": "gajiparadakshit@gmail.com"
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
