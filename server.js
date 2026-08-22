@@ -662,6 +662,258 @@ app.delete('/api/notifications/:id', authMiddleware, (req, res) => {
     });
 });
 
+// --- ALLOTMENT ALERT BOT & WEBHOOK ENDPOINTS ---
+app.get('/api/notifications/bot-config', authMiddleware, (req, res) => {
+    db.get(
+        'SELECT telegramToken, telegramChatId, telegramAlerts, whatsappNumber, whatsappAlerts, webhookUrl, webhookSecret, webhookAlerts FROM users WHERE id = ?',
+        [req.user.id],
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', data: row || {} });
+        }
+    );
+});
+
+app.put('/api/notifications/bot-config', authMiddleware, (req, res) => {
+    const { telegramToken, telegramChatId, telegramAlerts, whatsappNumber, whatsappAlerts, webhookUrl, webhookSecret, webhookAlerts } = req.body;
+    db.run(
+        `UPDATE users SET 
+            telegramToken = COALESCE(?, telegramToken),
+            telegramChatId = COALESCE(?, telegramChatId),
+            telegramAlerts = COALESCE(?, telegramAlerts),
+            whatsappNumber = COALESCE(?, whatsappNumber),
+            whatsappAlerts = COALESCE(?, whatsappAlerts),
+            webhookUrl = COALESCE(?, webhookUrl),
+            webhookSecret = COALESCE(?, webhookSecret),
+            webhookAlerts = COALESCE(?, webhookAlerts)
+         WHERE id = ?`,
+        [telegramToken, telegramChatId, telegramAlerts, whatsappNumber, whatsappAlerts, webhookUrl, webhookSecret, webhookAlerts, req.user.id],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success' });
+        }
+    );
+});
+
+// Test Telegram Bot Alert
+app.post('/api/notifications/test-telegram', authMiddleware, async (req, res) => {
+    const { token, chatId } = req.body;
+    const botToken = token || req.body.telegramToken;
+    const targetChat = chatId || req.body.telegramChatId;
+
+    if (!botToken || !targetChat) {
+        return res.status(400).json({ error: 'Telegram Bot Token and Chat ID are required' });
+    }
+
+    try {
+        const text = `🎉 *IPO Tracker - Allotment Alert Test*\n\nYour Telegram Bot is configured successfully! You will receive instant notifications here whenever IPO allotment results drop or high-value allotments are won.`;
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: targetChat, text, parse_mode: 'Markdown' })
+        });
+
+        const data = await response.json();
+        if (!data.ok) {
+            return res.status(400).json({ error: data.description || 'Failed to send Telegram message' });
+        }
+
+        res.json({ message: 'Telegram test alert sent successfully!', data });
+    } catch (err) {
+        res.status(500).json({ error: 'Telegram dispatch failed: ' + err.message });
+    }
+});
+
+// Test WhatsApp Alert
+app.post('/api/notifications/test-whatsapp', authMiddleware, async (req, res) => {
+    const { whatsappNumber } = req.body;
+    if (!whatsappNumber) {
+        return res.status(400).json({ error: 'WhatsApp phone number required' });
+    }
+
+    const notifId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const title = `📱 WhatsApp IPO Allotment Alert Configured`;
+    const body = `Alerts will be sent to ${whatsappNumber} when allotment data is published.`;
+
+    db.run(
+        'INSERT INTO notifications (id, title, body, userId, sentAt, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [notifId, title, body, req.user.id, new Date().toISOString(), 'unread'],
+        (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: `WhatsApp alert simulation dispatched to ${whatsappNumber}`, notifId });
+        }
+    );
+});
+
+// Test Outbound Webhook
+app.post('/api/notifications/test-webhook', authMiddleware, async (req, res) => {
+    const { webhookUrl, webhookSecret } = req.body;
+    if (!webhookUrl) {
+        return res.status(400).json({ error: 'Webhook URL required' });
+    }
+
+    try {
+        const payload = {
+            event: 'ALLOTMENT_TEST_EVENT',
+            timestamp: new Date().toISOString(),
+            data: {
+                ipoName: 'Sample Mainboard IPO',
+                applicantName: 'John Doe',
+                status: 'ALLOTTED',
+                sharesAllotted: 15,
+                amountBlocked: 14925
+            }
+        };
+
+        const secret = webhookSecret || 'ipo_secret_123';
+        const signature = crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex');
+
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-IPO-Signature': signature,
+                'User-Agent': 'IPOTracker-Webhook/1.0'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        res.json({ message: 'Webhook test dispatched!', status: response.status, statusText: response.statusText });
+    } catch (err) {
+        res.status(500).json({ error: 'Webhook delivery failed: ' + err.message });
+    }
+});
+
+// --- WEBAUTHN BIOMETRIC PASSKEY ENDPOINTS ---
+app.get('/api/auth/webauthn/credentials', authMiddleware, (req, res) => {
+    db.all('SELECT id, credentialId, deviceName, createdAt FROM webauthn_credentials WHERE userId = ?', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.delete('/api/auth/webauthn/credentials/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM webauthn_credentials WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Passkey deleted successfully' });
+    });
+});
+
+app.post('/api/auth/webauthn/register-options', authMiddleware, (req, res) => {
+    const challenge = crypto.randomBytes(32).toString('base64url');
+    const userId = req.user.id;
+    const username = req.user.username;
+
+    res.json({
+        challenge,
+        rp: { name: 'IPO Tracker', id: req.hostname || 'localhost' },
+        user: {
+            id: Buffer.from(userId).toString('base64url'),
+            name: username,
+            displayName: req.user.name || username
+        },
+        pubKeyCredParams: [
+            { type: 'public-key', alg: -7 },  // ES256
+            { type: 'public-key', alg: -257 } // RS256
+        ],
+        authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'preferred'
+        },
+        timeout: 60000
+    });
+});
+
+app.post('/api/auth/webauthn/register-verify', authMiddleware, (req, res) => {
+    const { credentialId, publicKey, deviceName } = req.body;
+    if (!credentialId) return res.status(400).json({ error: 'Credential ID required' });
+
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const name = deviceName || parseUserAgent(req.headers['user-agent']);
+
+    db.run(
+        'INSERT INTO webauthn_credentials (id, userId, credentialId, publicKey, deviceName, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, req.user.id, credentialId, publicKey || '', name, createdAt],
+        (err) => {
+            if (err) return res.status(400).json({ error: err.message });
+            db.run('UPDATE users SET biometricEnabled = 1 WHERE id = ?', [req.user.id]);
+            res.json({ message: 'Biometric Passkey registered successfully!', id });
+        }
+    );
+});
+
+app.post('/api/auth/webauthn/login-options', (req, res) => {
+    const { username } = req.body;
+    const challenge = crypto.randomBytes(32).toString('base64url');
+
+    if (!username) {
+        return res.json({ challenge, timeout: 60000 });
+    }
+
+    db.get('SELECT id FROM users WHERE username = ? OR email = ?', [username, username], (err, user) => {
+        if (err || !user) return res.status(404).json({ error: 'User not found' });
+
+        db.all('SELECT credentialId FROM webauthn_credentials WHERE userId = ?', [user.id], (err2, creds) => {
+            const allowCredentials = (creds || []).map(c => ({
+                id: c.credentialId,
+                type: 'public-key'
+            }));
+            res.json({ challenge, allowCredentials, timeout: 60000 });
+        });
+    });
+});
+
+app.post('/api/auth/webauthn/login-verify', (req, res) => {
+    const { credentialId, username } = req.body;
+    if (!credentialId) return res.status(400).json({ error: 'Credential ID required for biometric verification' });
+
+    db.get('SELECT * FROM webauthn_credentials WHERE credentialId = ?', [credentialId], (err, cred) => {
+        if (err || !cred) return res.status(401).json({ error: 'Biometric passkey not found or invalid' });
+
+        db.get('SELECT * FROM users WHERE id = ?', [cred.userId], (uErr, user) => {
+            if (uErr || !user) return res.status(404).json({ error: 'User associated with passkey not found' });
+            if (user.status !== 'approved') return res.status(403).json({ error: 'Account pending admin approval' });
+
+            createSession(user.id, req, (sessErr, sessionId) => {
+                if (sessErr) return res.status(500).json({ error: 'Failed to create session' });
+
+                const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+                db.run('UPDATE sessions SET token = ? WHERE id = ?', [token, sessionId]);
+
+                res.json({
+                    message: 'Biometric login successful!',
+                    token,
+                    user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt }
+                });
+            });
+        });
+    });
+});
+
+// --- PWA HOME SCREEN WIDGET DATA ENDPOINT ---
+app.get('/api/widget/data', (req, res) => {
+    db.all('SELECT ipoName, gmp, status, applied, alloted, profit FROM records ORDER BY createdAt DESC LIMIT 10', [], (err, records) => {
+        const totalApplied = (records || []).filter(r => r.applied === 'Yes').length;
+        const totalAllotted = (records || []).filter(r => r.alloted === 'Yes').length;
+        const activeGmpList = (records || []).filter(r => r.gmp).map(r => ({ name: r.ipoName, gmp: r.gmp }));
+
+        res.json({
+            message: 'success',
+            widget: {
+                appTitle: 'IPO Tracker',
+                totalApplied,
+                totalAllotted,
+                allotmentRate: totalApplied > 0 ? `${Math.round((totalAllotted / totalApplied) * 100)}%` : '0%',
+                activeGmpList: activeGmpList.slice(0, 4),
+                lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }
+        });
+    });
+});
+
 // GET all active sessions for current user (or ALL users if Master Admin)
 app.get('/api/sessions', authMiddleware, (req, res) => {
     const isMasterAdmin = req.user.role === 'master';

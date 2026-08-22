@@ -24,6 +24,7 @@ import ThemeCustomizer from '../components/ui/ThemeCustomizer';
 import FundReservePlanner from '../components/ui/FundReservePlanner';
 import Trading3DCard from '../components/ui/Trading3DCard';
 import MonteCarloSimulator from '../components/ui/MonteCarloSimulator';
+import HomeScreenWidget from '../components/ui/HomeScreenWidget';
 import { getRecordProfit, isRecordAllotted } from '../utils/profitCalculator';
 import { usePrivacy } from '../context/PrivacyContext';
 
@@ -329,6 +330,9 @@ const Dashboard = () => {
 
       {/* Mandate Escalation Tracker Widget */}
       <MandateTrackerWidget onStatusChange={load} />
+
+      {/* PWA Home Screen Quick Widget */}
+      <HomeScreenWidget />
 
       {/* Core Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">

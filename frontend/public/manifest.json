@@ -25,5 +25,41 @@
   "background_color": "#09090b",
   "theme_color": "#10b981",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Live Widget",
+      "short_name": "Widget",
+      "description": "View live closing IPOs & allotment win rate",
+      "url": "/widget",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Allotment Checker",
+      "short_name": "Allotments",
+      "description": "Check registrar allotment results",
+      "url": "/allotment",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "widgets": [
+    {
+      "name": "IPO Tracker Quick Widget",
+      "short_name": "IPO Widget",
+      "description": "Live GMP and allotment rate summary widget",
+      "tag": "ipo-tracker-live-widget",
+      "template": "widget-template",
+      "ms_ac_template": "/widget",
+      "data": "/api/widget/data",
+      "type": "text/html",
+      "auth": false,
+      "screenshots": [
+        {
+          "src": "/app-icon.png",
+          "sizes": "512x512",
+          "label": "Live Widget Preview"
+        }
+      ]
+    }
+  ]
 }

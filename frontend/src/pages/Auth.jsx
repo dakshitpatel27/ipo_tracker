@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, TrendingUp, BarChart2, Shield, CheckCircle2, Phone, Mail, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, TrendingUp, BarChart2, Shield, CheckCircle2, Phone, Mail, Sparkles, Fingerprint } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { api } from '../api';
 import Hero3DScene from '../components/ui/Hero3DScene';
 
 const COUNTRY_CODES = [
@@ -101,6 +103,52 @@ const Auth = () => {
     }
   };
 
+  const handleBiometricLogin = async () => {
+    if (!window.PublicKeyCredential) {
+      toast.error('Biometric passkeys are not supported on this device/browser');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      const options = await api.getWebAuthnLoginOptions(username);
+      const challengeBuffer = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+
+      const allowCreds = (options.allowCredentials || []).map(c => ({
+        id: Uint8Array.from(atob(c.id), ch => ch.charCodeAt(0)),
+        type: 'public-key'
+      }));
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: challengeBuffer,
+          allowCredentials: allowCreds.length > 0 ? allowCreds : undefined,
+          timeout: options.timeout || 60000
+        }
+      });
+
+      if (!assertion) throw new Error('Biometric login cancelled');
+
+      const rawIdBase64 = btoa(String.fromCharCode(...new Uint8Array(assertion.rawId)));
+      const res = await api.verifyWebAuthnLogin({ credentialId: assertion.id || rawIdBase64, username });
+
+      if (res.token && res.user) {
+        localStorage.setItem('ipo_token', res.token);
+        localStorage.setItem('ipo_user', JSON.stringify(res.user));
+        api.setToken(res.token);
+        window.location.reload();
+      }
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        setError('Biometric prompt cancelled or timed out');
+      } else {
+        setError(err.message || 'Biometric login failed');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen w-full bg-background text-gray-100 font-sans overflow-x-hidden custom-scrollbar">
       {/* Invisible container for Firebase Phone Auth Recaptcha */}
@@ -184,9 +232,9 @@ const Auth = () => {
             </p>
           </div>
 
-          {/* Social Sign In Options */}
+          {/* Social & Biometric Sign In Options */}
           {!require2FA && !pendingMessage && (
-            <div className="space-y-3 mb-6">
+            <div className="space-y-2.5 mb-6">
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -201,6 +249,18 @@ const Auth = () => {
                 </svg>
                 <span>{isLogin ? 'Sign In with Google' : 'Sign Up with Google'}</span>
               </button>
+
+              {isLogin && (
+                <button
+                  type="button"
+                  onClick={handleBiometricLogin}
+                  disabled={submitting}
+                  className="w-full py-2.5 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-xl font-bold text-indigo-300 text-sm flex items-center justify-center gap-2.5 transition-all shadow-md cursor-pointer"
+                >
+                  <Fingerprint size={18} className="text-indigo-400" />
+                  <span>Login with Touch ID / Face ID</span>
+                </button>
+              )}
 
               <div className="flex rounded-xl bg-surface/50 border border-white/10 p-1 text-xs font-semibold">
                 <button

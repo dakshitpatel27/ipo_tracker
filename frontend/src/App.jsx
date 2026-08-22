@@ -35,7 +35,7 @@ import AnimatedPage from './components/ui/AnimatedPage';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineSyncBanner from './components/ui/OfflineSyncBanner';
 import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
-import ConfirmModal from './components/ui/ConfirmModal';
+import HomeScreenWidget from './components/ui/HomeScreenWidget';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (
@@ -134,6 +134,7 @@ function App() {
       '/family',
       '/settings',
       '/profile',
+      '/widget',
       '/admin',
       '/offline'
     ];
@@ -260,6 +261,7 @@ function App() {
               <Route path="/family" element={<AnimatedPage><FamilyPortfolio /></AnimatedPage>} />
               <Route path="/settings" element={<AnimatedPage><Settings /></AnimatedPage>} />
               <Route path="/profile" element={<AnimatedPage><Profile /></AnimatedPage>} />
+              <Route path="/widget" element={<AnimatedPage><HomeScreenWidget standalone={true} /></AnimatedPage>} />
               <Route path="/admin" element={user?.role === 'admin' || user?.role === 'master' ? <AnimatedPage><AdminPanel /></AnimatedPage> : <AnimatedPage><Dashboard /></AnimatedPage>} />
               <Route path="/offline" element={<AnimatedPage><OfflinePage /></AnimatedPage>} />
               <Route path="*" element={<AnimatedPage><NotFound /></AnimatedPage>} />

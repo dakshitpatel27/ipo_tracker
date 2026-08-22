@@ -3,7 +3,8 @@
     "authorizedDomains": [
       "localhost",
       "ipo-tracker-cba4e.firebaseapp.com",
-      "ipo-tracker-cba4e.web.app"
+      "ipo-tracker-cba4e.web.app",
+      "ipo-tracker-vert.vercel.app"
     ],
     "providers": {
       "emailPassword": true,

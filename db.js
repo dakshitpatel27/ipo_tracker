@@ -234,11 +234,9 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN pinEnabled INTEGER DEFAULT 0`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN whatsappNumber TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN whatsappAlerts INTEGER DEFAULT 0`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN webauthnKey TEXT`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN ipWhiteList TEXT`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN advanceTaxEst REAL DEFAULT 0`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN biometricEnabled INTEGER DEFAULT 0`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN themeAccent TEXT DEFAULT 'emerald'`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN webhookUrl TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN webhookSecret TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN webhookAlerts INTEGER DEFAULT 0`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN phoneNumber TEXT`, () => { });
     });
 
@@ -614,6 +612,17 @@ const initSchema = () => {
         body TEXT,
         type TEXT DEFAULT 'system',
         isRead INTEGER DEFAULT 0,
+        createdAt TEXT
+    )`);
+
+    // 21. WebAuthn Passkey Credentials Table
+    db.run(`CREATE TABLE IF NOT EXISTS webauthn_credentials (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        credentialId TEXT UNIQUE,
+        publicKey TEXT,
+        counter INTEGER DEFAULT 0,
+        deviceName TEXT,
         createdAt TEXT
     )`);
 

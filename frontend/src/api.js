@@ -1371,4 +1371,49 @@ export const api = {
   async sendMorningDigest() {
     return api.post('/digest/send-now');
   },
+
+  // --- Allotment Alert Bot & Webhooks API ---
+  async getBotConfig() {
+    const data = await api.get('/notifications/bot-config');
+    return data.data || {};
+  },
+  async updateBotConfig(config) {
+    return api.put('/notifications/bot-config', config);
+  },
+  async testTelegramBot(payload) {
+    return api.post('/notifications/test-telegram', payload);
+  },
+  async testWhatsAppBot(payload) {
+    return api.post('/notifications/test-whatsapp', payload);
+  },
+  async testWebhook(payload) {
+    return api.post('/notifications/test-webhook', payload);
+  },
+
+  // --- WebAuthn Biometric API ---
+  async getWebAuthnCredentials() {
+    const data = await api.get('/auth/webauthn/credentials');
+    return data.data || [];
+  },
+  async deleteWebAuthnCredential(id) {
+    return api.delete(`/auth/webauthn/credentials/${id}`);
+  },
+  async getWebAuthnRegisterOptions() {
+    return api.post('/auth/webauthn/register-options', {});
+  },
+  async verifyWebAuthnRegister(payload) {
+    return api.post('/auth/webauthn/register-verify', payload);
+  },
+  async getWebAuthnLoginOptions(username) {
+    return api.post('/auth/webauthn/login-options', { username });
+  },
+  async verifyWebAuthnLogin(payload) {
+    return api.post('/auth/webauthn/login-verify', payload);
+  },
+
+  // --- PWA Widget Data API ---
+  async getWidgetData() {
+    const data = await api.get('/widget/data');
+    return data.widget || {};
+  }
 };
