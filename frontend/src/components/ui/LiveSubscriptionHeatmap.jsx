@@ -34,18 +34,18 @@ const LiveSubscriptionHeatmap = ({ ipo }) => {
   if (!currentIpo) return null;
 
   const ipoName = currentIpo.name || currentIpo.ipoName || 'Live Market';
-  const subObj = currentIpo.subscriptionNumbers || currentIpo.subscription || {};
+  const subObj = currentIpo.subscriptionNumbers || currentIpo.subscription || currentIpo.biddingDetails || {};
   
-  const qib = parseFloat(String(subObj.qib?.subscription || subObj.qib || 0).replace(/[^\d.]/g, '')) || 0;
-  const nii = parseFloat(String(subObj.nii?.subscription || subObj.nii || subObj.hni || 0).replace(/[^\d.]/g, '')) || 0;
-  const retail = parseFloat(String(subObj.retail?.subscription || subObj.retail || 0).replace(/[^\d.]/g, '')) || 0;
-  const employee = parseFloat(String(subObj.employee?.subscription || subObj.employee || 0).replace(/[^\d.]/g, '')) || 0;
+  const qib = parseFloat(String(subObj.qib?.subscription || subObj.qib || subObj.QIB || currentIpo.qib || 0).replace(/[^\d.]/g, '')) || 0;
+  const nii = parseFloat(String(subObj.nii?.subscription || subObj.nii || subObj.hni || subObj.sHNI || subObj.bHNI || subObj.NII || currentIpo.nii || 0).replace(/[^\d.]/g, '')) || 0;
+  const retail = parseFloat(String(subObj.retail?.subscription || subObj.retail || subObj.Retail || currentIpo.retail || 0).replace(/[^\d.]/g, '')) || 0;
+  const employee = parseFloat(String(subObj.employee?.subscription || subObj.employee || subObj.Employee || currentIpo.employee || 0).replace(/[^\d.]/g, '')) || 0;
 
   const subData = [
-    { category: 'QIB (Institutional)', times: qib, icon: Building2, momentum: qib >= 10 ? '🔥 Heavy Institutional Bidding' : 'Normal Flow' },
-    { category: 'NII (HNI / Corporate)', times: nii, icon: Flame, momentum: nii >= 5 ? '⚡ Strong HNI Demand' : 'Normal Flow' },
+    { category: 'QIB (Institutional)', times: qib, icon: Building2, momentum: qib >= 10 ? '🔥 Heavy Institutional Bidding' : qib >= 1 ? '✅ Fully Subscribed' : 'Normal Flow' },
+    { category: 'NII (HNI / Corporate)', times: nii, icon: Flame, momentum: nii >= 5 ? '⚡ Strong HNI Demand' : nii >= 1 ? '✅ Fully Subscribed' : 'Normal Flow' },
     { category: 'Retail Individual', times: retail, icon: Users, momentum: retail >= 1 ? '✅ Oversubscribed' : 'Bidding Open' },
-    { category: 'Employee Reservation', times: employee, icon: Activity, momentum: employee >= 1 ? '✅ Oversubscribed' : 'Normal' },
+    { category: 'Employee Reservation', times: employee, icon: Activity, momentum: employee >= 1 ? '✅ Oversubscribed' : 'Normal Flow' },
   ];
 
   return (

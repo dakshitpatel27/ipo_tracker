@@ -3,7 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import { BrowserRouter } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
+import { registerSW } from 'virtual:pwa-register';
+
+// Auto-update PWA service worker registered for instant background updates
+registerSW({ immediate: true });
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

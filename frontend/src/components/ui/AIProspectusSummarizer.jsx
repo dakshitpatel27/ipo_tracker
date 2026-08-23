@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Sparkles, AlertTriangle, ShieldCheck, TrendingUp, DollarSign, Activity, CheckCircle2 } from 'lucide-react';
-import { api } from '../../api';
+import { api, getNormalizedGmp } from '../../api';
 
 const AIProspectusSummarizer = ({ ipo }) => {
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'peers' | 'risks'
+  const [activeTab, setActiveTab] = useState('summary');
   const [currentIpo, setCurrentIpo] = useState(ipo || null);
   const [loading, setLoading] = useState(!ipo);
 
@@ -32,14 +32,15 @@ const AIProspectusSummarizer = ({ ipo }) => {
   if (loading) return null;
   if (!currentIpo) return null;
 
+  const norm = getNormalizedGmp(currentIpo);
   const ipoName = currentIpo.name || currentIpo.ipoName || 'Live IPO';
   const priceBand = currentIpo.priceRange || currentIpo.priceBand || (currentIpo.price ? `₹${currentIpo.price}` : 'N/A');
-  const gmpStr = currentIpo.greyMarketPremium?.gmpTrends?.[0]?.gmp || currentIpo.gmp || '';
-  const gmpVal = parseFloat(String(gmpStr).replace(/[^\d.-]/g, '')) || 0;
+  const gmpStr = norm.isNA ? 'N/A' : norm.gmpStr;
+  const gmpVal = norm.gmpNum;
 
-  // Calculate health rating dynamically based on GMP, subscription demand and market sentiment
-  const subNum = parseFloat(String(currentIpo.subscriptionNumbers?.total?.subscription || currentIpo.subscription || 0).replace(/[^\d.]/g, '')) || 1;
-  const healthScore = Math.min(98, Math.max(50, Math.round(60 + (gmpVal > 0 ? 15 : -10) + Math.min(20, subNum * 1.5))));
+  // Calculate health rating dynamically based on real API GMP & subscription demand
+  const subNum = parseFloat(String(currentIpo.subscriptionNumbers?.total?.subscription || currentIpo.subscription || 0).replace(/[^\d.]/g, '')) || 0;
+  const healthScore = Math.min(98, Math.max(50, Math.round(60 + (gmpVal > 0 ? 15 : (gmpVal < 0 ? -15 : 0)) + Math.min(20, subNum * 1.5))));
   const outlook = healthScore >= 75 ? 'Strong Buy Outlook' : healthScore >= 60 ? 'Moderate Demand' : 'Caution Advised';
 
   let issueSize = 'Market Standard';

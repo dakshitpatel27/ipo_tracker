@@ -18,6 +18,8 @@ import SmeMarketHub from '../components/ui/SmeMarketHub';
 import AiIpoRating from '../components/ui/AiIpoRating';
 import SmeRiskCard from '../components/ui/SmeRiskCard';
 
+import { api, getNormalizedGmp } from '../api';
+
 // ─── Feature 6: GMP Sparkline ──────────────────────────────────
 const GmpSparkline = ({ trends }) => {
   if (!trends || trends.length < 2) return null;
@@ -266,43 +268,30 @@ const IpoMaster = () => {
             {/* Live Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredIpos.map(ipo => {
-              const gmpTrends = ipo.greyMarketPremium?.gmpTrends || [];
-              const gmpStr = gmpTrends?.[0]?.gmp;
-              let gmp = gmpStr || 'N/A';
-              let gmpPercent = '';
-              const isPositive = gmpStr && !gmpStr.includes('-');
-              const isNA = gmp === 'N/A';
+              const norm = getNormalizedGmp(ipo);
+              const gmpStr = norm.gmpStr;
+              let gmp = norm.gmpStr;
+              let gmpPercent = norm.gmpPercent;
+              const isPositive = norm.isPositive;
+              const isNA = norm.isNA;
               const isWatched = watchlist.includes(ipo.name);
               const isComparing = compareIpos.some(c => c.name === ipo.name);
 
               let smartTag = null;
-              let expectedProfit = 0;
-              let upperPrice = 0;
-              let lotNum = 15;
+              const expectedProfit = norm.expectedProfit;
+              const upperPrice = norm.upperPrice;
+              const lotNum = norm.lotNum;
 
-              if (gmpStr && ipo.priceRange) {
-                const gmpNum = parseFloat(gmpStr.replace(/[^\d.-]/g, ''));
-                const priceParts = ipo.priceRange.split('–');
-                upperPrice = parseFloat(priceParts[priceParts.length - 1].replace(/[^\d.]/g, '')) || 0;
-
-                if (!isNaN(gmpNum) && upperPrice > 0) {
-                  const pctNum = ((gmpNum / upperPrice) * 100);
-                  gmpPercent = `${pctNum.toFixed(1)}%`;
-                  if (!gmp.startsWith('₹')) gmp = `₹${gmp}`;
-
-                  const lotStr = ipo.lotSize || ipo.lot;
-                  lotNum = lotStr ? parseInt(lotStr.replace(/[^\d]/g, '')) : 15;
-                  expectedProfit = Math.round(gmpNum * lotNum);
-
-                  if (pctNum > 30) {
-                    smartTag = { label: '💎 Strong Apply', color: 'badge-emerald' };
-                  } else if (pctNum > 10) {
-                    smartTag = { label: '👍 Moderate Apply', color: 'badge-indigo' };
-                  } else if (pctNum > 0) {
-                    smartTag = { label: '⚠️ High Risk', color: 'badge-amber' };
-                  } else {
-                    smartTag = { label: '⛔ Avoid', color: 'badge-rose' };
-                  }
+              if (norm.gmpNum > 0 && norm.upperPrice > 0) {
+                const pctNum = (norm.gmpNum / norm.upperPrice) * 100;
+                if (pctNum > 30) {
+                  smartTag = { label: '💎 Strong Apply', color: 'badge-emerald' };
+                } else if (pctNum > 10) {
+                  smartTag = { label: '👍 Moderate Apply', color: 'badge-indigo' };
+                } else if (pctNum > 0) {
+                  smartTag = { label: '⚠️ High Risk', color: 'badge-amber' };
+                } else {
+                  smartTag = { label: '⛔ Avoid', color: 'badge-rose' };
                 }
               }
 

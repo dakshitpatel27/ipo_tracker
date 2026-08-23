@@ -15,6 +15,55 @@ const getHeaders = () => {
   return headers;
 };
 
+export function getNormalizedGmp(ipo) {
+  if (!ipo) return { gmpNum: 0, gmpStr: '₹0', gmpPercent: '0.0%', isPositive: true, isNA: true, upperPrice: 0, lotNum: 1, expectedProfit: 0 };
+
+  let rawGmpStr = '';
+
+  if (typeof ipo.gmp === 'number') {
+    rawGmpStr = String(ipo.gmp);
+  } else if (typeof ipo.gmpValue === 'number') {
+    rawGmpStr = String(ipo.gmpValue);
+  } else if (typeof ipo.gmp === 'string' && ipo.gmp.trim() !== '' && ipo.gmp !== 'N/A') {
+    rawGmpStr = ipo.gmp;
+  } else if (ipo.greyMarketPremium?.gmpTrends && ipo.greyMarketPremium.gmpTrends.length > 0) {
+    rawGmpStr = ipo.greyMarketPremium.gmpTrends[0].gmp || '';
+  } else if (typeof ipo.greyMarketPremium?.gmp === 'number' || typeof ipo.greyMarketPremium?.gmp === 'string') {
+    rawGmpStr = String(ipo.greyMarketPremium.gmp);
+  } else if (ipo.estimatedGmp) {
+    rawGmpStr = String(ipo.estimatedGmp);
+  }
+
+  const numericGmp = parseFloat(String(rawGmpStr).replace(/[^\d.-]/g, ''));
+  const gmpNum = isNaN(numericGmp) ? 0 : numericGmp;
+
+  // Extract upper price band
+  const rawPriceStr = ipo.priceRange || ipo.priceBand || (ipo.price ? String(ipo.price) : '');
+  const priceNumbers = String(rawPriceStr).match(/\d+(?:\.\d+)?/g) || [];
+  const upperPrice = priceNumbers.length >= 1 ? parseFloat(priceNumbers[priceNumbers.length - 1]) : (parseFloat(ipo.price) || 0);
+
+  // Extract lot size
+  const rawLotStr = ipo.lotSize || ipo.lot || '1';
+  const lotMatch = String(rawLotStr).match(/\d+/);
+  const lotNum = lotMatch ? parseInt(lotMatch[0], 10) : 1;
+
+  const pct = upperPrice > 0 ? (gmpNum / upperPrice) * 100 : 0;
+  const gmpPercent = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+  const gmpStr = `₹${gmpNum}`;
+  const expectedProfit = Math.round(gmpNum * lotNum);
+
+  return {
+    gmpNum,
+    gmpStr,
+    gmpPercent,
+    isPositive: gmpNum >= 0,
+    isNA: rawGmpStr === '' && gmpNum === 0,
+    upperPrice,
+    lotNum,
+    expectedProfit
+  };
+}
+
 const parseResponse = async (res) => {
   let text = '';
   try {
