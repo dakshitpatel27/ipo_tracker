@@ -103,11 +103,23 @@ const Records = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const [applicantMap, setApplicantMap] = useState({});
+
   const loadRecords = async () => {
     try {
       setLoading(true);
-      const data = await api.getRecords();
-      setRecords(data);
+      const [data, appList] = await Promise.all([
+        api.getRecords(),
+        api.getApplicants().catch(() => [])
+      ]);
+      setRecords(data || []);
+
+      const appMap = {};
+      (appList || []).forEach(a => {
+        if (a.pan) appMap[a.pan.toUpperCase()] = a.name;
+        if (a.id) appMap[a.id] = a.name;
+      });
+      setApplicantMap(appMap);
     } catch (err) {
       console.error('Failed to load records', err);
     } finally {
@@ -814,7 +826,9 @@ const Records = () => {
                       >
                         <td>
                           <div className="flex flex-col gap-1">
-                            <span className="font-semibold text-[var(--text-primary)] text-[0.8125rem]">{record.ipoName}</span>
+                            <span className="font-semibold text-[var(--text-primary)] text-[0.8125rem]">
+                              {record.ipoName || record.ipo || record.companyName || record.name || 'IPO Application'}
+                            </span>
                             {record.listingDate && (
                               <CountdownBadge targetDate={record.listingDate} label="Lists" variant="listing" />
                             )}
@@ -835,7 +849,15 @@ const Records = () => {
                             })()}
                           </div>
                         </td>
-                        <td className="text-[var(--text-secondary)]">{record.applicantName}</td>
+                        <td className="text-[var(--text-secondary)] font-medium">
+                          {record.applicantName && record.applicantName.trim() !== ''
+                            ? record.applicantName
+                            : (record.pan && applicantMap[record.pan.toUpperCase()]
+                                ? applicantMap[record.pan.toUpperCase()]
+                                : (record.applicantId && applicantMap[record.applicantId]
+                                    ? applicantMap[record.applicantId]
+                                    : (record.pan ? `Holder (${record.pan})` : 'Primary Applicant')))}
+                        </td>
                         <td>
                           <span className="badge badge-gray">{record.quota || 'Retail'}</span>
                         </td>
