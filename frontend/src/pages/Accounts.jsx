@@ -92,12 +92,10 @@ const AccountCard = ({ account, isSelected, onClick, onEdit, onDelete }) => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-white leading-tight">
-              {account.accountName || account.name || (account.bankName && account.bankName !== 'Bank' ? `${account.bankName} Account` : 'HDFC Primary Account')}
+              {account.accountName || account.name || 'Bank Account'}
             </h3>
             <p className="text-[11px] text-indigo-400 font-medium">
-              {account.bankName && account.bankName !== account.accountName
-                ? account.bankName
-                : (account.bank || account.accountType || 'HDFC Bank')}
+              {account.bankName || account.bank || account.accountType || 'Bank'}
             </p>
           </div>
         </div>
@@ -363,11 +361,9 @@ const Accounts = () => {
 
   const openEditAccount = (account) => {
     setEditingAccount(account);
-    const resolvedAccountName = account.accountName || account.name || (account.bankName && account.bankName !== 'Bank' ? `${account.bankName} Account` : 'HDFC Primary Account');
-    const resolvedBankName = account.bankName || account.bank || 'HDFC Bank';
     setAccountForm({
-      accountName: resolvedAccountName,
-      bankName: resolvedBankName,
+      accountName: account.accountName || account.name || '',
+      bankName: account.bankName || account.bank || '',
       accountNumber: account.accountNumber || '',
       ifscCode: account.ifscCode || '',
       accountType: account.accountType || 'Savings',

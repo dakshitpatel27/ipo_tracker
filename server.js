@@ -6327,34 +6327,12 @@ app.delete('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
 app.get('/api/bank-accounts', authMiddleware, (req, res) => {
     db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        
-        const fallbackAccNames = ['HDFC Primary Account', 'SBI Savings Account', 'ICICI Salary Account', 'Axis Bank Account'];
-        const fallbackBankNames = ['HDFC Bank', 'State Bank of India', 'ICICI Bank', 'Axis Bank'];
-
-        const sanitizedRows = (rows || []).map((r, i) => {
-            const rawName = r.accountName || r.name;
-            const rawBank = r.bankName || r.bank;
-
-            let finalAccName = (rawName && rawName.trim() !== '' && !rawName.startsWith('Bank Account'))
-                ? rawName
-                : (rawBank && rawBank !== 'Bank' ? `${rawBank} Account` : (r.accountNumber ? `Savings A/C (${r.accountNumber.slice(-4)})` : fallbackAccNames[i % fallbackAccNames.length]));
-
-            let finalBankName = (rawBank && rawBank !== 'Bank' && rawBank.trim() !== '')
-                ? rawBank
-                : fallbackBankNames[i % fallbackBankNames.length];
-
-            // Auto-update database row if it was generic
-            if (r.accountName !== finalAccName || r.bankName !== finalBankName) {
-                db.run('UPDATE bank_accounts SET accountName = ?, bankName = ? WHERE id = ?', [finalAccName, finalBankName, r.id]);
-            }
-
-            return {
-                ...r,
-                accountName: finalAccName,
-                bankName: finalBankName
-            };
-        });
-        res.json({ message: 'success', data: sanitizedRows });
+        const data = (rows || []).map(r => ({
+            ...r,
+            accountName: r.accountName || r.name || 'Bank Account',
+            bankName: r.bankName || r.bank || 'Bank'
+        }));
+        res.json({ message: 'success', data });
     });
 });
 
@@ -6413,7 +6391,7 @@ app.delete('/api/bank-accounts/:id', authMiddleware, (req, res) => {
 // GET transactions passbook
 app.get('/api/transactions', authMiddleware, (req, res) => {
     const { bankAccountId, category } = req.query;
-    let sql = 'SELECT t.*, b.accountName FROM transactions t LEFT JOIN bank_accounts b ON t.bankAccountId = b.id WHERE t.userId = ?';
+    let sql = 'SELECT t.*, b.accountName, b.balance as accountBalance FROM transactions t LEFT JOIN bank_accounts b ON t.bankAccountId = b.id WHERE t.userId = ?';
     const params = [req.user.id];
 
     if (bankAccountId) {
@@ -6429,7 +6407,48 @@ app.get('/api/transactions', authMiddleware, (req, res) => {
 
     db.all(sql, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'success', data: rows || [] });
+        
+        db.all('SELECT id, balance FROM bank_accounts WHERE userId = ?', [req.user.id], (bErr, bRows) => {
+            const acctCurrentBalMap = new Map();
+            (bRows || []).forEach(b => {
+                acctCurrentBalMap.set(b.id, parseFloat(b.balance) || 0);
+            });
+
+            const runningBalTracker = new Map();
+
+            const computedRows = (rows || []).map(r => {
+                const acctId = r.bankAccountId || 'default';
+                const currentStored = parseFloat(r.runningBalance) || 0;
+                
+                if (currentStored > 0) {
+                    return {
+                        ...r,
+                        runningBalance: currentStored
+                    };
+                }
+
+                if (!runningBalTracker.has(acctId)) {
+                    runningBalTracker.set(acctId, acctCurrentBalMap.get(acctId) || parseFloat(r.accountBalance) || 0);
+                }
+
+                const currentRunning = runningBalTracker.get(acctId);
+                const amt = parseFloat(r.amount) || 0;
+                
+                const prevBal = r.type === 'credit' ? (currentRunning - amt) : (currentRunning + amt);
+                runningBalTracker.set(acctId, Math.max(0, prevBal));
+
+                if (r.id) {
+                    db.run('UPDATE transactions SET runningBalance = ? WHERE id = ?', [currentRunning, r.id]);
+                }
+
+                return {
+                    ...r,
+                    runningBalance: currentRunning
+                };
+            });
+
+            res.json({ message: 'success', data: computedRows });
+        });
     });
 });
 
