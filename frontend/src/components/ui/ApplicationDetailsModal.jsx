@@ -71,7 +71,7 @@ export default function ApplicationDetailsModal({ isOpen, onClose, record, appli
         <div className="p-3.5 bg-black/40 border border-border rounded-xl flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-xs shrink-0">
-              {appName.charAt(0).toUpperCase()}
+              {(appName || 'A').charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="font-extrabold text-white text-xs">{appName}</div>

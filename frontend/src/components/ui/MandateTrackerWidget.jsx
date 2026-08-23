@@ -125,7 +125,7 @@ const MandateTrackerWidget = ({ onStatusChange }) => {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
-                    {m.applicantName.charAt(0).toUpperCase()}
+                    {(m?.applicantName || 'A').charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-white">

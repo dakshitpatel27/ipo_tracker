@@ -255,7 +255,7 @@ const PartyLedger = () => {
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                         isSelected ? 'bg-indigo-500 text-white' : 'bg-black/30 border border-border text-secondary'
                       }`}>
-                        {party.applicantName.charAt(0).toUpperCase()}
+                        {(party?.applicantName || 'P').charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-bold text-white truncate flex items-center gap-1.5">

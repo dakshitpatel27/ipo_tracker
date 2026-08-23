@@ -94,7 +94,7 @@ const ApplicantLedgerDetail = ({ applicant, onOpenAddModal, onUpdate }) => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-lg">
-              {applicant.name.charAt(0).toUpperCase()}
+              {(applicant?.name || 'A').charAt(0).toUpperCase()}
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
