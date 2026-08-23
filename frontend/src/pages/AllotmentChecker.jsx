@@ -447,6 +447,13 @@ export default function AllotmentChecker() {
                               >
                                 Mark Not Allotted
                               </button>
+                              <button
+                                onClick={() => updateAllotmentStatus(r.id, 'Pending')}
+                                className="px-2 py-1 rounded-lg bg-zinc-700/50 text-zinc-300 hover:bg-zinc-600 hover:text-white transition-colors text-xs font-bold flex items-center gap-1"
+                                title="Revert status back to Pending"
+                              >
+                                <RefreshCcw size={11} /> Revert
+                              </button>
                             </div>
                           </td>
                         </tr>

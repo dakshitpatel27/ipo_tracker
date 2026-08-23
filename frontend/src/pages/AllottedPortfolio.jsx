@@ -72,6 +72,17 @@ export default function AllottedPortfolio() {
     }
   };
 
+  // Action: Revert status back to Pending (Unchecked)
+  const handleRevertToPending = async (recordId) => {
+    try {
+      await api.put(`/records/${recordId}`, { alloted: 'Pending', holdingStatus: 'Pending', status: 'Applied' });
+      toast.success('Reverted record back to Pending status!');
+      fetchData();
+    } catch (err) {
+      toast.error('Failed to revert status back to Pending');
+    }
+  };
+
   // Action: Confirm Sale via Withdrawal Amount
   const handleConfirmSale = async (e) => {
     e.preventDefault();
@@ -341,6 +352,13 @@ export default function AllottedPortfolio() {
                             </td>
                             <td className="text-right">
                               <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleRevertToPending(r.id)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white transition-colors text-xs font-bold flex items-center gap-1"
+                                  title="Revert status back to Pending/Unchecked"
+                                >
+                                  <RefreshCcw size={12} /> Revert to Pending
+                                </button>
                                 {!isRefunded ? (
                                   <button
                                     onClick={() => handleUpdateRefundStatus(r.id, 'refunded')}
