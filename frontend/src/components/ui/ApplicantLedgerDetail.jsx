@@ -53,7 +53,7 @@ const ApplicantLedgerDetail = ({ applicant, onOpenAddModal, onUpdate }) => {
   };
 
   const handleOpenPrintStatement = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('ipo_token') || localStorage.getItem('token');
     const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api');
     window.open(`${apiUrl}/party-ledger/statement-html/${applicant.id}?token=${token}`, '_blank');
   };
