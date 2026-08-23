@@ -251,7 +251,18 @@ const Accounts = () => {
         api.getBankAccounts(),
         api.getTransactions(selectedAccountId || undefined)
       ]);
-      setAccounts(accts);
+      const sanitizedAccts = (accts || []).map((r, i) => {
+        const rawAcc = (r.accountName || r.name || '').trim();
+        const rawBank = (r.bankName || r.bank || '').trim();
+        const isGenericAcc = !rawAcc || rawAcc === 'Bank Account' || rawAcc.startsWith('Bank Account #');
+        const isGenericBank = !rawBank || rawBank === 'Bank';
+        return {
+          ...r,
+          accountName: !isGenericAcc ? rawAcc : (!isGenericBank ? `${rawBank} Account` : (r.accountNumber ? `Savings A/C (${r.accountNumber.slice(-4)})` : (i === 0 ? 'Primary Bank Account' : `Secondary Bank Account`))),
+          bankName: !isGenericBank ? rawBank : (i === 0 ? 'Primary Bank' : 'Secondary Bank')
+        };
+      });
+      setAccounts(sanitizedAccts);
       setTransactions(txns);
     } catch (err) {
       console.error(err);

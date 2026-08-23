@@ -1764,7 +1764,28 @@ function recordTransaction(userId, bankAccountId, type, category, amount, descri
 app.get('/api/bank-accounts', authMiddleware, (req, res) => {
     db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'success', data: rows || [] });
+        const sanitized = (rows || []).map((r, i) => {
+            const rawAcc = (r.accountName || r.name || '').trim();
+            const rawBank = (r.bankName || r.bank || '').trim();
+
+            const isGenericAcc = !rawAcc || rawAcc === 'Bank Account' || rawAcc.startsWith('Bank Account #');
+            const isGenericBank = !rawBank || rawBank === 'Bank';
+
+            const accName = !isGenericAcc
+                ? rawAcc
+                : (!isGenericBank ? `${rawBank} Account` : (r.accountNumber ? `Savings A/C (${r.accountNumber.slice(-4)})` : (i === 0 ? 'Primary Bank Account' : `Secondary Bank Account`)));
+
+            const bankN = !isGenericBank
+                ? rawBank
+                : (i === 0 ? 'Primary Bank' : 'Secondary Bank');
+
+            return {
+                ...r,
+                accountName: accName,
+                bankName: bankN
+            };
+        });
+        res.json({ message: 'success', data: sanitized });
     });
 });
 
