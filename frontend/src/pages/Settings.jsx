@@ -518,6 +518,7 @@ const NotificationTimingsForm = () => {
             onChange={e => setTimings({ ...timings, gmpSurgeAlert: e.target.value })}
             className="input-field w-full text-xs text-white bg-black/40"
           >
+            <option value="ON_GMP_CHANGE">📈 On Any GMP Change (Instant Alert on Price Movement)</option>
             <option value="REALTIME">⚡ Real-time on Surge (+10% GMP change)</option>
             <option value="TWICE_DAILY">🌅 Twice Daily (9 AM & 6 PM Market Summaries)</option>
             <option value="DISABLED">🚫 Disabled</option>

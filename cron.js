@@ -103,6 +103,91 @@ async function runDailyDigest() {
   });
 }
 
+const lastKnownGmpMap = new Map();
+
+async function broadcastGmpChangeAlert(ipoName, oldGmp, newGmp) {
+  if (oldGmp === newGmp) return;
+  const diff = newGmp - oldGmp;
+  const diffStr = diff > 0 ? `+₹${diff}` : `-₹${Math.abs(diff)}`;
+  const title = `🔥 Live GMP Alert: ${ipoName}`;
+  const body = `${ipoName} GMP moved to ₹${newGmp} (${diffStr}) | Previous: ₹${oldGmp}`;
+
+  console.log(`[Cron] Broadcasting GMP Change Alert for ${ipoName}: ₹${oldGmp} -> ₹${newGmp}`);
+
+  db.all('SELECT * FROM users', [], (err, users) => {
+    if (err || !users) return;
+
+    users.forEach(user => {
+      let timings = {};
+      try {
+        if (user.notificationTimings) timings = JSON.parse(user.notificationTimings);
+      } catch (e) {}
+
+      const trigger = timings.gmpSurgeAlert || 'REALTIME';
+      if (trigger === 'DISABLED') return;
+
+      if (trigger === 'ON_GMP_CHANGE' || trigger === 'REALTIME') {
+        // 1. FCM Push
+        if (user.fcmTokens) {
+          try {
+            const tokens = JSON.parse(user.fcmTokens);
+            if (tokens.length > 0) {
+              const firebaseAdmin = require('./firebase-admin');
+              if (firebaseAdmin.apps && firebaseAdmin.apps.length > 0) {
+                firebaseAdmin.messaging().sendEachForMulticast({
+                  tokens: [...new Set(tokens)],
+                  notification: { title, body }
+                }).catch(() => {});
+              }
+            }
+          } catch(e) {}
+        }
+
+        // 2. Telegram Bot
+        if (user.telegramToken && user.telegramChatId && user.telegramAlerts !== 0) {
+          sendTelegramMessage(
+            user.telegramToken,
+            user.telegramChatId,
+            `🔥 <b>LIVE GMP ALERT: ${ipoName}</b>\n\n💰 <b>New GMP:</b> ₹${newGmp} (<b>${diffStr}</b>)\n📊 <b>Previous GMP:</b> ₹${oldGmp}\n\n🚀 <i>Check full applicant matrix on IPO Tracker Desk.</i>`
+          );
+        }
+
+        // 3. WhatsApp Gateway
+        if (user.whatsappNumber && user.whatsappAlerts !== 0) {
+          try {
+            const { sendWhatsAppMessage } = require('./whatsapp');
+            sendWhatsAppMessage(
+              user.whatsappNumber,
+              `🔥 *LIVE GMP ALERT: ${ipoName}*\n\n💰 *New GMP:* ₹${newGmp} (*${diffStr}*)\n📊 *Previous GMP:* ₹${oldGmp}\n\n🚀 _Check full applicant matrix on IPO Tracker Desk._`
+            );
+          } catch (e) {}
+        }
+
+        // 4. In-App Notification Log & Realtime SSE
+        const crypto = require('crypto');
+        const notifId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+        db.run(
+          'INSERT INTO notifications (id, title, body, userId, sentAt, status) VALUES (?, ?, ?, ?, ?, ?)',
+          [notifId, title, body, user.id, new Date().toISOString(), 'unread']
+        );
+
+        if (global.pushRealtimeNotification) {
+          global.pushRealtimeNotification(user.id, {
+            type: 'gmp_change',
+            id: notifId,
+            title,
+            body,
+            gmp: newGmp,
+            oldGmp,
+            ipoName,
+            sentAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+  });
+}
+
 async function runGmpSync() {
   console.log('[Cron] Running Auto-Sync for Live GMP...');
   jobsStatus.gmpSync.status = 'running';
@@ -129,6 +214,14 @@ async function runGmpSync() {
             const gmpNum = parseFloat(gmpStr.replace(/[^\d.-]/g, ''));
             if (!isNaN(gmpNum)) {
               validIpos.push({ ipoName, gmpNum });
+
+              // Check for GMP price movement and trigger alert
+              const key = ipoName.toLowerCase();
+              const oldGmp = lastKnownGmpMap.get(key);
+              if (oldGmp !== undefined && oldGmp !== gmpNum) {
+                broadcastGmpChangeAlert(ipoName, oldGmp, gmpNum);
+              }
+              lastKnownGmpMap.set(key, gmpNum);
             }
           }
         });

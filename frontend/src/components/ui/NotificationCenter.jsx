@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
-import { Bell, Check, Trash2, CheckCheck, X, AlertTriangle, Sparkles, Info, ArrowUpRight } from 'lucide-react';
+import { Bell, Check, Trash2, CheckCheck, X, AlertTriangle, Sparkles, Info, ArrowUpRight, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const typeIcons = {
@@ -12,6 +13,7 @@ const typeIcons = {
 };
 
 const NotificationCenter = () => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -53,7 +55,8 @@ const NotificationCenter = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, e) => {
+    if (e) e.stopPropagation();
     try {
       await api.deleteUserNotification(id);
       fetchNotifications();
@@ -62,12 +65,31 @@ const NotificationCenter = () => {
     }
   };
 
+  const handleNotificationClick = (n) => {
+    if (n.isRead === 0) {
+      handleMarkRead(n.id);
+    }
+    setIsOpen(false);
+
+    const title = (n.title || '').toLowerCase();
+    const body = (n.body || '').toLowerCase();
+
+    if (title.includes('allotment') || body.includes('allotment')) {
+      navigate('/allotted');
+    } else if (title.includes('master') || body.includes('master')) {
+      navigate('/ipo-master');
+    } else {
+      // Default to Application Matrix Desk
+      navigate('/application-matrix');
+    }
+  };
+
   return (
     <div className="relative">
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 rounded-xl transition-all border border-[var(--border)] flex items-center justify-center"
+        className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5 rounded-xl transition-all border border-[var(--border)] flex items-center justify-center cursor-pointer"
         title="Notifications"
       >
         <Bell size={18} />
@@ -94,7 +116,7 @@ const NotificationCenter = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed top-0 right-0 h-full w-full max-w-md bg-[var(--sidebar-bg)] border-l border-[var(--border)] z-20 shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 h-full w-full max-w-md bg-[var(--sidebar-bg)] border-l border-[var(--border)] z-20 shadow-2xl flex flex-col font-sans"
             >
               {/* Drawer Header */}
               <div className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-2)] shrink-0">
@@ -109,7 +131,7 @@ const NotificationCenter = () => {
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 p-1"
+                      className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 p-1 cursor-pointer"
                       title="Mark all as read"
                     >
                       <CheckCheck size={14} /> Mark all read
@@ -117,7 +139,7 @@ const NotificationCenter = () => {
                   )}
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-black/5"
+                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-black/5 cursor-pointer"
                   >
                     <X size={18} />
                   </button>
@@ -140,19 +162,20 @@ const NotificationCenter = () => {
                     return (
                       <div
                         key={n.id}
-                        className={`p-3.5 rounded-xl border text-left transition-all relative group ${
+                        onClick={() => handleNotificationClick(n)}
+                        className={`p-3.5 rounded-xl border text-left transition-all relative group cursor-pointer hover:border-indigo-500/50 hover:scale-[1.01] ${
                           n.isRead === 0
-                            ? 'bg-indigo-500/5 border-indigo-500/20 shadow-sm'
-                            : 'bg-[var(--surface)] border-[var(--border)] opacity-75'
+                            ? 'bg-indigo-500/10 border-indigo-500/30 shadow-md'
+                            : 'bg-[var(--surface)] border-[var(--border)] opacity-80'
                         }`}
                       >
                         <div className="flex items-start gap-3">
                           <div className={`p-2 rounded-lg ${typeConfig.bg} ${typeConfig.color} shrink-0 mt-0.5`}>
                             <Icon size={14} />
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 pr-6">
                             <div className="flex items-center justify-between gap-2">
-                              <p className={`text-xs font-semibold ${n.isRead === 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+                              <p className={`text-xs font-bold ${n.isRead === 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                                 {n.title}
                               </p>
                               {n.isRead === 0 && (
@@ -160,28 +183,22 @@ const NotificationCenter = () => {
                               )}
                             </div>
                             <p className="text-xs text-secondary mt-1 leading-relaxed break-words">{n.body}</p>
-                            <p className="text-[10px] text-zinc-500 mt-2">
-                              {new Date(n.createdAt).toLocaleDateString('en-IN', {
+                            <div className="flex items-center justify-between mt-2 text-[10px] text-zinc-400 font-mono">
+                              <span>{new Date(n.createdAt).toLocaleDateString('en-IN', {
                                 day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                              })}
-                            </p>
+                              })}</span>
+                              <span className="text-indigo-400 flex items-center gap-0.5 group-hover:underline font-sans font-bold">
+                                View <ExternalLink size={10} />
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Action buttons on hover */}
-                        <div className="absolute right-2 bottom-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {n.isRead === 0 && (
-                            <button
-                              onClick={() => handleMarkRead(n.id)}
-                              className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded"
-                              title="Mark as read"
-                            >
-                              <Check size={13} />
-                            </button>
-                          )}
+                        {/* Delete button */}
+                        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => handleDelete(n.id)}
-                            className="p-1 text-rose-400 hover:bg-rose-500/10 rounded"
+                            onClick={(e) => handleDelete(n.id, e)}
+                            className="p-1 text-rose-400 hover:bg-rose-500/10 rounded cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 size={13} />

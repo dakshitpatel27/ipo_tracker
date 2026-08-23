@@ -208,7 +208,11 @@ function App() {
           }`}
         style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)' }}
       >
-        <div className="flex items-center gap-2.5">
+        <div
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity"
+          title="Go to Home Dashboard"
+        >
           <img
             src="/app-icon.png"
             alt="IPO Tracker Logo"

@@ -68,18 +68,37 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Handle notification click to focus or open app window
+// Handle notification click to focus or open app window at target URL
 self.addEventListener('notificationclick', (event) => {
+  console.log('[firebase-messaging-sw.js] Notification clicked:', event.notification);
   event.notification.close();
+
+  const notifData = event.notification.data || {};
+  let targetPath = notifData.click_action || notifData.url || '/application-matrix';
+
+  const title = (event.notification.title || '').toLowerCase();
+  const body = (event.notification.body || '').toLowerCase();
+
+  if (title.includes('allotment') || body.includes('allotment')) {
+    targetPath = '/allotted';
+  } else if (title.includes('master') || body.includes('master')) {
+    targetPath = '/ipo-master';
+  } else {
+    targetPath = '/application-matrix';
+  }
+
+  const targetUrl = new URL(targetPath, self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );
