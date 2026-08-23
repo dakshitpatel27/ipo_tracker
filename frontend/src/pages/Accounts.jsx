@@ -91,8 +91,12 @@ const AccountCard = ({ account, isSelected, onClick, onEdit, onDelete }) => {
             <Building2 size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white leading-tight">{account.accountName}</h3>
-            <p className="text-[11px] text-[var(--text-muted)] font-medium">{account.bankName}</p>
+            <h3 className="text-sm font-bold text-white leading-tight">
+              {account.accountName || account.name || account.bankName || 'Bank Account'}
+            </h3>
+            <p className="text-[11px] text-[var(--text-muted)] font-medium">
+              {account.bankName || account.bank || account.accountType || 'Bank'}
+            </p>
           </div>
         </div>
         <div className="flex gap-1">
@@ -655,11 +659,17 @@ const Accounts = () => {
                 className="input-field"
               >
                 <option value="">Select Account</option>
-                {accounts.map(a => (
-                  <option key={a.id} value={a.id}>
-                    {a.accountName} ({a.bankName}) — {formatCurrency(a.balance)}
-                  </option>
-                ))}
+                {accounts.map(a => {
+                  const displayName = a.accountName || a.name || a.bankName || a.bank || 'Bank Account';
+                  const displayBank = a.bankName || a.bank || a.accountType || '';
+                  const maskedAcc = a.accountNumber ? ` ••••${a.accountNumber.slice(-4)}` : '';
+                  const detailStr = displayBank ? ` (${displayBank}${maskedAcc})` : (maskedAcc ? ` (${maskedAcc.trim()})` : '');
+                  return (
+                    <option key={a.id} value={a.id}>
+                      {displayName}{detailStr} — {formatCurrency(a.balance)}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>
