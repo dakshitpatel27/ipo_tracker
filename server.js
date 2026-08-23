@@ -202,6 +202,44 @@ app.use((req, res, next) => {
 app.use(bodyParser.json({ limit: '2mb' }));
 app.use(bodyParser.urlencoded({ limit: '2mb', extended: true }));
 
+// ========== RECURSIVE XSS & SCRIPT INJECTION SANITIZER ==========
+function sanitizeInput(obj) {
+    if (typeof obj === 'string') {
+        return obj
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/javascript:/gi, '')
+            .replace(/onerror\s*=/gi, '')
+            .replace(/onload\s*=/gi, '');
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(sanitizeInput);
+    }
+    if (obj !== null && typeof obj === 'object') {
+        const sanitized = {};
+        for (const [key, value] of Object.entries(obj)) {
+            sanitized[key] = sanitizeInput(value);
+        }
+        return sanitized;
+    }
+    return obj;
+}
+
+app.use((req, res, next) => {
+    if (req.body) req.body = sanitizeInput(req.body);
+    if (req.query) req.query = sanitizeInput(req.query);
+    if (req.params) req.params = sanitizeInput(req.params);
+    next();
+});
+
+// ========== NO-CACHE HEADERS FOR SENSITIVE API ROUTES ==========
+app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+});
+
 // In-memory sliding window rate limiter for sensitive authentication endpoints
 const authRateAttempts = new Map();
 function authRateLimiter(maxAttempts = 10, windowMs = 15 * 60 * 1000) {
