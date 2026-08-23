@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Grid, CheckCircle2, AlertCircle, Plus, RefreshCw, Filter, Search,
-  Download, Users, Globe, Building2, Wallet, Check, X, Shield, ArrowUpRight, Clock, Sparkles, UserPlus, LayoutList, Table, Eye
+  Download, Users, Globe, Building2, Wallet, Check, X, Shield, ArrowUpRight, Clock, Sparkles, UserPlus, LayoutList, Table, Eye, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api';
@@ -11,6 +11,7 @@ import PageLoader from '../components/ui/PageLoader';
 import QuickApplyModal from '../components/ui/QuickApplyModal';
 import ApplicationDetailsModal from '../components/ui/ApplicationDetailsModal';
 import Modal from '../components/ui/Modal';
+import Card3D from '../components/ui/Card3D';
 
 const ApplicationMatrix = () => {
   const { isStealth } = usePrivacy();
@@ -22,7 +23,11 @@ const ApplicationMatrix = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [ipoCategoryFilter, setIpoCategoryFilter] = useState('MAINBOARD_LIVE'); // 'MAINBOARD_LIVE' | 'SME_LIVE' | 'ALL'
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  
+  // Auto-detect mobile screen width on load (default to 'cards' for mobile < 640px, 'table' for desktop)
+  const [viewMode, setViewMode] = useState(() => 
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'cards' : 'table'
+  );
   
   // Quick Apply Modal State
   const [quickApplyModalOpen, setQuickApplyModalOpen] = useState(false);
@@ -270,7 +275,7 @@ const ApplicationMatrix = () => {
   const groups = ['All', ...new Set(applicants.map(a => a?.groupTag || a?.family || 'Family'))];
 
   return (
-    <div className="w-full max-w-full space-y-4 sm:space-y-6 pb-12 font-sans px-2 sm:px-4 md:px-6">
+    <div className="w-full max-w-full space-y-4 sm:space-y-6 pb-16 font-sans px-2 sm:px-4 md:px-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div>
@@ -288,22 +293,22 @@ const ApplicationMatrix = () => {
           {/* View Mode Toggle */}
           <div className="flex items-center bg-black/40 border border-border rounded-xl p-1 shrink-0">
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                viewMode === 'table' ? 'bg-emerald-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Table View"
-            >
-              <Table size={14} /> <span className="hidden sm:inline">Grid</span>
-            </button>
-            <button
               onClick={() => setViewMode('cards')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 viewMode === 'cards' ? 'bg-emerald-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="Mobile Card View"
             >
-              <LayoutList size={14} /> <span className="hidden sm:inline">Cards</span>
+              <LayoutList size={14} /> <span>Cards</span>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === 'table' ? 'bg-emerald-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Full Table Grid"
+            >
+              <Table size={14} /> <span>Grid</span>
             </button>
           </div>
 
@@ -333,47 +338,47 @@ const ApplicationMatrix = () => {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
+      {/* Summary KPI Cards with 3D Tilt Physics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+        <Card3D depth={8} className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/10">
             <Users size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] uppercase font-bold text-secondary truncate">Applicants</div>
             <div className="text-lg sm:text-xl font-black text-white">{filteredApplicants.length}</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+        <Card3D depth={8} className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0 shadow-lg shadow-blue-500/10">
             <Globe size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] uppercase font-bold text-secondary truncate">Live Mainboard IPOs</div>
             <div className="text-lg sm:text-xl font-black text-blue-300">{ipoColumns.length}</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+        <Card3D depth={8} className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 shadow-lg shadow-indigo-500/10">
             <CheckCircle2 size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] uppercase font-bold text-secondary truncate">Bids Placed</div>
             <div className="text-lg sm:text-xl font-black text-indigo-300">{totalActualApplied}</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+        <Card3D depth={8} className="glass-card p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border flex items-center gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/10">
             <Sparkles size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] uppercase font-bold text-secondary truncate">Coverage Rate</div>
             <div className="text-lg sm:text-xl font-black text-amber-300">{coveragePct}%</div>
           </div>
-        </div>
+        </Card3D>
       </div>
 
       {/* Search & Group Filter Bar */}
@@ -422,7 +427,7 @@ const ApplicationMatrix = () => {
 
       {/* FULL CENTERED EMPTY STATE CARD WHEN NO APPLICANTS */}
       {filteredApplicants.length === 0 ? (
-        <div className="glass-card rounded-2xl border border-border p-12 sm:p-16 flex flex-col items-center justify-center text-center space-y-4 my-6 shadow-2xl w-full">
+        <div className="glass-card rounded-2xl border border-border p-10 sm:p-16 flex flex-col items-center justify-center text-center space-y-4 my-6 shadow-2xl w-full">
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-500/10">
             <Users size={32} />
           </div>
@@ -443,22 +448,22 @@ const ApplicationMatrix = () => {
         </div>
       ) : (
         <>
-          {/* VIEW MODE 1: Touch-Optimized Table Grid View */}
+          {/* VIEW MODE 1: Touch-Optimized Responsive Table Grid View */}
           {viewMode === 'table' && (
             <div className="glass-card rounded-xl sm:rounded-2xl border border-border overflow-hidden shadow-2xl flex flex-col w-full">
-              <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[72vh] touch-pan-x">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[72vh] touch-pan-x w-full">
+                <table className="w-full text-left text-xs border-collapse min-w-full">
                   <thead className="sticky top-0 z-20 bg-[#09090b] backdrop-blur-md border-b border-border shadow-md">
                     <tr>
-                      {/* Left Sticky Column Header */}
-                      <th className="sticky left-0 z-30 bg-[#0c0c10] px-4 sm:px-6 py-4 w-44 sm:w-64 border-r border-border font-extrabold text-white text-xs uppercase tracking-wider shadow-[4px_0_12px_rgba(0,0,0,0.5)]">
+                      {/* Left Sticky Column Header (Compact on mobile) */}
+                      <th className="sticky left-0 z-30 bg-[#0c0c10] px-2.5 sm:px-6 py-3.5 w-28 sm:w-64 border-r border-border font-extrabold text-white text-[11px] sm:text-xs uppercase tracking-wider shadow-[4px_0_12px_rgba(0,0,0,0.5)] shrink-0">
                         Applicant ({filteredApplicants.length})
                       </th>
 
                       {/* IPO Column Headers */}
                       {ipoColumns.map((ipo) => (
-                        <th key={ipo.name} className="px-5 py-4 min-w-[180px] sm:min-w-[210px] border-r border-border/50 text-center font-bold">
-                          <div className="text-xs sm:text-sm font-black text-white truncate max-w-[160px] sm:max-w-[190px] mx-auto">{ipo.name}</div>
+                        <th key={ipo.name} className="px-4 py-3.5 min-w-[170px] sm:min-w-[210px] border-r border-border/50 text-center font-bold">
+                          <div className="text-xs sm:text-sm font-black text-white truncate max-w-[140px] sm:max-w-[190px] mx-auto">{ipo.name}</div>
                           <div className="flex items-center justify-center gap-1 mt-1 text-[10px]">
                             <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-full font-extrabold uppercase">
                               {ipo.category || 'Mainboard'}
@@ -470,7 +475,7 @@ const ApplicationMatrix = () => {
 
                       {ipoColumns.length === 0 && (
                         <th className="px-6 py-4 text-center text-secondary font-medium">
-                          No live mainboard IPOs currently open. Switch filter to "All Active IPOs" or apply to an IPO.
+                          No live mainboard IPOs currently open. Switch filter to "All Active IPOs".
                         </th>
                       )}
                     </tr>
@@ -479,19 +484,19 @@ const ApplicationMatrix = () => {
                   <tbody className="divide-y divide-border/50">
                     {filteredApplicants.map((app) => (
                       <tr key={app.id || app.name} className="hover:bg-white/[0.02] transition-colors">
-                        {/* Left Sticky Column Cell */}
-                        <td className="sticky left-0 z-10 bg-[#0c0c10] px-4 sm:px-6 py-4 border-r border-border shadow-[4px_0_12px_rgba(0,0,0,0.5)]">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black flex items-center justify-center shrink-0 text-xs">
+                        {/* Left Sticky Column Cell (Compact width on mobile) */}
+                        <td className="sticky left-0 z-10 bg-[#0c0c10] px-2.5 sm:px-6 py-3 border-r border-border shadow-[4px_0_12px_rgba(0,0,0,0.5)] shrink-0">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black flex items-center justify-center shrink-0 text-xs">
                               {app.name ? app.name.charAt(0).toUpperCase() : 'A'}
                             </div>
                             <div className="truncate min-w-0">
-                              <div className="font-extrabold text-white text-xs truncate">{app.name}</div>
-                              <div className="text-[10px] text-secondary font-mono truncate">
+                              <div className="font-extrabold text-white text-[11px] sm:text-xs truncate">{app.name}</div>
+                              <div className="text-[9px] text-secondary font-mono truncate">
                                 {isStealth ? 'XX****12X' : (app.pan || 'No PAN')}
                               </div>
                               {(app.groupTag || app.family) && (
-                                <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 bg-black/40 border border-white/10 text-zinc-400 rounded truncate max-w-[120px]">
+                                <span className="hidden sm:inline-block mt-0.5 text-[9px] px-1.5 py-0.2 bg-black/40 border border-white/10 text-zinc-400 rounded truncate max-w-[120px]">
                                   {app.groupTag || app.family}
                                 </span>
                               )}
@@ -508,15 +513,15 @@ const ApplicationMatrix = () => {
                           const lotCount = record?.lots || (shares > 0 && lotSize > 0 ? Math.max(1, Math.round(shares / lotSize)) : 1);
 
                           return (
-                            <td key={ipo.name} className="px-4 py-4 border-r border-border/40 text-center align-middle">
+                            <td key={ipo.name} className="px-3 py-3 border-r border-border/40 text-center align-middle">
                               {isApplied ? (
                                 <div
                                   onClick={() => handleOpenDetails(record, app, ipo)}
-                                  className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 space-y-1.5 shadow-sm hover:border-emerald-400 transition-all cursor-pointer hover:scale-[1.02] group"
+                                  className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 space-y-1 shadow-sm hover:border-emerald-400 transition-all cursor-pointer hover:scale-[1.02] group"
                                   title="Click to view full application details"
                                 >
-                                  <div className="flex items-center justify-center gap-1 text-emerald-400 font-black text-xs group-hover:text-emerald-300">
-                                    <CheckCircle2 size={14} />
+                                  <div className="flex items-center justify-center gap-1 text-emerald-400 font-black text-[11px] group-hover:text-emerald-300">
+                                    <CheckCircle2 size={13} />
                                     <span>APPLIED</span>
                                   </div>
 
@@ -530,34 +535,30 @@ const ApplicationMatrix = () => {
                                   )}
 
                                   {/* Bank Account */}
-                                  <div className="text-[10px] text-zinc-300 truncate max-w-[160px] mx-auto flex items-center justify-center gap-1">
+                                  <div className="text-[10px] text-zinc-300 truncate max-w-[140px] mx-auto flex items-center justify-center gap-1">
                                     <Building2 size={10} className="text-indigo-400 shrink-0" />
                                     <span className="truncate">{record.bankName || record.bankAccount || record.dematId || 'UPI Direct'}</span>
                                   </div>
 
                                   {/* Status Badge */}
-                                  <div className="pt-1">
+                                  <div className="pt-0.5">
                                     {record.alloted === 'Yes' ? (
-                                      <span className="px-2 py-0.5 bg-emerald-500 text-black font-extrabold text-[10px] rounded uppercase tracking-wide">
+                                      <span className="px-2 py-0.5 bg-emerald-500 text-black font-extrabold text-[9px] rounded uppercase tracking-wide">
                                         🎉 Allotted
                                       </span>
                                     ) : record.alloted === 'No' ? (
-                                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30 text-[10px] rounded">
+                                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30 text-[9px] rounded">
                                         ❌ Not Allotted
                                       </span>
                                     ) : (
-                                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 text-[10px] rounded inline-flex items-center gap-1">
+                                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 text-[9px] rounded inline-flex items-center gap-1">
                                         <Clock size={9} className="animate-spin text-amber-400" /> Pending
                                       </span>
                                     )}
                                   </div>
-
-                                  <div className="text-[9px] text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity font-sans flex items-center justify-center gap-0.5 pt-0.5">
-                                    <Eye size={10} /> Click to View Details
-                                  </div>
                                 </div>
                               ) : (
-                                <div className="py-1.5 space-y-1.5">
+                                <div className="py-1 space-y-1">
                                   <div className="text-[10px] text-zinc-600 font-medium italic">
                                     — Not Applied
                                   </div>
@@ -573,12 +574,6 @@ const ApplicationMatrix = () => {
                             </td>
                           );
                         })}
-
-                        {ipoColumns.length === 0 && (
-                          <td className="px-6 py-8 text-center text-secondary">
-                            No IPOs listed in columns.
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -587,11 +582,12 @@ const ApplicationMatrix = () => {
             </div>
           )}
 
-          {/* VIEW MODE 2: Mobile Stacked Cards View (Ideal for Small Mobile Devices) */}
+          {/* VIEW MODE 2: HIGH-DENSITY ULTRA-CLEAN MOBILE CARDS VIEW */}
           {viewMode === 'cards' && (
             <div className="space-y-4">
               {filteredApplicants.map((app) => (
-                <div key={app.id || app.name} className="glass-card p-4 rounded-2xl border border-border space-y-3">
+                <div key={app.id || app.name} className="glass-card p-4 rounded-2xl border border-border space-y-3 shadow-xl">
+                  {/* Applicant Header */}
                   <div className="flex items-center justify-between border-b border-border/50 pb-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-sm">
@@ -606,14 +602,14 @@ const ApplicationMatrix = () => {
                     </div>
 
                     {(app.groupTag || app.family) && (
-                      <span className="text-[10px] px-2 py-0.5 bg-black/40 border border-white/10 text-zinc-300 rounded-full font-semibold">
+                      <span className="text-[10px] px-2.5 py-0.5 bg-black/40 border border-white/10 text-zinc-300 rounded-full font-semibold">
                         {app.groupTag || app.family}
                       </span>
                     )}
                   </div>
 
-                  {/* IPO Matrix List for this Applicant */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* IPO Cards Stack for this Applicant */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {ipoColumns.map((ipo) => {
                       const record = getApplicationRecord(app.name, ipo.name);
                       const isApplied = !!record;
@@ -622,37 +618,51 @@ const ApplicationMatrix = () => {
                         <div
                           key={ipo.name}
                           onClick={() => isApplied && handleOpenDetails(record, app, ipo)}
-                          className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                          className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
                             isApplied
-                              ? 'bg-emerald-500/10 border-emerald-500/30 cursor-pointer hover:border-emerald-400'
-                              : 'bg-surface/50 border-border/50'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 cursor-pointer hover:border-emerald-400 shadow-md shadow-emerald-500/5'
+                              : 'bg-[#121216]/60 border-border/50'
                           }`}
                         >
-                          <div className="min-w-0 pr-2">
-                            <div className="font-bold text-white text-xs truncate">{ipo.name}</div>
+                          <div className="min-w-0 pr-3 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-white text-xs truncate">{ipo.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded font-bold uppercase shrink-0">
+                                {ipo.category || 'Mainboard'}
+                              </span>
+                            </div>
+
                             {isApplied ? (
-                              <div className="text-[10px] text-zinc-300 font-mono mt-0.5">
+                              <div className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                                <CheckCircle2 size={11} />
                                 {(() => {
                                   const sh = parseFloat(record?.shares) || 0;
                                   const ls = parseFloat(record?.lotSize || ipo.lotSize) || 1;
                                   const lc = record?.lots || (sh > 0 && ls > 0 ? Math.max(1, Math.round(sh / ls)) : 1);
-                                  return `${lc} ${lc === 1 ? 'Lot' : 'Lots'} (${record.quota || 'Retail'})${sh > 0 ? ` • ${sh} shares` : ''}`;
+                                  return `${lc} ${lc === 1 ? 'Lot' : 'Lots'} (${record.quota || 'Retail'})${sh > 0 ? ` • ${sh} sh` : ''}`;
                                 })()}
                               </div>
                             ) : (
-                              <div className="text-[10px] text-zinc-500 italic mt-0.5">— Not Applied</div>
+                              <div className="text-[10px] text-zinc-500 italic">— Not Applied</div>
+                            )}
+
+                            {isApplied && (
+                              <div className="text-[9px] text-zinc-400 font-mono truncate flex items-center gap-1">
+                                <Building2 size={9} className="text-indigo-400 shrink-0" />
+                                <span className="truncate">{record.bankName || record.bankAccount || 'UPI Direct'}</span>
+                              </div>
                             )}
                           </div>
 
                           <div className="shrink-0">
                             {isApplied ? (
-                              <span className="px-2 py-1 bg-emerald-500 text-black font-extrabold text-[10px] rounded-lg inline-flex items-center gap-1">
-                                <CheckCircle2 size={12} /> Applied
-                              </span>
+                              <button className="px-2.5 py-1.5 bg-emerald-500 text-black font-extrabold text-[10px] rounded-lg inline-flex items-center gap-1 shadow-md shadow-emerald-500/20">
+                                View <ChevronRight size={12} />
+                              </button>
                             ) : (
                               <button
                                 onClick={() => handleOpenQuickApply(app, ipo)}
-                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[10px] rounded-lg transition-all flex items-center gap-1 shadow-md shadow-indigo-500/20"
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[10px] rounded-lg transition-all flex items-center gap-1 shadow-md shadow-indigo-500/20 cursor-pointer"
                               >
                                 <Plus size={12} /> Apply
                               </button>

@@ -377,6 +377,167 @@ const WhatsappSettingsForm = () => {
 };
 
 
+const NotificationTimingsForm = () => {
+  const [timings, setTimings] = useState({
+    morningOpenTime: '10:00',
+    morningOpenEnabled: true,
+    afternoonCutoffTime: '15:30',
+    afternoonCutoffEnabled: true,
+    eveningAllotmentTime: '21:30',
+    eveningAllotmentEnabled: true,
+    gmpSurgeAlert: 'REALTIME',
+    recipientTarget: 'ALL_APPLICANTS',
+    channels: { push: true, email: true, telegram: true, whatsapp: true }
+  });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadTimings() {
+      try {
+        setLoading(true);
+        const data = await api.getNotificationTimings();
+        if (data) setTimings(data);
+      } catch (e) {
+        console.warn('Failed to load notification timings:', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTimings();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.saveNotificationTimings(timings);
+      toast.success('🎉 Notification schedules & timings saved for all users!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save timings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSave} className="bg-surface-2 p-5 rounded-xl border border-[var(--border)] space-y-5">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+        <div>
+          <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+            <Clock size={16} className="text-indigo-400" />
+            <span>Notification Schedule & Timing Settings (Send To All)</span>
+          </h3>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            Configure automated broadcast alert times for Bidding Open, Closing Cutoff, Allotment Updates, and GMP Surges across all channels.
+          </p>
+        </div>
+      </div>
+
+      {/* Schedule Timings Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Morning IPO Bidding Open */}
+        <div className="p-3.5 bg-black/20 rounded-xl border border-[var(--border)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-400">🌅 Morning Bidding Open</span>
+            <input
+              type="checkbox"
+              checked={timings.morningOpenEnabled !== false}
+              onChange={e => setTimings({ ...timings, morningOpenEnabled: e.target.checked })}
+              className="rounded border-[var(--border)] text-emerald-500"
+            />
+          </div>
+          <p className="text-[10px] text-zinc-400">Alerts when IPO bidding starts on exchanges.</p>
+          <input
+            type="time"
+            value={timings.morningOpenTime || '10:00'}
+            onChange={e => setTimings({ ...timings, morningOpenTime: e.target.value })}
+            className="input-field w-full font-mono text-xs text-white"
+          />
+        </div>
+
+        {/* Afternoon Cutoff Warning */}
+        <div className="p-3.5 bg-black/20 rounded-xl border border-[var(--border)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-400">🚨 Cutoff Warning Alert</span>
+            <input
+              type="checkbox"
+              checked={timings.afternoonCutoffEnabled !== false}
+              onChange={e => setTimings({ ...timings, afternoonCutoffEnabled: e.target.checked })}
+              className="rounded border-[var(--border)] text-amber-500"
+            />
+          </div>
+          <p className="text-[10px] text-zinc-400">Final call before 5:00 PM UPI mandate cutoff.</p>
+          <input
+            type="time"
+            value={timings.afternoonCutoffTime || '15:30'}
+            onChange={e => setTimings({ ...timings, afternoonCutoffTime: e.target.value })}
+            className="input-field w-full font-mono text-xs text-white"
+          />
+        </div>
+
+        {/* Evening Allotment Check */}
+        <div className="p-3.5 bg-black/20 rounded-xl border border-[var(--border)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-indigo-400">🌙 Allotment Check Alert</span>
+            <input
+              type="checkbox"
+              checked={timings.eveningAllotmentEnabled !== false}
+              onChange={e => setTimings({ ...timings, eveningAllotmentEnabled: e.target.checked })}
+              className="rounded border-[var(--border)] text-indigo-500"
+            />
+          </div>
+          <p className="text-[10px] text-zinc-400">Evening check for registrar allotment data.</p>
+          <input
+            type="time"
+            value={timings.eveningAllotmentTime || '21:30'}
+            onChange={e => setTimings({ ...timings, eveningAllotmentTime: e.target.value })}
+            className="input-field w-full font-mono text-xs text-white"
+          />
+        </div>
+      </div>
+
+      {/* Target Recipient & Channels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[var(--border)]">
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">Target Audience</label>
+          <select
+            value={timings.recipientTarget || 'ALL_APPLICANTS'}
+            onChange={e => setTimings({ ...timings, recipientTarget: e.target.value })}
+            className="input-field w-full text-xs text-white bg-black/40"
+          >
+            <option value="ALL_APPLICANTS">👥 Send Notifications to All Family Applicants</option>
+            <option value="ADMIN_ONLY">🔒 Master Admin Only</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">GMP Surge Alert Trigger</label>
+          <select
+            value={timings.gmpSurgeAlert || 'REALTIME'}
+            onChange={e => setTimings({ ...timings, gmpSurgeAlert: e.target.value })}
+            className="input-field w-full text-xs text-white bg-black/40"
+          >
+            <option value="REALTIME">⚡ Real-time on Surge (+10% GMP change)</option>
+            <option value="TWICE_DAILY">🌅 Twice Daily (9 AM & 6 PM Market Summaries)</option>
+            <option value="DISABLED">🚫 Disabled</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-3 border-t border-[var(--border)]">
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg shadow-indigo-500/20 cursor-pointer"
+        >
+          {saving ? 'Saving Timings...' : 'Save Notification Timings & Schedule'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 const Settings = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -897,6 +1058,11 @@ const Settings = () => {
                   </div>
                 </div>
               )}
+            </section>
+
+            {/* Bot Integration Section */}
+            <section className="space-y-4 pt-4 border-t border-border">
+              <NotificationTimingsForm />
             </section>
 
             {/* Bot Integration Section */}

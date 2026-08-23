@@ -675,6 +675,39 @@ app.delete('/api/applicants/:id', authMiddleware, (req, res) => {
     });
 });
 
+// --- Notification Timings & Schedule Settings Endpoints ---
+app.get('/api/settings/notification-timings', authMiddleware, (req, res) => {
+    db.get('SELECT notificationTimings FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        let timings = {};
+        try {
+            if (row && row.notificationTimings) timings = JSON.parse(row.notificationTimings);
+        } catch (e) {}
+        
+        const defaultTimings = {
+            morningOpenTime: '10:00',
+            morningOpenEnabled: true,
+            afternoonCutoffTime: '15:30',
+            afternoonCutoffEnabled: true,
+            eveningAllotmentTime: '21:30',
+            eveningAllotmentEnabled: true,
+            gmpSurgeAlert: 'REALTIME',
+            recipientTarget: 'ALL_APPLICANTS',
+            channels: { push: true, email: true, telegram: true, whatsapp: true }
+        };
+
+        res.json({ message: 'success', data: { ...defaultTimings, ...timings } });
+    });
+});
+
+app.post('/api/settings/notification-timings', authMiddleware, (req, res) => {
+    const timingsStr = JSON.stringify(req.body || {});
+    db.run('UPDATE users SET notificationTimings = ? WHERE id = ?', [timingsStr, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Notification timings updated successfully', data: req.body });
+    });
+});
+
 // --- User Notification Preferences Endpoints ---
 app.get('/api/users/notification-preferences', authMiddleware, (req, res) => {
     db.get('SELECT emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled FROM users WHERE id = ?', [req.user.id], (err, row) => {

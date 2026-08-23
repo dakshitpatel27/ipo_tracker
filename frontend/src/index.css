@@ -85,31 +85,46 @@
 
 @layer components {
 
-  /* ─── Card System ─── */
+  /* ─── Global 3D Card System ─── */
   .glass-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--shadow-card);
     position: relative;
     overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.25s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0, 0.2, 1), border-color 0.25s ease;
+  }
+  .glass-card:hover {
+    transform: translateY(-3px) rotateX(2deg) rotateY(-1deg);
+    box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.35);
   }
 
   .glass-card-hover {
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.25s ease;
   }
   .glass-card-hover:hover {
     background: var(--surface-hover);
     border-color: var(--border-light);
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.3);
   }
 
   .card-elevated {
     background: var(--surface-2);
     border: 1px solid var(--border-light);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--shadow-elevated);
     position: relative;
     overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .card-elevated:hover {
+    transform: translateY(-4px) translateZ(8px);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5), 0 0 20px rgba(16, 185, 129, 0.2);
   }
 
   /* ─── Buttons ─── */

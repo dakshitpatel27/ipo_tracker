@@ -245,6 +245,7 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN phoneNumber TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN botSyncPin TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN botSyncExpires TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN notificationTimings TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN autoPollEnabled INTEGER DEFAULT 1`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN autoPollInterval INTEGER DEFAULT 30`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN lastPolledAt TEXT`, () => { });

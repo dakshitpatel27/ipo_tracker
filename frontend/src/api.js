@@ -458,6 +458,24 @@ export const api = {
     return data;
   },
 
+  async getNotificationTimings() {
+    const res = await fetch(`${API_URL}/settings/notification-timings`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch notification timings');
+    return data.data;
+  },
+
+  async saveNotificationTimings(payload) {
+    const res = await fetch(`${API_URL}/settings/notification-timings`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save notification timings');
+    return data;
+  },
+
   async batchApply(payload) {
     const { ipoName, listingDate, lotSize, price, quota, applicantIds, bankAccountId } = payload;
     const appData = await api.getApplicants().catch(() => []);
