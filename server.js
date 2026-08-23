@@ -4406,6 +4406,11 @@ app.post('/api/notifications/register', authMiddleware, (req, res) => {
 function buildFcmPayload({ title, body, tokens, token }) {
     const payload = {
         notification: { title, body },
+        data: {
+            title,
+            body,
+            timestamp: new Date().toISOString()
+        },
         webpush: {
             headers: {
                 Urgency: 'high'

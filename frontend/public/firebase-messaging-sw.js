@@ -15,40 +15,57 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Background payload:', payload);
+  console.log('[firebase-messaging-sw.js] Background payload received:', payload);
   const title = payload.notification?.title || payload.data?.title || '🚀 IPO Tracker Push Alert';
   const options = {
     body: payload.notification?.body || payload.data?.body || 'New IPO update available.',
     icon: '/app-icon.png',
     badge: '/app-icon.png',
     data: payload.data || {},
-    requireInteraction: true
+    requireInteraction: true,
+    vibrate: [200, 100, 200]
   };
   return self.registration.showNotification(title, options);
 });
 
-// Native Web Push fallback event listener
+// Native Web Push event listener (Fires on all push events in foreground and background)
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  try {
-    const payload = event.data.json();
-    const title = payload.notification?.title || payload.data?.title || '🚀 IPO Tracker Alert';
-    const options = {
-      body: payload.notification?.body || payload.data?.body || 'New update received.',
-      icon: '/app-icon.png',
-      badge: '/app-icon.png',
-      data: payload.data || {},
-      requireInteraction: true
-    };
-    event.waitUntil(self.registration.showNotification(title, options));
-  } catch (e) {
-    const text = event.data.text();
-    event.waitUntil(self.registration.showNotification('🚀 IPO Tracker Alert', {
-      body: text,
-      icon: '/app-icon.png',
-      requireInteraction: true
-    }));
+  console.log('[firebase-messaging-sw.js] Native push event received:', event);
+
+  let title = '🚀 IPO Tracker Alert';
+  let body = 'New update received.';
+  let icon = '/app-icon.png';
+  let badge = '/app-icon.png';
+  let data = {};
+
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      console.log('[firebase-messaging-sw.js] Native push JSON:', payload);
+
+      title = payload.notification?.title || payload.webpush?.notification?.title || payload.data?.title || title;
+      body = payload.notification?.body || payload.webpush?.notification?.body || payload.data?.body || body;
+      icon = payload.notification?.icon || payload.webpush?.notification?.icon || icon;
+      badge = payload.notification?.badge || payload.webpush?.notification?.badge || badge;
+      data = payload.data || {};
+    } catch (e) {
+      body = event.data.text() || body;
+    }
   }
+
+  const notificationOptions = {
+    body,
+    icon,
+    badge,
+    data,
+    requireInteraction: true,
+    vibrate: [200, 100, 200],
+    tag: 'ipo-alert-' + Date.now()
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, notificationOptions)
+  );
 });
 
 // Handle notification click to focus or open app window
