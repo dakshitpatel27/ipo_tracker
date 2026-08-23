@@ -3,7 +3,10 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const db = require('./db');
 const path = require('path');
-const { startCronJobs, runDailyDigest, runGmpSync, jobsStatus } = require('./cron');
+const { startCronJobs, runDailyDigest, runGmpSync, runAllotmentPoller, jobsStatus } = require('./cron');
+const { processBotMessage } = require('./botEngine');
+const { checkRegistrarAllotment } = require('./registrars');
+const { sendWhatsAppMessage } = require('./whatsapp');
 const admin = require('./firebase-admin');
 const crypto = require('crypto');
 const totp = require('./totp');
@@ -4062,6 +4065,201 @@ app.delete('/api/gmp-alerts/:id', authMiddleware, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'success', changes: this.changes });
     });
+});
+
+// --- INTERACTIVE TELEGRAM & WHATSAPP BOT API ---
+
+// Generate a 6-digit Bot Sync PIN (valid for 10 minutes)
+app.post('/api/bot/generate-pin', authMiddleware, (req, res) => {
+    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    db.run(
+        'UPDATE users SET botSyncPin = ?, botSyncExpires = ? WHERE id = ?',
+        [pin, expiresAt, req.user.id],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', pin, expiresAt });
+        }
+    );
+});
+
+// Get user Bot Connection Status
+app.get('/api/bot/status', authMiddleware, (req, res) => {
+    db.get(
+        'SELECT telegramToken, telegramChatId, telegramAlerts, whatsappNumber, whatsappAlerts, botSyncPin, botSyncExpires FROM users WHERE id = ?',
+        [req.user.id],
+        (err, row) => {
+            if (err || !row) return res.status(500).json({ error: 'User not found' });
+            res.json({
+                message: 'success',
+                data: {
+                    telegramLinked: !!row.telegramChatId,
+                    telegramChatId: row.telegramChatId || '',
+                    telegramAlerts: row.telegramAlerts !== 0,
+                    whatsappLinked: !!row.whatsappNumber,
+                    whatsappNumber: row.whatsappNumber || '',
+                    whatsappAlerts: row.whatsappAlerts !== 0,
+                    botSyncPin: row.botSyncPin || null,
+                    botSyncExpires: row.botSyncExpires || null
+                }
+            });
+        }
+    );
+});
+
+// Unlink Telegram or WhatsApp Account
+app.post('/api/bot/unlink', authMiddleware, (req, res) => {
+    const { platform } = req.body;
+    if (platform === 'telegram') {
+        db.run('UPDATE users SET telegramChatId = NULL, telegramAlerts = 0 WHERE id = ?', [req.user.id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Telegram account unlinked successfully' });
+        });
+    } else if (platform === 'whatsapp') {
+        db.run('UPDATE users SET whatsappNumber = NULL, whatsappAlerts = 0 WHERE id = ?', [req.user.id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'WhatsApp account unlinked successfully' });
+        });
+    } else {
+        res.status(400).json({ error: 'Invalid platform specified' });
+    }
+});
+
+// Inbound Telegram Webhook Handler
+app.post('/api/bot/webhook/telegram', async (req, res) => {
+    const update = req.body || {};
+    const message = update.message || update.edited_message || {};
+    const chatId = message.chat?.id ? String(message.chat.id) : '';
+    const text = message.text || '';
+
+    if (!chatId || !text) {
+        return res.json({ status: 'ignored' });
+    }
+
+    try {
+        const reply = await processBotMessage({ text, chatId, channel: 'telegram' });
+        if (reply && reply.text) {
+            // Attempt to send via Telegram Bot API if user token is configured
+            db.get('SELECT telegramToken FROM users WHERE telegramChatId = ?', [chatId], async (err, user) => {
+                const botToken = user?.telegramToken || process.env.TELEGRAM_BOT_TOKEN;
+                if (botToken) {
+                    const { sendTelegramMessage } = require('./cron');
+                    await sendTelegramMessage(botToken, chatId, reply.text);
+                } else {
+                    console.log(`[Telegram Bot Replied to Chat ${chatId}]:\n${reply.text}`);
+                }
+            });
+        }
+        res.json({ status: 'ok', reply: reply.text });
+    } catch (err) {
+        console.error('[Telegram Webhook Error]:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Inbound WhatsApp Webhook Handler
+app.post('/api/bot/webhook/whatsapp', async (req, res) => {
+    const body = req.body || {};
+    const senderPhone = body.from || body.phone || body.sender || '';
+    const text = body.message || body.text || body.body || '';
+
+    if (!senderPhone || !text) {
+        return res.json({ status: 'ignored' });
+    }
+
+    try {
+        const reply = await processBotMessage({ text, senderPhone, channel: 'whatsapp' });
+        if (reply && reply.text) {
+            await sendWhatsAppMessage(senderPhone, reply.text);
+        }
+        res.json({ status: 'ok', reply: reply.text });
+    } catch (err) {
+        console.error('[WhatsApp Webhook Error]:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ALLOTMENT POLLER API ENDPOINTS ---
+
+// Single record auto-check endpoint
+app.post('/api/allotment/auto-check', authMiddleware, async (req, res) => {
+    const { recordId, ipoName, pan, registrar } = req.body;
+
+    if (!recordId) {
+        return res.status(400).json({ error: 'Record ID is required' });
+    }
+
+    db.get('SELECT * FROM records WHERE id = ? AND userId = ?', [recordId, req.user.id], async (err, record) => {
+        if (err || !record) {
+            return res.status(404).json({ error: 'Record not found' });
+        }
+
+        try {
+            const result = await checkRegistrarAllotment({
+                ipoName: ipoName || record.ipoName,
+                pan: pan || record.pan,
+                registrar: registrar || record.registrar,
+                shares: record.shares,
+                price: record.price
+            });
+
+            if (result.alloted && result.alloted !== 'Pending') {
+                const isAllotted = result.alloted === 'Allotted';
+                db.run(
+                    'UPDATE records SET alloted = ?, holdingStatus = ?, refundStatus = ? WHERE id = ? AND userId = ?',
+                    [result.alloted, isAllotted ? 'Holding' : 'Pending', isAllotted ? 'refunded' : 'pending', recordId, req.user.id]
+                );
+            }
+
+            res.json({
+                message: result.message,
+                status: result.alloted,
+                alloted: result.alloted,
+                recordId
+            });
+        } catch (error) {
+            res.status(500).json({ error: 'Auto-check failed: ' + error.message });
+        }
+    });
+});
+
+// Trigger background poller manually for user
+app.post('/api/allotment/trigger-poller', authMiddleware, async (req, res) => {
+    try {
+        const stats = await runAllotmentPoller(req.user.id);
+        res.json({
+            message: 'Allotment Poller executed successfully',
+            stats
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Poller Logs
+app.get('/api/allotment/poller-logs', authMiddleware, (req, res) => {
+    db.all(
+        'SELECT * FROM allotment_poll_logs WHERE userId = ? OR userId = ? ORDER BY polledAt DESC LIMIT 20',
+        [req.user.id, 'SYSTEM_CRON'],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', data: rows || [] });
+        }
+    );
+});
+
+// Save User Poller Settings
+app.post('/api/allotment/poller-settings', authMiddleware, (req, res) => {
+    const { autoPollEnabled, autoPollInterval } = req.body;
+    db.run(
+        'UPDATE users SET autoPollEnabled = ?, autoPollInterval = ? WHERE id = ?',
+        [autoPollEnabled ? 1 : 0, parseInt(autoPollInterval) || 30, req.user.id],
+        (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Poller settings updated successfully' });
+        }
+    );
 });
 
 // --- BATCH APPLY (Feature 5) ---

@@ -25,10 +25,26 @@ export default function AllotmentChecker() {
   const [checkingRecordId, setCheckingRecordId] = useState(null);
   const [search, setSearch] = useState('');
   const [filterRegistrar, setFilterRegistrar] = useState('ALL');
+  const [viewMode, setViewMode] = useState('applications'); // 'applications' | 'poller_logs'
+  const [pollerLogs, setPollerLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   useEffect(() => {
     fetchRecords();
+    fetchPollerLogs();
   }, []);
+
+  const fetchPollerLogs = async () => {
+    try {
+      setLoadingLogs(true);
+      const data = await api.getPollerLogs();
+      setPollerLogs(data || []);
+    } catch (e) {
+      console.error('Failed to load poller logs:', e.message);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
 
   const fetchRecords = async () => {
     try {
@@ -174,57 +190,134 @@ export default function AllotmentChecker() {
         </div>
       </div>
 
-      {/* Interactive Registrar Cards with Filter & Count Badges */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs font-bold text-zinc-400">
-          <span>Filter by Official IPO Registrar:</span>
-          {filterRegistrar !== 'ALL' && (
-            <button
-              onClick={() => setFilterRegistrar('ALL')}
-              className="text-indigo-400 hover:underline text-xs"
-            >
-              Clear Filter (Show All)
+      {/* View Switch Tabs */}
+      <div className="flex border-b border-[var(--border)] gap-4">
+        <button
+          onClick={() => setViewMode('applications')}
+          className={`pb-2 text-xs font-bold transition-all border-b-2 ${
+            viewMode === 'applications'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-zinc-400 hover:text-white'
+          }`}
+        >
+          📝 Pending Applications ({pendingRecords.length})
+        </button>
+        <button
+          onClick={() => { setViewMode('poller_logs'); fetchPollerLogs(); }}
+          className={`pb-2 text-xs font-bold transition-all border-b-2 ${
+            viewMode === 'poller_logs'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-zinc-400 hover:text-white'
+          }`}
+        >
+          📊 Background Poller Activity Logs ({pollerLogs.length})
+        </button>
+      </div>
+
+      {viewMode === 'poller_logs' ? (
+        <div className="flex-1 overflow-auto custom-scrollbar glass-card p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-bold text-white">Background Allotment Poller Audit Log</h3>
+            <button onClick={fetchPollerLogs} className="btn-outline text-xs flex items-center gap-1.5">
+              <RefreshCw size={12} className={loadingLogs ? 'animate-spin' : ''} /> Refresh Logs
             </button>
+          </div>
+          {loadingLogs ? (
+            <PageLoader text="Loading poller logs..." />
+          ) : pollerLogs.length === 0 ? (
+            <div className="text-center py-12 text-zinc-400 text-sm">No poller execution logs recorded yet.</div>
+          ) : (
+            <div className="data-table-container">
+              <table className="data-table text-xs">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Job Type</th>
+                    <th>Registrar Target</th>
+                    <th>Applications Checked</th>
+                    <th>Allotted Count</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pollerLogs.map((log) => (
+                    <tr key={log.id} className="cyber-row-hover">
+                      <td className="font-mono text-zinc-300">
+                        {new Date(log.polledAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </td>
+                      <td className="font-bold text-indigo-400">{log.ipoName || 'BULK_AUTO_POLL'}</td>
+                      <td className="font-mono text-zinc-300">{log.registrar || 'ALL_REGISTRARS'}</td>
+                      <td className="font-mono text-zinc-200 font-bold">{log.totalChecked}</td>
+                      <td className="font-mono text-emerald-400 font-bold">{log.allottedCount}</td>
+                      <td>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="text-zinc-400 text-[11px] max-w-xs truncate">{log.details}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
+      ) : (
+        <>
+          {/* Interactive Registrar Cards with Filter & Count Badges */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-zinc-400">
+              <span>Filter by Official IPO Registrar:</span>
+              {filterRegistrar !== 'ALL' && (
+                <button
+                  onClick={() => setFilterRegistrar('ALL')}
+                  className="text-indigo-400 hover:underline text-xs"
+                >
+                  Clear Filter (Show All)
+                </button>
+              )}
+            </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-          {Object.entries(REGISTRAR_URLS).map(([reg, url]) => {
-            const count = countPerRegistrar[reg] || 0;
-            const isActive = filterRegistrar.toLowerCase() === reg.toLowerCase();
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+              {Object.entries(REGISTRAR_URLS).map(([reg, url]) => {
+                const count = countPerRegistrar[reg] || 0;
+                const isActive = filterRegistrar.toLowerCase() === reg.toLowerCase();
 
-            return (
-              <div
-                key={reg}
-                onClick={() => setFilterRegistrar(isActive ? 'ALL' : reg)}
-                className={`p-2.5 rounded-xl cursor-pointer text-center flex flex-col items-center justify-center gap-1 transition-all border select-none cyber-glow-card ${
-                  isActive
-                    ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-500'
-                    : 'bg-[#141418] border-[#27272a] hover:border-zinc-500 text-zinc-300'
-                }`}
-              >
-                <Building2 size={16} className={isActive ? 'text-indigo-400' : 'text-zinc-500'} />
-                <span className="text-[11px] font-bold truncate max-w-full">{reg}</span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold ${count > 0 ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800 text-zinc-500'}`}>
-                    {count} App{count !== 1 ? 's' : ''}
-                  </span>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="text-[9px] text-zinc-400 hover:text-white flex items-center gap-0.5"
-                    title={`Open ${reg} Website`}
+                return (
+                  <div
+                    key={reg}
+                    onClick={() => setFilterRegistrar(isActive ? 'ALL' : reg)}
+                    className={`p-2.5 rounded-xl cursor-pointer text-center flex flex-col items-center justify-center gap-1 transition-all border select-none cyber-glow-card ${
+                      isActive
+                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-500'
+                        : 'bg-[#141418] border-[#27272a] hover:border-zinc-500 text-zinc-300'
+                    }`}
                   >
-                    <ExternalLink size={9} />
-                  </a>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    <Building2 size={16} className={isActive ? 'text-indigo-400' : 'text-zinc-500'} />
+                    <span className="text-[11px] font-bold truncate max-w-full">{reg}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold ${count > 0 ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800 text-zinc-500'}`}>
+                        {count} App{count !== 1 ? 's' : ''}
+                      </span>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-[9px] text-zinc-400 hover:text-white flex items-center gap-0.5"
+                        title={`Open ${reg} Website`}
+                      >
+                        <ExternalLink size={9} />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">

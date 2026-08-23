@@ -36,6 +36,7 @@ import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineSyncBanner from './components/ui/OfflineSyncBanner';
 import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
 import HomeScreenWidget from './components/ui/HomeScreenWidget';
+import ConfirmModal from './components/ui/ConfirmModal';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (

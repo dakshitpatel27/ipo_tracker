@@ -803,6 +803,33 @@ export const api = {
     return data;
   },
 
+  // --- Bot & Allotment Poller API ---
+  async generateBotPin() {
+    return api.post('/bot/generate-pin', {});
+  },
+
+  async getBotStatus() {
+    const data = await api.get('/bot/status');
+    return data.data || {};
+  },
+
+  async unlinkBotAccount(platform) {
+    return api.post('/bot/unlink', { platform });
+  },
+
+  async triggerPoller() {
+    return api.post('/allotment/trigger-poller', {});
+  },
+
+  async getPollerLogs() {
+    const data = await api.get('/allotment/poller-logs');
+    return data.data || [];
+  },
+
+  async savePollerSettings(settings) {
+    return api.post('/allotment/poller-settings', settings);
+  },
+
   // --- Batch Apply API (Feature 5) ---
   async batchApply(payload) {
     const res = await fetch(`${API_URL}/records/batch-apply`, {

@@ -284,13 +284,151 @@ async function checkGmpAlerts(ipoData) {
 }
 
 
+// Feature 4: Automated Background Registrar Allotment Poller
+async function runAllotmentPoller(targetUserId = null) {
+  console.log('[Cron] Running Automated Registrar Allotment Poller...');
+  const { checkRegistrarAllotment } = require('./registrars');
+  const { sendWhatsAppMessage } = require('./whatsapp');
+  const crypto = require('crypto');
+
+  if (!jobsStatus.allotmentPoller) {
+    jobsStatus.allotmentPoller = { lastRun: null, status: 'idle' };
+  }
+  jobsStatus.allotmentPoller.status = 'running';
+  jobsStatus.allotmentPoller.lastRun = new Date().toISOString();
+
+  return new Promise((resolve) => {
+    let sql = `SELECT * FROM records WHERE (alloted = 'Pending' OR alloted IS NULL OR alloted = '' OR alloted = '0') AND pan IS NOT NULL AND pan != ''`;
+    const params = [];
+    if (targetUserId) {
+      sql += ` AND userId = ?`;
+      params.push(targetUserId);
+    }
+
+    db.all(sql, params, async (err, pendingRecords) => {
+      if (err || !pendingRecords || pendingRecords.length === 0) {
+        console.log('[Cron] Allotment Poller: No pending applications found.');
+        jobsStatus.allotmentPoller.status = 'success';
+        return resolve({ totalChecked: 0, allottedCount: 0, notAllottedCount: 0 });
+      }
+
+      let totalChecked = 0;
+      let allottedCount = 0;
+      let notAllottedCount = 0;
+
+      for (const rec of pendingRecords) {
+        try {
+          const res = await checkRegistrarAllotment({
+            ipoName: rec.ipoName,
+            pan: rec.pan,
+            registrar: rec.registrar,
+            shares: rec.shares,
+            price: rec.price
+          });
+
+          if (res.checked && res.alloted && res.alloted !== 'Pending') {
+            totalChecked++;
+            const isAllotted = res.alloted === 'Allotted';
+            if (isAllotted) allottedCount++; else notAllottedCount++;
+
+            // Update database record
+            db.run(
+              `UPDATE records SET alloted = ?, holdingStatus = ?, refundStatus = ? WHERE id = ?`,
+              [res.alloted, isAllotted ? 'Holding' : 'Pending', isAllotted ? 'refunded' : 'pending', rec.id]
+            );
+
+            // Fetch user preferences and credentials for alert dispatch
+            db.get(
+              `SELECT fcmTokens, telegramToken, telegramChatId, telegramAlerts, whatsappNumber, whatsappAlerts, email, username FROM users WHERE id = ?`,
+              [rec.userId],
+              async (userErr, user) => {
+                if (userErr || !user) return;
+
+                const notifTitle = isAllotted ? `🎉 Allotment Won: ${rec.ipoName}` : `❌ Allotment Update: ${rec.ipoName}`;
+                const notifBody = res.message;
+
+                // 1. FCM Push Notification
+                if (user.fcmTokens) {
+                  try {
+                    const tokens = JSON.parse(user.fcmTokens);
+                    if (tokens.length > 0) {
+                      const admin = require('./firebase-admin');
+                      if (admin.apps.length > 0) {
+                        admin.messaging().sendEachForMulticast({
+                          tokens: [...new Set(tokens)],
+                          notification: { title: notifTitle, body: notifBody }
+                        }).catch(() => {});
+                      }
+                    }
+                  } catch(e) {}
+                }
+
+                // 2. Telegram Alert
+                if (user.telegramToken && user.telegramChatId && user.telegramAlerts !== 0) {
+                  sendTelegramMessage(
+                    user.telegramToken,
+                    user.telegramChatId,
+                    `🚀 <b>IPO Allotment Update</b>\n\n<b>${rec.ipoName}</b> (${rec.applicantName})\nStatus: <b>${res.alloted}</b>\n${res.message}`
+                  );
+                }
+
+                // 3. WhatsApp Alert
+                if (user.whatsappNumber && user.whatsappAlerts !== 0) {
+                  sendWhatsAppMessage(user.whatsappNumber, `🚀 *IPO Allotment Update*\n\n*${rec.ipoName}* (${rec.applicantName})\nStatus: *${res.alloted}*\n${res.message}`);
+                }
+
+                // 4. In-App Notification Log & SSE Realtime Notification
+                const notifId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+                db.run(
+                  'INSERT INTO notifications (id, title, body, userId, sentAt, status) VALUES (?, ?, ?, ?, ?, ?)',
+                  [notifId, notifTitle, notifBody, rec.userId, new Date().toISOString(), 'unread']
+                );
+
+                if (global.pushRealtimeNotification) {
+                  global.pushRealtimeNotification(rec.userId, {
+                    type: 'allotment_update',
+                    id: notifId,
+                    title: notifTitle,
+                    body: notifBody,
+                    ipoName: rec.ipoName,
+                    applicantName: rec.applicantName,
+                    alloted: res.alloted,
+                    sentAt: new Date().toISOString()
+                  });
+                }
+              }
+            );
+          }
+        } catch (e) {
+          console.error(`[Cron Poller Item Error]:`, e.message);
+        }
+      }
+
+      // Log poller session into allotment_poll_logs
+      const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+      const polledAt = new Date().toISOString();
+      db.run(
+        `INSERT INTO allotment_poll_logs (id, userId, ipoName, registrar, totalChecked, allottedCount, notAllottedCount, status, details, polledAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [logId, targetUserId || 'SYSTEM_CRON', 'BULK_AUTO_POLL', 'ALL_REGISTRARS', totalChecked, allottedCount, notAllottedCount, 'completed', `Checked ${pendingRecords.length} pending records across registrars`, polledAt]
+      );
+
+      jobsStatus.allotmentPoller.status = 'success';
+      console.log(`[Cron] Allotment Poller finished. Total: ${totalChecked}, Allotted: ${allottedCount}, Not Allotted: ${notAllottedCount}`);
+      resolve({ totalChecked, allottedCount, notAllottedCount });
+    });
+  });
+}
+
 function startCronJobs() {
   cron.schedule('0 9 * * *', runDailyDigest);
   console.log('[Cron] Job scheduled: Daily IPO Digest (Ethereal test mode active).');
 
   cron.schedule('0 * * * *', runGmpSync);
   console.log('[Cron] Job scheduled: Auto-Sync Live GMP (Hourly).');
+
+  cron.schedule('*/30 * * * *', runAllotmentPoller);
+  console.log('[Cron] Job scheduled: Background Allotment Poller (Every 30 mins).');
 }
 
-module.exports = { startCronJobs, runDailyDigest, runGmpSync, sendTelegramMessage, jobsStatus };
+module.exports = { startCronJobs, runDailyDigest, runGmpSync, runAllotmentPoller, sendTelegramMessage, jobsStatus };
 

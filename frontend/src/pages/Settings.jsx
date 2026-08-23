@@ -13,6 +13,162 @@ import ThemeSwitcher from '../components/ui/ThemeSwitcher';
 import AppDownloadCard from '../components/ui/AppDownloadCard';
 import { useNavigate } from 'react-router-dom';
 
+const BotSyncCard = () => {
+  const [status, setStatus] = useState({ telegramLinked: false, whatsappLinked: false, telegramChatId: '', whatsappNumber: '' });
+  const [pinData, setPinData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [generatingPin, setGeneratingPin] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getBotStatus();
+      if (res) setStatus(res);
+    } catch (e) {
+      console.error('Failed to load bot status:', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const handleGeneratePin = async () => {
+    try {
+      setGeneratingPin(true);
+      const res = await api.generateBotPin();
+      setPinData(res);
+      toast.success('Generated 6-digit Bot Sync PIN!', { icon: '🔑' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate PIN');
+    } finally {
+      setGeneratingPin(false);
+    }
+  };
+
+  const handleUnlink = async (platform) => {
+    try {
+      await api.unlinkBotAccount(platform);
+      toast.success(`Unlinked ${platform} account successfully.`);
+      fetchStatus();
+    } catch (err) {
+      toast.error(`Failed to unlink ${platform}: ` + err.message);
+    }
+  };
+
+  return (
+    <div className="bg-surface-2 p-5 rounded-xl border border-[var(--border)] space-y-5">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[var(--border)] pb-4">
+        <div>
+          <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+            <span>🤖 Interactive Telegram & WhatsApp Alert Bot</span>
+          </h3>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">Pair your Telegram or WhatsApp account to query live GMPs, allotment results, and receive instant push broadcasts.</p>
+        </div>
+        <button
+          onClick={handleGeneratePin}
+          disabled={generatingPin}
+          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-indigo-500/20 shrink-0"
+        >
+          {generatingPin ? 'Generating...' : '🔑 Generate 6-Digit Sync PIN'}
+        </button>
+      </div>
+
+      {/* Generated PIN Display Modal/Banner */}
+      {pinData && (
+        <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl space-y-2 text-center animate-fade-in">
+          <div className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Your 6-Digit Bot Sync PIN</div>
+          <div className="text-3xl font-mono font-bold text-white tracking-widest bg-black/40 py-2 px-4 rounded-lg border border-indigo-500/30 max-w-xs mx-auto flex items-center justify-center gap-3">
+            <span>{pinData.pin}</span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`/link ${pinData.pin}`);
+                toast.success('Command copied: /link ' + pinData.pin);
+              }}
+              className="text-xs text-indigo-300 hover:text-white bg-indigo-500/20 hover:bg-indigo-500 px-2 py-1 rounded font-sans font-semibold transition-colors"
+            >
+              Copy /link
+            </button>
+          </div>
+          <p className="text-[11px] text-zinc-300">Send <strong>/link {pinData.pin}</strong> to your Telegram or WhatsApp Bot to pair instantly. (PIN expires in 10 mins)</p>
+        </div>
+      )}
+
+      {/* Connection Status Badges */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Telegram Card */}
+        <div className="p-3.5 rounded-xl bg-black/20 border border-[var(--border)] space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+              <span>✈️ Telegram Bot</span>
+            </span>
+            {status.telegramLinked ? (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">Connected</span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-bold">Not Linked</span>
+            )}
+          </div>
+          {status.telegramLinked ? (
+            <div className="flex justify-between items-center pt-1 text-xs">
+              <span className="font-mono text-zinc-300">Chat ID: {status.telegramChatId}</span>
+              <button onClick={() => handleUnlink('telegram')} className="text-xs text-rose-400 hover:underline">Unlink</button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-400">Send <code>/link YOUR_PIN</code> to your Telegram bot to receive alerts.</p>
+          )}
+        </div>
+
+        {/* WhatsApp Card */}
+        <div className="p-3.5 rounded-xl bg-black/20 border border-[var(--border)] space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+              <span>💬 WhatsApp Gateway</span>
+            </span>
+            {status.whatsappLinked ? (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">Connected</span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-bold">Not Linked</span>
+            )}
+          </div>
+          {status.whatsappLinked ? (
+            <div className="flex justify-between items-center pt-1 text-xs">
+              <span className="font-mono text-zinc-300">Phone: {status.whatsappNumber}</span>
+              <button onClick={() => handleUnlink('whatsapp')} className="text-xs text-rose-400 hover:underline">Unlink</button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-400">Send <code>/link YOUR_PIN</code> to your WhatsApp gateway number.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Bot Command Cheat-Sheet */}
+      <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+        <span className="text-xs font-bold text-zinc-300">Available Interactive Commands:</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="p-2 bg-black/30 rounded-lg border border-zinc-800">
+            <code className="text-indigo-400 font-bold">/gmp</code>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Live Grey Market Premiums</p>
+          </div>
+          <div className="p-2 bg-black/30 rounded-lg border border-zinc-800">
+            <code className="text-indigo-400 font-bold">/status</code>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Check Allotment Results</p>
+          </div>
+          <div className="p-2 bg-black/30 rounded-lg border border-zinc-800">
+            <code className="text-indigo-400 font-bold">/bids</code>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Active Bids & Funds</p>
+          </div>
+          <div className="p-2 bg-black/30 rounded-lg border border-zinc-800">
+            <code className="text-indigo-400 font-bold">/digest</code>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Market Events Today</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TelegramSettingsForm = () => {
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -743,15 +899,9 @@ const Settings = () => {
               )}
             </section>
 
-            {/* Telegram Bot Section */}
+            {/* Bot Integration Section */}
             <section className="space-y-4 pt-4 border-t border-border">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>💬 Telegram Alert Bot Integration</span>
-              </h2>
-              <p className="text-xs text-secondary">Connect a Telegram Bot to receive instant GMP surges, daily digests, and allotment announcements directly on your Telegram app.</p>
-              
-              <TelegramSettingsForm />
-              <WhatsappSettingsForm />
+              <BotSyncCard />
             </section>
 
             <div className="pt-6 border-t border-border flex items-center justify-between">

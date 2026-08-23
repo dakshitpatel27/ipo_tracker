@@ -214,7 +214,12 @@ const initSchema = () => {
         ipWhiteList TEXT,
         advanceTaxEst REAL DEFAULT 0,
         biometricEnabled INTEGER DEFAULT 0,
-        themeAccent TEXT DEFAULT 'emerald'
+        themeAccent TEXT DEFAULT 'emerald',
+        botSyncPin TEXT,
+        botSyncExpires TEXT,
+        autoPollEnabled INTEGER DEFAULT 1,
+        autoPollInterval INTEGER DEFAULT 30,
+        lastPolledAt TEXT
     )`, () => {
         db.run(`ALTER TABLE users ADD COLUMN name TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN fcmTokens TEXT`, () => { });
@@ -238,6 +243,11 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN webhookSecret TEXT`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN webhookAlerts INTEGER DEFAULT 0`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN phoneNumber TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN botSyncPin TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN botSyncExpires TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN autoPollEnabled INTEGER DEFAULT 1`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN autoPollInterval INTEGER DEFAULT 30`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN lastPolledAt TEXT`, () => { });
     });
 
     // 2. Records
@@ -624,6 +634,20 @@ const initSchema = () => {
         counter INTEGER DEFAULT 0,
         deviceName TEXT,
         createdAt TEXT
+    )`);
+
+    // 22. Allotment Poller History Logs
+    db.run(`CREATE TABLE IF NOT EXISTS allotment_poll_logs (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        ipoName TEXT,
+        registrar TEXT,
+        totalChecked INTEGER DEFAULT 0,
+        allottedCount INTEGER DEFAULT 0,
+        notAllottedCount INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'completed',
+        details TEXT,
+        polledAt TEXT
     )`);
 
     // Add preferences column to users for dashboard layout, theme, etc.
