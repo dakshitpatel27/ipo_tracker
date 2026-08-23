@@ -337,20 +337,79 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
           })()}
         </div>
 
-        {/* Row 3 */}
+        {/* Row 3 - Lots, Price (Read-Only), Shares & Amount */}
         <div className="space-y-2">
-          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Shares</label>
-          <input name="shares" type="number" value={formData.shares} onChange={handleChange} className="input-field" />
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider flex items-center justify-between">
+            <span>Lots Applied *</span>
+          </label>
+          <input
+            name="lots"
+            type="number"
+            min="1"
+            max="100"
+            value={formData.lots || 1}
+            onChange={(e) => {
+              const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+              const ls = parseFloat(formData.lotSize) || 1;
+              const p = parseFloat(formData.price) || 0;
+              const calcShares = val * ls;
+              const calcAmt = calcShares * p;
+              setFormData(prev => ({
+                ...prev,
+                lots: val,
+                shares: calcShares,
+                amount: calcAmt > 0 ? calcAmt.toFixed(2) : ''
+              }));
+            }}
+            className="input-field font-mono font-bold text-white"
+            placeholder="1"
+            required
+          />
         </div>
+
         <div className="space-y-2">
-          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Price (₹)</label>
-          <input name="price" type="number" step="0.01" value={formData.price} onChange={handleChange} className="input-field" />
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider flex items-center gap-1">
+            <span>Share Price (API Read-Only)</span>
+          </label>
+          <input
+            name="price"
+            type="number"
+            step="0.01"
+            value={formData.price}
+            onChange={handleChange}
+            readOnly={!!formData.price}
+            className={`input-field font-mono ${formData.price ? 'bg-black/50 text-emerald-400 font-bold cursor-not-allowed border-emerald-500/30' : ''}`}
+            placeholder="Fetched from API"
+          />
         </div>
 
         {/* Row 4 */}
         <div className="space-y-2">
-          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Amount</label>
-          <input name="amount" type="number" step="0.01" value={formData.amount} readOnly className="input-field bg-black/40 text-gray-400" />
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">
+            Total Shares ({formData.lots || 1} Lot × {formData.lotSize || 1} shares)
+          </label>
+          <input
+            name="shares"
+            type="number"
+            value={formData.shares}
+            onChange={handleChange}
+            readOnly
+            className="input-field bg-black/40 text-gray-300 font-mono"
+            placeholder="Auto-calculated"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Total Amount (₹)</label>
+          <input
+            name="amount"
+            type="number"
+            step="0.01"
+            value={formData.amount}
+            readOnly
+            className="input-field bg-black/50 text-emerald-400 font-extrabold font-mono"
+            placeholder="Auto-calculated"
+          />
         </div>
         <div className="space-y-2">
           <label className="block text-xs font-medium text-secondary uppercase tracking-wider">Application Status</label>

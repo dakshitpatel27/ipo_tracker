@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { motion } from 'framer-motion';
-import { Shield, Check, X, Trash2, User, ShieldOff, Ban, Activity, BarChart2, Settings as SettingsIcon, Download, ScrollText, Users, Terminal, Palette, LogIn, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Shield, Check, X, Trash2, User, ShieldOff, Ban, Activity, BarChart2, Settings as SettingsIcon, Download, ScrollText, Users, Terminal, Palette, LogIn, ArrowUpCircle, ArrowDownCircle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import TestEmailModal from '../components/ui/TestEmailModal';
@@ -93,6 +93,23 @@ const AdminPanel = () => {
       free: { name: 'Free', maxApplicants: 2, maxRecords: 10, hasAnalytics: false },
       pro: { name: 'Pro', maxApplicants: 1000, maxRecords: 10000, hasAnalytics: true }
   });
+
+  const [paymentLogs, setPaymentLogs] = useState([]);
+
+  const fetchPaymentLogs = async () => {
+    try {
+      const res = await api.getPaymentLogs();
+      setPaymentLogs(res.data || []);
+    } catch (e) {
+      console.error('Fetch payment logs error:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'subscriptions') {
+      fetchPaymentLogs();
+    }
+  }, [activeTab]);
 
   const loadData = async () => {
     try {
@@ -511,7 +528,6 @@ const AdminPanel = () => {
     { id: 'users', label: 'Users & Roles', icon: Users },
   ];
   if (currentUser?.role === 'master') {
-      tabs.push({ id: 'subscriptions', label: 'Subscriptions', icon: Activity });
       tabs.push({ id: 'analytics', label: 'Global Analytics', icon: BarChart2 });
       tabs.push({ id: 'fcm', label: 'FCM Token Master', icon: Shield });
       tabs.push({ id: 'notifications', label: 'Notifications & Logs', icon: Activity });
@@ -680,7 +696,6 @@ const AdminPanel = () => {
                       <th className="px-6 py-4">Auth Method</th>
                       <th className="px-6 py-4">Role</th>
                       <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Subscription</th>
                       <th className="px-6 py-4">Registered Date</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -735,11 +750,6 @@ const AdminPanel = () => {
                             {user.status === 'approved' && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs font-bold border border-emerald-500/30 flex items-center gap-1 w-fit">✓ Approved</span>}
                             {user.status === 'rejected' && <span className="px-2 py-1 bg-rose-500/10 text-rose-400 rounded text-xs font-bold border border-rose-500/30 flex items-center gap-1 w-fit">❌ Rejected</span>}
                           </td>
-                          <td className="px-6 py-4 uppercase text-xs tracking-wider">
-                             <span className={`px-2 py-1 rounded text-[10px] font-bold border ${user.subscription === 'pro' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
-                               {user.subscription || 'free'}
-                             </span>
-                          </td>
                           <td className="px-6 py-4 text-secondary text-xs">
                             {formatDate(user.createdAt)}
                           </td>
@@ -766,16 +776,6 @@ const AdminPanel = () => {
                                     {currentUser?.role === 'master' && (
                                        <button onClick={() => setUserToImpersonate(user)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 mr-2" title="Login As User">
                                          <LogIn size={16} />
-                                       </button>
-                                    )}
-                                    {currentUser?.role === 'master' && user.subscription !== 'pro' && (
-                                       <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'pro')} className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 mr-2" title="Upgrade to Pro">
-                                         <ArrowUpCircle size={16} />
-                                       </button>
-                                    )}
-                                    {currentUser?.role === 'master' && user.subscription === 'pro' && (
-                                       <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'free')} className="p-2 rounded-lg bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 mr-2" title="Downgrade to Free">
-                                         <ArrowDownCircle size={16} />
                                        </button>
                                     )}
                                     {user.role === 'admin' || user.role === 'master' ? (
@@ -856,9 +856,12 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'subscriptions' && (
-            <div className="p-6 h-full overflow-y-auto custom-scrollbar">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white">Subscription Tiers</h2>
+            <div className="p-6 h-full overflow-y-auto custom-scrollbar space-y-8">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Subscription Tiers & Gateway Config</h2>
+                      <p className="text-xs text-secondary">Manage tier limits, Razorpay payments, and manual UTR approvals.</p>
+                    </div>
                     <button onClick={handleSaveSettings} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-sm transition-all shadow-lg shadow-emerald-500/20">
                         Save Tiers
                     </button>
@@ -907,6 +910,80 @@ const AdminPanel = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+
+                {/* Section: Payment Transactions & Razorpay Logs */}
+                <div className="space-y-4 pt-4 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        💳 Payment Transactions & UTR History
+                      </h3>
+                      <button onClick={fetchPaymentLogs} className="p-1.5 rounded-lg bg-surface border border-border text-secondary hover:text-white transition-colors" title="Refresh Payments">
+                        <RefreshCw size={15} />
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-border bg-black/30">
+                      <table className="w-full text-left text-xs text-zinc-300">
+                        <thead className="bg-surface-2 text-secondary uppercase text-[10px] font-bold border-b border-border">
+                          <tr>
+                            <th className="px-4 py-3">User</th>
+                            <th className="px-4 py-3">Plan & Amount</th>
+                            <th className="px-4 py-3">Order / Payment ID / UTR</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Date</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {paymentLogs.map((p) => (
+                            <tr key={p.id} className="hover:bg-white/5 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="font-bold text-white">{p.name || p.username}</div>
+                                <div className="text-[11px] text-secondary">{p.email}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-bold text-amber-400">₹{p.amount}</div>
+                                <div className="text-[10px] uppercase text-secondary">{p.planId}</div>
+                              </td>
+                              <td className="px-4 py-3 font-mono text-[11px]">
+                                {p.utrNumber ? (
+                                  <span className="text-indigo-400 font-bold">UTR: {p.utrNumber}</span>
+                                ) : (
+                                  p.paymentId || p.orderId
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {p.status === 'paid' && <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 font-bold rounded border border-emerald-500/30">Paid</span>}
+                                {p.status === 'pending_approval' && <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 font-bold rounded border border-amber-500/30">Pending UTR Review</span>}
+                                {p.status === 'created' && <span className="px-2 py-0.5 bg-gray-500/10 text-gray-400 font-bold rounded border border-gray-500/30">Created</span>}
+                              </td>
+                              <td className="px-4 py-3 text-secondary">
+                                {formatDate(p.createdAt)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {p.status === 'pending_approval' && (
+                                  <button
+                                    onClick={async () => {
+                                      await handleUpdateStatus(p.userId, 'approved', 'user', 'pro');
+                                      fetchPaymentLogs();
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-500 text-black font-extrabold rounded-lg text-xs hover:bg-emerald-400 transition-all shadow-md"
+                                  >
+                                    Approve UTR & Upgrade
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {paymentLogs.length === 0 && (
+                            <tr>
+                              <td colSpan="6" className="text-center py-6 text-secondary">No payment transaction records yet.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                 </div>
             </div>
         )}

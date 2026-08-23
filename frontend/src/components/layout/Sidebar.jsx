@@ -4,7 +4,7 @@ import {
   LayoutDashboard, List, Settings, PieChart, Users,
   Globe, Shield, LogOut, UserCircle, CalendarDays,
   TrendingUp, ChevronRight, Bell, Check, Trash, Wallet, BookOpen, Receipt,
-  FileSpreadsheet, Sparkles, Eye, Clock, UsersRound, EyeOff
+  FileSpreadsheet, Sparkles, Eye, Clock, UsersRound, EyeOff, Grid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +36,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
       label: 'Management',
       items: [
         { name: 'IPO Records', icon: List, path: '/records' },
+        { name: 'Application Matrix', icon: Grid, path: '/application-matrix' },
         { name: 'Accounts', icon: Wallet, path: '/accounts' },
         { name: 'Expenses', icon: Receipt, path: '/expenses' },
         { name: 'Party Ledger', icon: BookOpen, path: '/party-ledger' },
@@ -61,7 +62,7 @@ const Sidebar = ({ isOpen, setIsOpen, brandName = 'IPO Tracker' }) => {
   const getRoleBadge = () => {
     if (user?.role === 'master') return { label: 'Master Admin', color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' };
     if (user?.role === 'admin') return { label: 'Admin', color: 'text-violet-400 bg-violet-400/10 border-violet-400/20' };
-    return { label: user?.subscription === 'pro' ? 'Pro' : 'Free', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' };
+    return { label: 'User', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' };
   };
 
   const roleBadge = getRoleBadge();

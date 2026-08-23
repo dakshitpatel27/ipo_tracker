@@ -248,7 +248,22 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN autoPollEnabled INTEGER DEFAULT 1`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN autoPollInterval INTEGER DEFAULT 30`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN lastPolledAt TEXT`, () => { });
-        db.run(`ALTER TABLE users ADD COLUMN authProvider TEXT DEFAULT 'email'`, () => { });
+
+        // Applicants Table
+        db.run(`CREATE TABLE IF NOT EXISTS applicants (
+            id TEXT PRIMARY KEY,
+            userId TEXT,
+            name TEXT,
+            pan TEXT,
+            upiId TEXT,
+            family TEXT,
+            groupTag TEXT,
+            dematId TEXT,
+            bankAccount TEXT,
+            ifscCode TEXT,
+            commissionPct REAL DEFAULT 0,
+            createdAt TEXT
+        )`);    db.run(`ALTER TABLE users ADD COLUMN authProvider TEXT DEFAULT 'email'`, () => { });
     });
 
     // 2. Records
@@ -659,6 +674,27 @@ const initSchema = () => {
 
     // Add source column to import_history
     db.run(`ALTER TABLE import_history ADD COLUMN source TEXT`, () => { });
+
+    // Add subscriptionExpires column to users
+    db.run(`ALTER TABLE users ADD COLUMN subscriptionExpires TEXT`, () => { });
+
+    // 23. Payments & Subscriptions Table
+    db.run(`CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        username TEXT,
+        orderId TEXT,
+        paymentId TEXT,
+        signature TEXT,
+        planId TEXT,
+        amount REAL,
+        currency TEXT DEFAULT 'INR',
+        status TEXT DEFAULT 'created',
+        paymentMethod TEXT,
+        utrNumber TEXT,
+        createdAt TEXT,
+        expiresAt TEXT
+    )`);
 };
 // Initialize schema
 initSchema();

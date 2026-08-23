@@ -19,6 +19,7 @@ import Watchlist from './pages/Watchlist';
 import Timeline from './pages/Timeline';
 import FamilyPortfolio from './pages/FamilyPortfolio';
 import ExpenseTracker from './pages/ExpenseTracker';
+import ApplicationMatrix from './pages/ApplicationMatrix';
 import NotFound from './pages/NotFound';
 import OfflinePage from './pages/OfflinePage';
 import { useAuth } from './context/AuthContext';
@@ -125,6 +126,7 @@ function App() {
     const validPaths = [
       '/',
       '/records',
+      '/application-matrix',
       '/accounts',
       '/party-ledger',
       '/expenses',
@@ -252,6 +254,7 @@ function App() {
             <Routes location={location} key={location.pathname}>
               <Route path="/" element={<AnimatedPage><Dashboard /></AnimatedPage>} />
               <Route path="/records" element={<AnimatedPage><Records /></AnimatedPage>} />
+              <Route path="/application-matrix" element={<AnimatedPage><ApplicationMatrix /></AnimatedPage>} />
               <Route path="/accounts" element={<AnimatedPage><Accounts /></AnimatedPage>} />
               <Route path="/party-ledger" element={<AnimatedPage><PartyLedger /></AnimatedPage>} />
               <Route path="/expenses" element={<AnimatedPage><ExpenseTracker /></AnimatedPage>} />

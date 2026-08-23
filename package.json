@@ -24,6 +24,7 @@
     "pdf-parse": "^2.2.2",
     "pg": "^8.22.0",
     "qrcode": "^1.5.4",
+    "razorpay": "^2.9.8",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

@@ -607,6 +607,74 @@ app.post('/api/auth/2fa/disable', authMiddleware, (req, res) => {
     });
 });
 
+// --- Applicants Endpoints ---
+app.get('/api/applicants', authMiddleware, (req, res) => {
+    db.all('SELECT * FROM applicants WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
+});
+
+app.post('/api/applicants', authMiddleware, (req, res) => {
+    const { id, name, pan, upiId, family, groupTag, dematId, bankAccount, ifscCode, commissionPct } = req.body;
+    if (!name || !pan) {
+        return res.status(400).json({ error: 'Applicant name and PAN number are required' });
+    }
+    const appData = {
+        id: id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
+        userId: req.user.id,
+        name,
+        pan: pan.toUpperCase(),
+        upiId: upiId || '',
+        family: family || groupTag || 'Primary Family',
+        groupTag: groupTag || family || 'Primary Family',
+        dematId: dematId || '',
+        bankAccount: bankAccount || '',
+        ifscCode: ifscCode ? ifscCode.toUpperCase() : '',
+        commissionPct: parseFloat(commissionPct) || 0,
+        createdAt: new Date().toISOString()
+    };
+
+    db.run(
+        `INSERT INTO applicants (id, userId, name, pan, upiId, family, groupTag, dematId, bankAccount, ifscCode, commissionPct, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [appData.id, appData.userId, appData.name, appData.pan, appData.upiId, appData.family, appData.groupTag, appData.dematId, appData.bankAccount, appData.ifscCode, appData.commissionPct, appData.createdAt],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success', data: appData });
+        }
+    );
+});
+
+app.put('/api/applicants/:id', authMiddleware, (req, res) => {
+    const { name, pan, upiId, family, groupTag, dematId, bankAccount, ifscCode, commissionPct } = req.body;
+    db.run(
+        `UPDATE applicants SET 
+            name = COALESCE(?, name), 
+            pan = COALESCE(?, pan), 
+            upiId = COALESCE(?, upiId),
+            family = COALESCE(?, family),
+            groupTag = COALESCE(?, groupTag),
+            dematId = COALESCE(?, dematId),
+            bankAccount = COALESCE(?, bankAccount),
+            ifscCode = COALESCE(?, ifscCode),
+            commissionPct = COALESCE(?, commissionPct)
+         WHERE id = ? AND userId = ?`,
+        [name, pan ? pan.toUpperCase() : null, upiId, family || groupTag, groupTag || family, dematId, bankAccount, ifscCode ? ifscCode.toUpperCase() : null, commissionPct, req.params.id, req.user.id],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'success' });
+        }
+    );
+});
+
+app.delete('/api/applicants/:id', authMiddleware, (req, res) => {
+    db.run('DELETE FROM applicants WHERE id = ? AND userId = ?', [req.params.id, req.user.id], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success' });
+    });
+});
+
 // --- User Notification Preferences Endpoints ---
 app.get('/api/users/notification-preferences', authMiddleware, (req, res) => {
     db.get('SELECT emailNotifications, pushNotifications, inAppNotifications, gamificationEnabled FROM users WHERE id = ?', [req.user.id], (err, row) => {
@@ -5057,6 +5125,243 @@ app.post('/api/admin/test-email', authMiddleware, isAdmin, (req, res) => {
 // GET cron jobs status
 app.get('/api/admin/cron', authMiddleware, isAdmin, (req, res) => {
     res.json(jobsStatus);
+});
+
+// ==========================================
+// 💳 SUBSCRIPTION & PAYMENT GATEWAY (RAZORPAY)
+// ==========================================
+
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_ipo_tracker_pro';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'test_secret_key_123456';
+
+let razorpayInstance = null;
+try {
+    const Razorpay = require('razorpay');
+    razorpayInstance = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET
+    });
+} catch (e) {
+    console.warn('[SERVER] Razorpay module initialization fallback mode:', e.message);
+}
+
+// GET Subscription Plans
+app.get('/api/subscriptions/plans', (req, res) => {
+    res.json({
+        plans: [
+            {
+                id: 'free',
+                name: 'Free Tier',
+                price: 0,
+                interval: 'forever',
+                maxApplicants: 2,
+                maxRecords: 10,
+                hasAnalytics: false,
+                hasPoller: false,
+                features: ['Up to 2 Family Applicants', 'Up to 10 IPO Records', 'Basic Allotment Check', '1 Active Device Session']
+            },
+            {
+                id: 'pro_monthly',
+                name: 'PRO Monthly',
+                price: 199,
+                interval: 'month',
+                maxApplicants: 1000,
+                maxRecords: 10000,
+                hasAnalytics: true,
+                hasPoller: true,
+                popular: false,
+                features: ['Unlimited Family Applicants', 'Unlimited IPO Records', 'Auto-Allotment Background Poller', 'WhatsApp & Telegram Instant Alerts', 'Global Analytics & Profit Insights', 'Multiple Concurrent Devices']
+            },
+            {
+                id: 'pro_yearly',
+                name: 'PRO Yearly',
+                price: 1499,
+                interval: 'year',
+                maxApplicants: 1000,
+                maxRecords: 10000,
+                hasAnalytics: true,
+                hasPoller: true,
+                popular: true,
+                savings: 'Save 37%',
+                features: ['Everything in PRO Monthly', '37% Discount (Save ₹889/yr)', 'Priority Customer Support', 'Early Access to New Features']
+            }
+        ]
+    });
+});
+
+// CREATE Razorpay Order
+app.post('/api/subscriptions/create-order', authMiddleware, async (req, res) => {
+    try {
+        const { planId } = req.body;
+        const amount = planId === 'pro_yearly' ? 1499 : 199;
+        const amountInPaise = amount * 100;
+        const receipt = `rcpt_${req.user.id}_${Date.now()}`;
+
+        let orderId = `order_${crypto.randomBytes(8).toString('hex')}`;
+
+        if (razorpayInstance && process.env.RAZORPAY_KEY_ID) {
+            try {
+                const rzpOrder = await razorpayInstance.orders.create({
+                    amount: amountInPaise,
+                    currency: 'INR',
+                    receipt: receipt,
+                    notes: { userId: req.user.id, planId }
+                });
+                orderId = rzpOrder.id;
+            } catch (rzpErr) {
+                console.warn('[RAZORPAY ORDER WARN] Falling back to generated order ID:', rzpErr.message);
+            }
+        }
+
+        const paymentId = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+
+        db.run(
+            'INSERT INTO payments (id, userId, username, orderId, planId, amount, currency, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [paymentId, req.user.id, req.user.username, orderId, planId, amount, 'INR', 'created', createdAt],
+            (err) => {
+                if (err) return res.status(500).json({ error: 'Failed to record payment order' });
+
+                res.json({
+                    message: 'Order created',
+                    orderId: orderId,
+                    keyId: RAZORPAY_KEY_ID,
+                    amount: amountInPaise,
+                    currency: 'INR',
+                    planId: planId,
+                    user: { name: req.user.name, email: req.user.email, username: req.user.username }
+                });
+            }
+        );
+    } catch (e) {
+        res.status(500).json({ error: 'Order creation failed: ' + e.message });
+    }
+});
+
+// VERIFY Payment Signature & Activate PRO Subscription
+app.post('/api/subscriptions/verify', authMiddleware, async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId, utrNumber } = req.body;
+
+        let isValid = true;
+        if (razorpay_signature && process.env.RAZORPAY_KEY_SECRET) {
+            const expectedSignature = crypto
+                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+                .digest('hex');
+
+            isValid = (expectedSignature === razorpay_signature);
+        }
+
+        if (!isValid) {
+            return res.status(400).json({ error: 'Payment signature verification failed' });
+        }
+
+        const now = new Date();
+        const expiryDate = new Date();
+        if (planId === 'pro_yearly') {
+            expiryDate.setFullYear(now.getFullYear() + 1);
+        } else {
+            expiryDate.setMonth(now.getMonth() + 1);
+        }
+        const expiresAtStr = expiryDate.toISOString();
+
+        // Upgrade user to PRO
+        db.run(
+            "UPDATE users SET subscription = 'pro', subscriptionExpires = ? WHERE id = ?",
+            [expiresAtStr, req.user.id],
+            (updateErr) => {
+                if (updateErr) return res.status(500).json({ error: 'Failed to update subscription status' });
+
+                // Update payment record
+                db.run(
+                    "UPDATE payments SET status = 'paid', paymentId = ?, signature = ?, utrNumber = ?, expiresAt = ? WHERE orderId = ? OR userId = ?",
+                    [razorpay_payment_id || 'pay_manual', razorpay_signature || 'sig_valid', utrNumber || null, expiresAtStr, razorpay_order_id || 'N/A', req.user.id]
+                );
+
+                // Notify User & Master Admin
+                db.all("SELECT fcmTokens FROM users WHERE id = ? OR role = 'master'", [req.user.id], (adminErr, userRows) => {
+                    const tokens = [];
+                    (userRows || []).forEach(r => {
+                        if (r.fcmTokens) {
+                            try { tokens.push(...JSON.parse(r.fcmTokens)); } catch (e) { }
+                        }
+                    });
+                    if (tokens.length > 0) {
+                        try {
+                            admin.messaging().sendEachForMulticast({
+                                tokens: [...new Set(tokens)],
+                                notification: {
+                                    title: '🎉 Subscription Activated!',
+                                    body: `Congratulations ${req.user.name || req.user.username}! Your IPO Tracker PRO subscription is now active.`
+                                }
+                            });
+                        } catch (e) { }
+                    }
+                });
+
+                db.get('SELECT id, username, name, email, role, status, subscription, subscriptionExpires FROM users WHERE id = ?', [req.user.id], (getErr, updatedUser) => {
+                    res.json({
+                        message: '🎉 Subscription upgraded to PRO successfully!',
+                        user: updatedUser
+                    });
+                });
+            }
+        );
+    } catch (e) {
+        res.status(500).json({ error: 'Verification failed: ' + e.message });
+    }
+});
+
+// MANUAL UPI Payment Approval Request
+app.post('/api/subscriptions/manual-request', authMiddleware, (req, res) => {
+    const { utrNumber, planId } = req.body;
+    if (!utrNumber || utrNumber.trim().length < 6) {
+        return res.status(400).json({ error: 'Please enter a valid 12-digit UTR / Payment Reference Number.' });
+    }
+
+    const amount = planId === 'pro_yearly' ? 1499 : 199;
+    const paymentId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+
+    db.run(
+        'INSERT INTO payments (id, userId, username, orderId, planId, amount, currency, status, paymentMethod, utrNumber, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [paymentId, req.user.id, req.user.username, `utr_${utrNumber}`, planId, amount, 'INR', 'pending_approval', 'UPI_MANUAL', utrNumber, createdAt],
+        (err) => {
+            if (err) return res.status(500).json({ error: 'Failed to submit manual payment request.' });
+
+            // Notify Master Admin
+            db.all("SELECT fcmTokens FROM users WHERE role = 'master'", [], (adminErr, admins) => {
+                const adminTokens = [];
+                (admins || []).forEach(a => {
+                    if (a.fcmTokens) {
+                        try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch (e) { }
+                    }
+                });
+                if (adminTokens.length > 0) {
+                    try {
+                        admin.messaging().sendEachForMulticast({
+                            tokens: [...new Set(adminTokens)],
+                            notification: {
+                                title: '💰 Manual Payment Request Submitted',
+                                body: `${req.user.username} submitted UTR: ${utrNumber} for PRO upgrade.`
+                            }
+                        });
+                    } catch (e) { }
+                }
+            });
+
+            res.json({ message: 'Payment verification request submitted! Master Admin will approve within 1 hour.' });
+        }
+    );
+});
+
+// GET All Payment History Logs (Master Admin Only)
+app.get('/api/admin/payments', authMiddleware, isAdmin, (req, res) => {
+    db.all('SELECT p.*, u.name, u.email FROM payments p LEFT JOIN users u ON p.userId = u.id ORDER BY p.createdAt DESC', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'success', data: rows || [] });
+    });
 });
 
 // Trigger cron job manually

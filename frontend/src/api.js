@@ -164,6 +164,10 @@ export const api = {
     }
   },
 
+  async getIpoMaster() {
+    return api.getLiveIpos();
+  },
+
   async getPublicSettings() {
     try {
       const data = await api.get('/settings/public');
@@ -452,6 +456,37 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to send test notification');
     return data;
+  },
+
+  async batchApply(payload) {
+    const { ipoName, listingDate, lotSize, price, quota, applicantIds, bankAccountId } = payload;
+    const appData = await api.getApplicants().catch(() => []);
+    const appList = Array.isArray(appData) ? appData : (appData?.data || []);
+    
+    const records = (applicantIds || []).map(appId => {
+      const app = appList.find(a => a.id === appId || a.name === appId);
+      const appName = app ? app.name : appId;
+      const appPan = app ? app.pan : '';
+      const sharesCount = (parseFloat(lotSize) || 1) * 1;
+      return {
+        ipoName,
+        applicantName: appName,
+        applicantPan: appPan,
+        quota: quota || 'Retail',
+        listingDate: listingDate || '',
+        lotSize: parseFloat(lotSize) || 1,
+        shares: sharesCount,
+        lots: 1,
+        price: parseFloat(price) || 0,
+        amount: sharesCount * (parseFloat(price) || 0),
+        applied: 'Yes',
+        holdingStatus: 'Holding',
+        bankAccountId: bankAccountId || null,
+        bankName: app ? (app.bankAccount || app.bankName) : ''
+      };
+    });
+
+    return api.bulkAddRecords(records);
   },
 
   async bulkAddRecords(records) {
@@ -1464,5 +1499,22 @@ export const api = {
   async getWidgetData() {
     const data = await api.get('/widget/data');
     return data.widget || {};
+  },
+
+  // --- Subscriptions & Razorpay Payment API ---
+  async getSubscriptionPlans() {
+    return api.get('/subscriptions/plans');
+  },
+  async createSubscriptionOrder(planId) {
+    return api.post('/subscriptions/create-order', { planId });
+  },
+  async verifySubscription(payload) {
+    return api.post('/subscriptions/verify', payload);
+  },
+  async submitManualPayment(payload) {
+    return api.post('/subscriptions/manual-request', payload);
+  },
+  async getPaymentLogs() {
+    return api.get('/admin/payments');
   }
 };
