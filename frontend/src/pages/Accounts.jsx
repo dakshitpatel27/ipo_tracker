@@ -95,7 +95,7 @@ const AccountCard = ({ account, isSelected, onClick, onEdit, onDelete }) => {
               {account.accountName || account.name || 'Bank Account'}
             </h3>
             <p className="text-[11px] text-indigo-400 font-medium">
-              {account.bankName || account.bank || account.accountType || 'Bank'}
+              {account.bankName || account.bank || 'Bank'}
             </p>
           </div>
         </div>

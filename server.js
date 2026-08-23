@@ -1770,8 +1770,7 @@ app.get('/api/bank-accounts', authMiddleware, (req, res) => {
 
 // POST create a new bank account
 app.post('/api/bank-accounts', authMiddleware, (req, res) => {
-    const { accountName, bankName, accountNumber, ifscCode, accountType, balance, color } = req.body;
-    if (!accountName || !bankName) return res.status(400).json({ error: 'Account name and bank name are required' });
+    const { accountName, bankName, accountNumber, ifscCode, accountType = 'Savings', balance = 0, color = '#6366f1' } = req.body;
 
     const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
     const now = new Date().toISOString();
@@ -1779,16 +1778,15 @@ app.post('/api/bank-accounts', authMiddleware, (req, res) => {
 
     db.run(
         'INSERT INTO bank_accounts (id, userId, accountName, bankName, accountNumber, ifscCode, accountType, balance, color, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, req.user.id, accountName, bankName, accountNumber || '', ifscCode || '', accountType || 'Savings', openingBalance, color || '#6366f1', now],
+        [id, req.user.id, accountName || '', bankName || '', accountNumber || '', ifscCode || '', accountType, openingBalance, color, now],
         function (err) {
             if (err) return res.status(400).json({ error: err.message });
 
-            // Record opening balance transaction if balance > 0
             if (openingBalance > 0) {
                 const txnId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
                 db.run(
                     'INSERT INTO transactions (id, userId, bankAccountId, type, category, amount, runningBalance, description, referenceId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [txnId, req.user.id, id, 'credit', 'OPENING_BALANCE', openingBalance, openingBalance, `Opening balance for ${accountName}`, null, now, now]
+                    [txnId, req.user.id, id, 'credit', 'OPENING_BALANCE', openingBalance, openingBalance, `Opening balance for ${accountName || 'Account'}`, null, now, now]
                 );
             }
 
@@ -1800,24 +1798,18 @@ app.post('/api/bank-accounts', authMiddleware, (req, res) => {
 // PUT update a bank account
 app.put('/api/bank-accounts/:id', authMiddleware, (req, res) => {
     const { accountName, bankName, accountNumber, ifscCode, accountType, color } = req.body;
+
     db.run(
-        `UPDATE bank_accounts SET 
-            accountName = COALESCE(?, accountName), 
-            bankName = COALESCE(?, bankName), 
-            accountNumber = COALESCE(?, accountNumber), 
-            ifscCode = COALESCE(?, ifscCode), 
-            accountType = COALESCE(?, accountType), 
-            color = COALESCE(?, color) 
-         WHERE id = ? AND userId = ?`,
-        [accountName, bankName, accountNumber, ifscCode, accountType, color, req.params.id, req.user.id],
+        'UPDATE bank_accounts SET accountName = ?, bankName = ?, accountNumber = ?, ifscCode = ?, accountType = ?, color = ? WHERE id = ? AND userId = ?',
+        [accountName || '', bankName || '', accountNumber || '', ifscCode || '', accountType || 'Savings', color || '#6366f1', req.params.id, req.user.id],
         function (err) {
-            if (err) return res.status(400).json({ error: err.message });
+            if (err) return res.status(500).json({ error: err.message });
             res.json({ message: 'success', changes: this.changes });
         }
     );
 });
 
-// DELETE a bank account (only if no linked records)
+// DELETE a bank account
 app.delete('/api/bank-accounts/:id', authMiddleware, (req, res) => {
     db.get('SELECT COUNT(*) as count FROM records WHERE bankAccountId = ? AND userId = ?', [req.params.id, req.user.id], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
