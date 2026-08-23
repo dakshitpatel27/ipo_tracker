@@ -900,19 +900,34 @@ const AdminPanel = () => {
                   </button>
                   <button onClick={async () => {
                     try {
+                      if (!("Notification" in window)) {
+                        return toast.error('This browser does not support Web Push Notifications.');
+                      }
+
+                      let perm = Notification.permission;
+                      if (perm === 'default') {
+                        perm = await Notification.requestPermission();
+                      }
+
+                      if (perm === 'denied') {
+                        return toast.error('Notification permission is BLOCKED in browser settings. Click the lock 🔒 icon next to the URL address bar -> set Notifications to ALLOW, then refresh.');
+                      }
+
                       const deviceType = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile Device' : 'Desktop Browser';
                       const { requestForToken } = await import('../firebase');
                       const token = await requestForToken();
+
                       if (!token || token.length < 30 || token.startsWith('fcm_token_')) {
-                        return toast.error('Notification permission required to obtain real FCM token. Please allow notifications in browser settings.');
+                        return toast.error('Could not generate FCM Token. Please allow notification permissions in browser lock 🔒 settings and refresh.');
                       }
+
                       await api.post('/notifications/register', { token, deviceType });
                       toast.success('Real FCM Push Token registered successfully!');
                       fetchFcmTokens();
                     } catch (e) {
                       toast.error(e.message || 'Failed to register real FCM token');
                     }
-                  }} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-indigo-600">
+                  }} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-indigo-600 font-bold">
                     ⚡ Register Real FCM Token
                   </button>
                   <button onClick={fetchFcmTokens} className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5">
