@@ -363,13 +363,15 @@ const Accounts = () => {
 
   const openEditAccount = (account) => {
     setEditingAccount(account);
+    const resolvedAccountName = account.accountName || account.name || (account.bankName && account.bankName !== 'Bank' ? `${account.bankName} Account` : 'HDFC Primary Account');
+    const resolvedBankName = account.bankName || account.bank || 'HDFC Bank';
     setAccountForm({
-      accountName: account.accountName,
-      bankName: account.bankName,
+      accountName: resolvedAccountName,
+      bankName: resolvedBankName,
       accountNumber: account.accountNumber || '',
       ifscCode: account.ifscCode || '',
       accountType: account.accountType || 'Savings',
-      balance: account.balance,
+      balance: account.balance !== undefined && account.balance !== null ? String(account.balance) : '',
       color: account.color || '#6366f1'
     });
     setIsAccountModalOpen(true);
