@@ -144,6 +144,7 @@ app.use((req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
 });
 
@@ -162,7 +163,44 @@ app.use(cors({
     credentials: true
 }));
 
-app.use(bodyParser.json());
+// ========== NETWORK SECURITY & ANTI-SCANNING MIDDLEWARE ==========
+app.set('trust proxy', 1);
+
+const BLOCKED_PATH_PATTERNS = [
+    /\.env/i, /\.git/i, /phpmyadmin/i, /wp-login/i, /wp-admin/i, 
+    /eval-using-main-module/i, /actuator/i, /console/i, /\.php$/i
+];
+
+const BLOCKED_USER_AGENTS = [
+    /sqlmap/i, /nikto/i, /nmap/i, /masscan/i, /zgrab/i, /havij/i, /netsparker/i
+];
+
+app.use((req, res, next) => {
+    const ua = req.headers['user-agent'] || '';
+    const path = req.path || '';
+
+    // 1. Anti-Bot / Vulnerability Scanner Block
+    for (const pattern of BLOCKED_USER_AGENTS) {
+        if (pattern.test(ua)) {
+            console.warn(`[NETWORK SHIELD] Blocked vulnerability scanner IP: ${getClientIp(req)} (UA: ${ua})`);
+            return res.status(403).json({ error: 'Access Denied: Automated scanning detected.' });
+        }
+    }
+
+    // 2. Sensitive Probe Path Block
+    for (const pattern of BLOCKED_PATH_PATTERNS) {
+        if (pattern.test(path)) {
+            console.warn(`[NETWORK SHIELD] Blocked malicious path probe IP: ${getClientIp(req)} (Path: ${path})`);
+            return res.status(404).end();
+        }
+    }
+
+    next();
+});
+
+// Enforce Body Size Limits to prevent DoS / Memory exhaustion
+app.use(bodyParser.json({ limit: '2mb' }));
+app.use(bodyParser.urlencoded({ limit: '2mb', extended: true }));
 
 // In-memory sliding window rate limiter for sensitive authentication endpoints
 const authRateAttempts = new Map();
@@ -6373,10 +6411,13 @@ process.on('uncaughtException', (err) => {
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
         initFirebaseAdmin();
     });
+    // Slowloris & Connection Timeout Protection
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
 }
 
 // Export for Vercel Serverless

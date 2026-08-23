@@ -1,34 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check auth
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // User documents
-    match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
+    function isDocOwner() {
+      return isAuthenticated() && (
+        (resource == null && request.resource.data.userId == request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid && (request.resource == null || request.resource.data.userId == request.auth.uid))
+      );
+    }
+
+    // User Profile Documents
+    match /users/{userId} {
+      allow read, update, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role != 'master');
+    }
+
     // Portfolio Records collection
     match /records/{recordId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read, create, update, delete: if isDocOwner();
     }
-    
+
     // Applicants collection
     match /applicants/{applicantId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read, create, update, delete: if isDocOwner();
     }
-    
+
     // Watchlist collection
     match /watchlist/{itemId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read, create, update, delete: if isDocOwner();
     }
-    
+
     // User Notifications inbox
     match /user_notifications/{notifId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow read, create, update, delete: if isDocOwner();
     }
   }
 }
