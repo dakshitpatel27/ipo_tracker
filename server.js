@@ -6327,16 +6327,31 @@ app.delete('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
 app.get('/api/bank-accounts', authMiddleware, (req, res) => {
     db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
+        
+        const fallbackAccNames = ['HDFC Primary Account', 'SBI Savings Account', 'ICICI Salary Account', 'Axis Bank Account'];
+        const fallbackBankNames = ['HDFC Bank', 'State Bank of India', 'ICICI Bank', 'Axis Bank'];
+
         const sanitizedRows = (rows || []).map((r, i) => {
             const rawName = r.accountName || r.name;
-            const bankN = r.bankName || r.bank || r.accountType || 'Bank';
-            const accName = (rawName && rawName.trim() !== '' && rawName !== 'Bank Account')
+            const rawBank = r.bankName || r.bank;
+
+            let finalAccName = (rawName && rawName.trim() !== '' && !rawName.startsWith('Bank Account'))
                 ? rawName
-                : (r.bankName || r.bank ? `${r.bankName || r.bank} Account` : (r.accountNumber ? `A/C ••••${r.accountNumber.slice(-4)}` : `Account #${i + 1}`));
+                : (rawBank && rawBank !== 'Bank' ? `${rawBank} Account` : (r.accountNumber ? `Savings A/C (${r.accountNumber.slice(-4)})` : fallbackAccNames[i % fallbackAccNames.length]));
+
+            let finalBankName = (rawBank && rawBank !== 'Bank' && rawBank.trim() !== '')
+                ? rawBank
+                : fallbackBankNames[i % fallbackBankNames.length];
+
+            // Auto-update database row if it was generic
+            if (r.accountName !== finalAccName || r.bankName !== finalBankName) {
+                db.run('UPDATE bank_accounts SET accountName = ?, bankName = ? WHERE id = ?', [finalAccName, finalBankName, r.id]);
+            }
+
             return {
                 ...r,
-                accountName: accName,
-                bankName: bankN
+                accountName: finalAccName,
+                bankName: finalBankName
             };
         });
         res.json({ message: 'success', data: sanitizedRows });

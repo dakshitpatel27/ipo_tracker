@@ -92,10 +92,12 @@ const AccountCard = ({ account, isSelected, onClick, onEdit, onDelete }) => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-white leading-tight">
-              {account.accountName || account.name || account.bankName || 'Bank Account'}
+              {account.accountName || account.name || (account.bankName && account.bankName !== 'Bank' ? `${account.bankName} Account` : 'HDFC Primary Account')}
             </h3>
-            <p className="text-[11px] text-[var(--text-muted)] font-medium">
-              {account.bankName || account.bank || account.accountType || 'Bank'}
+            <p className="text-[11px] text-indigo-400 font-medium">
+              {account.bankName && account.bankName !== account.accountName
+                ? account.bankName
+                : (account.bank || account.accountType || 'HDFC Bank')}
             </p>
           </div>
         </div>
