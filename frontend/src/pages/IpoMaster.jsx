@@ -431,7 +431,7 @@ const IpoMaster = () => {
 
                       {/* Feature 7: Calculator */}
                       <button
-                        onClick={() => setCalcIpo({ price: upperPrice || 100, lotSize: lotNum, gmp: parseFloat(gmpStr?.replace(/[^\d.-]/g, '')) || 0 })}
+                        onClick={() => setCalcIpo({ ipo, price: upperPrice || 100, lotSize: lotNum, gmp: parseFloat(gmpStr?.replace(/[^\d.-]/g, '')) || 0 })}
                         className="btn-ghost p-1.5 text-zinc-400 hover:text-white"
                         title="Investment Simulator"
                       >
@@ -484,6 +484,7 @@ const IpoMaster = () => {
       <InvestmentCalculator
         isOpen={!!calcIpo}
         onClose={() => setCalcIpo(null)}
+        selectedIpo={calcIpo?.ipo}
         defaultPrice={calcIpo?.price}
         defaultLotSize={calcIpo?.lotSize}
         defaultGmp={calcIpo?.gmp}

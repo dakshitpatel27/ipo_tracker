@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calendar, Lock, Unlock, ShieldAlert } from 'lucide-react';
 
-export default function AnchorLockupCalendar({ ipoName = 'Mainboard IPO', listingDate }) {
+export default function AnchorLockupCalendar({ ipoName = '', listingDate }) {
   const listDateObj = listingDate ? new Date(listingDate) : new Date();
 
   // 30-Day Lock-in Expiry (50% anchor shares released)

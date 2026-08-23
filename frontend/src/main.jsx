@@ -37,7 +37,10 @@ class ErrorBoundary extends React.Component {
 
             <div className="flex flex-col gap-2 pt-2">
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
                 className="w-full btn-primary py-2 text-xs font-bold"
               >
                 🔄 Reload Application
@@ -61,7 +64,12 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootElement = document.getElementById('root');
+if (!rootElement._reactRoot) {
+  rootElement._reactRoot = ReactDOM.createRoot(rootElement);
+}
+
+rootElement._reactRoot.render(
   <React.StrictMode>
     <BrowserRouter>
       <ErrorBoundary>
@@ -70,5 +78,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);

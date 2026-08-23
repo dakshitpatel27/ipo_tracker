@@ -25,11 +25,10 @@ import { useAuth } from './context/AuthContext';
 import { PrivacyProvider, usePrivacy } from './context/PrivacyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast, ToastBar } from 'react-hot-toast';
-import { requestForToken, onMessageListener } from './firebase';
+import { requestForToken } from './firebase';
 import { api } from './api';
 import { Menu, X, TrendingUp, UserCircle, LogOut, Eye, EyeOff } from 'lucide-react';
 import CommandPalette from './components/ui/CommandPalette';
-import RealtimeNotificationListener from './components/ui/RealtimeNotificationListener';
 import TradingTicker from './components/ui/TradingTicker';
 import AnimatedPage from './components/ui/AnimatedPage';
 import MobileBottomNav from './components/layout/MobileBottomNav';
@@ -90,21 +89,6 @@ function App() {
         if (token) {
           api.registerFcmToken(token).catch(err => console.error('Failed to register FCM token', err));
         }
-      });
-
-      onMessageListener((payload) => {
-        if (Notification.permission === 'granted') {
-          new Notification(payload.notification?.title || 'Notification', {
-            body: payload.notification?.body,
-            icon: '/app-icon.png'
-          });
-        }
-        toast((t) => (
-          <div>
-            <b>{payload.notification?.title}</b>
-            <p>{payload.notification?.body}</p>
-          </div>
-        ), { duration: 5000 });
       });
     }
   }, [user]);
@@ -327,7 +311,6 @@ function App() {
         )}
       </Toaster>
       <CommandPalette />
-      <RealtimeNotificationListener />
       <ConfirmModal
         isOpen={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}

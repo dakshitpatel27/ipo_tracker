@@ -1,23 +1,7 @@
 import React, { useState } from 'react';
 import { Search, ArrowUpDown, TrendingUp, TrendingDown } from 'lucide-react';
 
-const HISTORICAL_PRICE_MAP = {
-  'anawil': { issuePrice: 270, listingPrice: 342, gain: 26.7 },
-  'dignity': { issuePrice: 100, listingPrice: 125, gain: 25.0 },
-  'g v electricals': { issuePrice: 130, listingPrice: 168, gain: 29.2 },
-  'fusion klassroom': { issuePrice: 159, listingPrice: 198, gain: 24.5 },
-  'oneindig': { issuePrice: 96, listingPrice: 103, gain: 7.3 },
-  'dhaval packaging': { issuePrice: 97, listingPrice: 109, gain: 12.4 },
-};
-
 const parsePrices = (ipo) => {
-  const cleanName = (ipo.name || '').toLowerCase();
-  for (const [key, data] of Object.entries(HISTORICAL_PRICE_MAP)) {
-    if (cleanName.includes(key)) {
-      return { issuePrice: data.issuePrice, listingPrice: data.listingPrice, overrideGain: data.gain };
-    }
-  }
-
   let issuePrice = 0;
   const priceStr = ipo.priceRange || ipo.priceBand || ipo.offerPrice || (ipo.price ? String(ipo.price) : '');
   const numbers = priceStr.match(/\d+(?:\.\d+)?/g) || [];
@@ -30,20 +14,13 @@ const parsePrices = (ipo) => {
   }
 
   let listingPrice = 0;
-  const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp || ipo.gmp || '';
-  const gmpNum = parseFloat(String(gmpStr).replace(/[^\d.-]/g, ''));
-
-  if (!isNaN(gmpNum) && gmpNum !== 0 && issuePrice > 0) {
-    listingPrice = issuePrice + gmpNum;
-  } else if (ipo.listingPrice && !isNaN(parseFloat(ipo.listingPrice)) && parseFloat(ipo.listingPrice) > 0) {
+  if (ipo.listingPrice && !isNaN(parseFloat(ipo.listingPrice)) && parseFloat(ipo.listingPrice) > 0) {
     listingPrice = parseFloat(ipo.listingPrice);
   } else {
-    // If subscription > 5x, estimate realistic listing gain based on subscription demand
-    const subStr = ipo.subscriptionNumbers?.total?.subscription || ipo.subscription || '';
-    const subNum = parseFloat(String(subStr).replace(/[^\d.]/g, ''));
-    if (!isNaN(subNum) && subNum > 5 && issuePrice > 0) {
-      const estGainPct = Math.min(subNum * 0.18 + 12, 45); // realistic listing gain estimate based on institutional & retail demand
-      listingPrice = Math.round(issuePrice * (1 + estGainPct / 100));
+    const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp || ipo.gmp || '';
+    const gmpNum = parseFloat(String(gmpStr).replace(/[^\d.-]/g, ''));
+    if (!isNaN(gmpNum) && gmpNum !== 0 && issuePrice > 0) {
+      listingPrice = issuePrice + gmpNum;
     } else {
       listingPrice = issuePrice;
     }

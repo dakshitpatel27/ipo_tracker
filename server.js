@@ -762,8 +762,8 @@ app.post('/api/notifications/test-webhook', authMiddleware, async (req, res) => 
             event: 'ALLOTMENT_TEST_EVENT',
             timestamp: new Date().toISOString(),
             data: {
-                ipoName: 'Sample Mainboard IPO',
-                applicantName: 'John Doe',
+                ipoName: req.body.ipoName || 'IPO Allotment Test',
+                applicantName: req.body.applicantName || 'Test Applicant',
                 status: 'ALLOTTED',
                 sharesAllotted: 15,
                 amountBlocked: 14925
@@ -2411,6 +2411,39 @@ app.post('/api/records/:id/mandate-nudge', authMiddleware, async (req, res) => {
             res.json({ message: 'Urgent mandate WhatsApp nudge dispatched!', result });
         });
     });
+});
+
+let liveIposCache = null;
+let liveIposCacheTime = 0;
+
+app.get('/api/live-ipos', async (req, res) => {
+    try {
+        const now = Date.now();
+        if (liveIposCache && (now - liveIposCacheTime < 3 * 60 * 1000)) {
+            return res.json({ status: 'success', data: liveIposCache });
+        }
+
+        const finApiRes = await fetch('https://finapi.upvaly.com/api/ipo');
+        const json = await finApiRes.json();
+
+        if (json.status === 'success' && Array.isArray(json.data)) {
+            liveIposCache = json.data;
+            liveIposCacheTime = now;
+            return res.json({ status: 'success', data: json.data });
+        }
+
+        if (liveIposCache) {
+            return res.json({ status: 'success', data: liveIposCache });
+        }
+
+        return res.json({ status: 'error', data: [] });
+    } catch (err) {
+        console.error('Failed to fetch live IPOs in backend proxy:', err.message);
+        if (liveIposCache) {
+            return res.json({ status: 'success', data: liveIposCache });
+        }
+        return res.json({ status: 'error', data: [] });
+    }
 });
 
 // ========== LIVE SUBSCRIPTION ODDS CALCULATOR API ==========
@@ -4370,19 +4403,25 @@ app.post('/api/notifications/register', authMiddleware, (req, res) => {
     });
 });
 
-// Test FCM Push Notification (Single User Self Test)
-app.post('/api/notifications/test', authMiddleware, async (req, res) => {
-    db.get('SELECT username, email, fcmTokens FROM users WHERE id = ?', [req.user.id], async (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!row || !row.fcmTokens) return res.status(404).json({ error: 'No FCM push tokens registered for your account yet. Please allow browser notifications.' });
-
-        try {
-            const tokens = JSON.parse(row.fcmTokens);
-            if (tokens.length === 0) return res.status(404).json({ error: 'No active push tokens found for your account.' });
-
 function buildFcmPayload({ title, body, tokens, token }) {
     const payload = {
         notification: { title, body },
+        webpush: {
+            headers: {
+                Urgency: 'high'
+            },
+            notification: {
+                title,
+                body,
+                icon: '/app-icon.png',
+                badge: '/app-icon.png',
+                requireInteraction: true,
+                vibrate: [200, 100, 200]
+            },
+            fcmOptions: {
+                link: '/ipo-master'
+            }
+        },
         android: {
             priority: 'high',
             notification: {
@@ -4407,18 +4446,27 @@ function buildFcmPayload({ title, body, tokens, token }) {
     return payload;
 }
 
+// Test FCM Push Notification (Single User Self Test)
+app.post('/api/notifications/test', authMiddleware, async (req, res) => {
+    await admin.ensureInitialized();
+    db.get('SELECT username, email, fcmTokens FROM users WHERE id = ?', [req.user.id], async (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row || !row.fcmTokens) return res.status(404).json({ error: 'No FCM push tokens registered for your account yet. Please allow browser notifications.' });
+
+        try {
+            const tokens = JSON.parse(row.fcmTokens);
+            if (tokens.length === 0) return res.status(404).json({ error: 'No active push tokens found for your account.' });
+
             const title = '🚀 Test FCM Push Alert';
             const body = `Hello ${row.username || 'Investor'}! Firebase Cloud Messaging push notification system is 100% operational.`;
 
             if (admin.apps.length === 0) {
-                throw new Error('Firebase Admin is running in placeholder mode. Add Firebase credentials in firebase-admin.js for live push.');
+                throw new Error('Firebase Admin service account not configured. Please save credentials in Admin settings.');
             }
 
             const message = buildFcmPayload({ title, body, tokens });
-
             const response = await admin.messaging().sendEachForMulticast(message);
 
-            // Log the notification
             const logId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
             const timestamp = new Date().toISOString();
             db.run(
@@ -4440,6 +4488,7 @@ function buildFcmPayload({ title, body, tokens, token }) {
 
 // Master Admin: Test Notification Module API (Telegram, Push, WhatsApp, Email)
 app.post('/api/admin/notifications/test-suite', authMiddleware, isAdmin, async (req, res) => {
+    await admin.ensureInitialized();
     const { channel = 'push', title, body, targetUser = 'all' } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'Title and message body are required' });
 
@@ -4448,10 +4497,8 @@ app.post('/api/admin/notifications/test-suite', authMiddleware, isAdmin, async (
 
     try {
         if (channel === 'push') {
-            // Fetch FCM tokens
             db.all('SELECT * FROM fcm_tokens', [], async (err, tokensRows) => {
-                const recipientCount = (tokensRows || []).length;
-                const tokenList = (tokensRows || []).map(t => t.token).filter(Boolean);
+                const tokenList = (tokensRows || []).map(t => t.token).filter(t => t && !t.startsWith('fcm_token_') && !t.startsWith('device_token_') && t.length >= 30);
 
                 if (tokenList.length === 0) {
                     db.run(
@@ -4462,14 +4509,10 @@ app.post('/api/admin/notifications/test-suite', authMiddleware, isAdmin, async (
                 }
 
                 if (admin.apps.length === 0) {
-                    db.run(
-                        'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, tokenList.length, 'simulated', 'push', 'push', 'Firebase Admin placeholder mode']
-                    );
-                    return res.json({ message: 'Push notification test simulated (Firebase Admin placeholder active)', tokenCount: tokenList.length });
+                    return res.status(400).json({ error: 'Firebase Admin not initialized. Check server database settings.' });
                 }
 
-                const message = { notification: { title, body }, tokens: tokenList };
+                const message = buildFcmPayload({ title, body, tokens: tokenList });
                 const response = await admin.messaging().sendEachForMulticast(message);
 
                 db.run(
@@ -4515,18 +4558,15 @@ app.post('/api/admin/notifications/test-suite', authMiddleware, isAdmin, async (
 
 // Master Admin: Direct FCM Push to Specific Token
 app.post('/api/admin/fcm/send-direct', authMiddleware, isAdmin, async (req, res) => {
+    await admin.ensureInitialized();
     const { token, title = '⚡ Direct Admin Push Alert', body = 'Test notification from Master Admin' } = req.body;
     if (!token) return res.status(400).json({ error: 'FCM Token is required' });
 
     const timestamp = new Date().toISOString();
     const logId = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
 
-    if (admin.apps.length === 0 || token.startsWith('fcm_token_')) {
-        db.run(
-            'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'simulated', 'push', 'push', 'Web browser device token simulated mode']
-        );
-        return res.json({ message: '⚡ Direct Push simulated successfully for Web Device Token!', token });
+    if (admin.apps.length === 0) {
+        return res.status(400).json({ error: 'Firebase Admin not initialized. Please verify credentials in DB.' });
     }
 
     try {
@@ -4540,12 +4580,53 @@ app.post('/api/admin/fcm/send-direct', authMiddleware, isAdmin, async (req, res)
 
         res.json({ message: '🚀 Direct FCM Push sent successfully!', response });
     } catch (e) {
+        const isExpired = e.code === 'messaging/registration-token-not-registered' || e.message?.includes('NotRegistered') || e.message?.includes('not found');
+        if (isExpired) {
+            db.run('DELETE FROM fcm_tokens WHERE token = ?', [token]);
+            db.all("SELECT id, fcmTokens FROM users WHERE fcmTokens LIKE ?", [`%${token}%`], (uErr, users) => {
+                if (users && users.length > 0) {
+                    users.forEach(u => {
+                        try {
+                            const arr = JSON.parse(u.fcmTokens);
+                            const clean = arr.filter(t => t !== token);
+                            db.run('UPDATE users SET fcmTokens = ? WHERE id = ?', [JSON.stringify(clean), u.id]);
+                        } catch (err) {}
+                    });
+                }
+            });
+        }
+
         db.run(
             'INSERT INTO notifications_log (id, userId, username, email, title, body, sentAt, recipientCount, status, type, channel, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 1, 'simulated', 'push', 'push', e.message]
+            [logId, req.user.id, req.user.username, 'master@ipotracker.com', title, body, timestamp, 0, 'failed', 'push', 'push', e.message]
         );
-        res.json({ message: '⚡ Direct Alert processed (Simulated mode for Web Browser)', error: e.message });
+
+        res.status(400).json({
+            error: isExpired ? 'Expired token auto-purged from database. Refresh table to view active tokens.' : e.message,
+            code: e.code || 'fcm_error'
+        });
     }
+});
+
+// Master Admin: Prune All Expired FCM Tokens
+app.post('/api/admin/fcm/prune', authMiddleware, isAdmin, async (req, res) => {
+    await admin.ensureInitialized();
+    if (admin.apps.length === 0) return res.status(400).json({ error: 'Firebase Admin not initialized' });
+
+    db.all('SELECT * FROM fcm_tokens', [], async (err, rows) => {
+        let prunedCount = 0;
+        let activeCount = 0;
+        for (const row of (rows || [])) {
+            try {
+                await admin.messaging().send({ token: row.token, notification: { title: 'ping', body: 'ping' } }, true);
+                activeCount++;
+            } catch (e) {
+                prunedCount++;
+                db.run('DELETE FROM fcm_tokens WHERE token = ?', [row.token]);
+            }
+        }
+        res.json({ message: `Pruning complete. ${prunedCount} expired tokens removed, ${activeCount} active devices verified.`, prunedCount, activeCount });
+    });
 });
 
 // GET FCM Token Master Table (Master Admin Only)
@@ -5874,6 +5955,7 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
+        initFirebaseAdmin();
     });
 }
 

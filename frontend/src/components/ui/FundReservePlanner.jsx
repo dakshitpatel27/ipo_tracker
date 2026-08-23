@@ -1,14 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wallet, Calendar, Users, AlertCircle, ArrowUpRight, DollarSign } from 'lucide-react';
+import { api } from '../../api';
 
-export default function FundReservePlanner({ applicantsCount = 3, openIpos = [] }) {
-  const [selectedApplicants, setSelectedApplicants] = useState(applicantsCount || 3);
-  const [selectedIpos, setSelectedIpos] = useState([
-    { name: 'Mainboard IPO A', lotPrice: 14950, closeDate: '2026-08-14' },
-    { name: 'Mainboard IPO B', lotPrice: 14800, closeDate: '2026-08-18' }
-  ]);
+export default function FundReservePlanner({ applicantsCount = 1, openIpos = [] }) {
+  const [selectedApplicants, setSelectedApplicants] = useState(applicantsCount || 1);
+  const [scheduledIpos, setScheduledIpos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalRequiredLiquidity = selectedIpos.reduce((sum, ipo) => sum + (ipo.lotPrice * selectedApplicants), 0);
+  useEffect(() => {
+    async function fetchScheduledIpos() {
+      try {
+        const list = (openIpos && openIpos.length > 0) ? openIpos : await api.getLiveIpos();
+        const active = (list || []).slice(0, 4).map(ipo => {
+          const name = ipo.name || ipo.ipoName || 'Live IPO';
+          const lotSize = parseInt(ipo.lotSize || ipo.lot || 15) || 15;
+          let upperPrice = 100;
+          if (ipo.priceRange) {
+            const parts = ipo.priceRange.split('–');
+            upperPrice = parseFloat(parts[parts.length - 1].replace(/[^\d.]/g, '')) || 100;
+          } else if (ipo.price) {
+            upperPrice = parseFloat(ipo.price) || 100;
+          }
+
+          const lotPrice = Math.round(upperPrice * lotSize);
+          const closeDate = ipo.schedule?.endDate || ipo.closeDate || 'Live Bidding';
+
+          return { name, lotPrice, closeDate };
+        });
+        setScheduledIpos(active);
+      } catch (err) {
+        setScheduledIpos([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchScheduledIpos();
+  }, [openIpos]);
+
+  const totalRequiredLiquidity = scheduledIpos.reduce((sum, ipo) => sum + (ipo.lotPrice * selectedApplicants), 0);
+
+  if (loading) return null;
+  if (scheduledIpos.length === 0) return null;
 
   return (
     <div className="bg-[#09090b] border border-[#27272a] rounded-2xl p-6 space-y-6 text-white shadow-xl">
@@ -19,7 +51,7 @@ export default function FundReservePlanner({ applicantsCount = 3, openIpos = [] 
           </div>
           <div>
             <h3 className="font-bold text-base text-white">Family Fund Reserve & Liquidity Planner</h3>
-            <p className="text-xs text-zinc-400">Calculate total ASBA capital required across all family members (14-Day Horizon)</p>
+            <p className="text-xs text-zinc-400">Calculate total ASBA capital required across all family members</p>
           </div>
         </div>
         <div className="text-right font-mono">
@@ -45,8 +77,8 @@ export default function FundReservePlanner({ applicantsCount = 3, openIpos = [] 
 
         <div className="bg-[#121215] border border-[#27272a] rounded-xl p-4 space-y-2">
           <span className="text-xs text-zinc-400 flex items-center gap-1.5"><Calendar size={14} className="text-emerald-400" /> Bidding Windows</span>
-          <div className="text-sm font-bold text-white font-mono">{selectedIpos.length} Upcoming IPOs</div>
-          <span className="text-[10px] text-zinc-500 block">Next 14 business days</span>
+          <div className="text-sm font-bold text-white font-mono">{scheduledIpos.length} Active Market IPOs</div>
+          <span className="text-[10px] text-zinc-500 block">Current active bidding window</span>
         </div>
 
         <div className="bg-[#121215] border border-[#27272a] rounded-xl p-4 space-y-2">
@@ -62,7 +94,7 @@ export default function FundReservePlanner({ applicantsCount = 3, openIpos = [] 
       <div className="space-y-3">
         <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Scheduled Bidding Windows & Capital Breakdown</h4>
         <div className="space-y-2">
-          {selectedIpos.map((ipo, idx) => (
+          {scheduledIpos.map((ipo, idx) => (
             <div key={idx} className="p-3.5 bg-[#141418] border border-[#27272a] rounded-xl flex items-center justify-between gap-4 text-xs">
               <div>
                 <span className="font-bold text-white block text-sm">{ipo.name}</span>

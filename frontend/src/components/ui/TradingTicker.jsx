@@ -3,37 +3,56 @@ import { TrendingUp, Zap, Activity } from 'lucide-react';
 import { api } from '../../api';
 
 export default function TradingTicker() {
-  const [tickerItems, setTickerItems] = useState([
-    { name: 'MILKY MIST', gmp: '+₹42 (42.0%)', isPositive: true },
-    { name: 'LEAP INDIA', gmp: '+₹15 (9.4%)', isPositive: true },
-    { name: 'BHARAT COKING COAL', gmp: '+₹23 (100.0%)', isPositive: true },
-    { name: 'TECHNOCRAFT VENTURES', gmp: '+₹16 (7.5%)', isPositive: true }
-  ]);
+  const [tickerItems, setTickerItems] = useState([]);
 
   useEffect(() => {
     async function loadGmpData() {
       try {
         const ipos = await api.getLiveIpos();
         if (ipos && ipos.length > 0) {
-          const items = ipos.slice(0, 8).map(ipo => {
-            const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp || ipo.gmp || '+₹0';
-            const isPositive = !gmpStr.includes('-');
+          // Filter IPOs that have actual active GMP trends
+          const activeGmpIpos = ipos.filter(i => {
+            const trend = i.greyMarketPremium?.gmpTrends?.[0];
+            return trend && trend.gmp && trend.gmp !== '₹0' && trend.gmp !== '0';
+          });
+
+          // Fall back to all ipos if none have trends
+          const targetList = activeGmpIpos.length > 0 ? activeGmpIpos : ipos;
+
+          const items = targetList.slice(0, 10).map(ipo => {
+            const trend = ipo.greyMarketPremium?.gmpTrends?.[0];
+            let gmpStr = 'N/A';
+            let isPositive = true;
+
+            if (trend && trend.gmp) {
+              const formattedGmp = trend.gmp.startsWith('₹') ? trend.gmp : `₹${trend.gmp}`;
+              const gainStr = trend.gain ? ` (${trend.gain.startsWith('+') || trend.gain.startsWith('-') ? '' : '+'}${trend.gain})` : '';
+              gmpStr = `${formattedGmp}${gainStr}`;
+              isPositive = !trend.gmp.includes('-') && !trend.gain?.includes('-');
+            } else if (ipo.gmp) {
+              gmpStr = ipo.gmp;
+              isPositive = !ipo.gmp.includes('-');
+            }
+
             return {
               name: (ipo.name || ipo.ipoName || 'IPO').toUpperCase(),
               gmp: gmpStr,
               isPositive
             };
-          });
+          }).filter(item => item.gmp !== 'N/A');
+
           setTickerItems(items);
         }
       } catch (err) {
-        // Fallback to default ticker items
+        setTickerItems([]);
       }
     }
     loadGmpData();
   }, []);
 
-  const duplicatedItems = [...tickerItems, ...tickerItems, ...tickerItems];
+  if (tickerItems.length === 0) return null;
+
+  const duplicatedItems = [...tickerItems, ...tickerItems, ...tickerItems, ...tickerItems];
 
   return (
     <div className="w-full bg-[var(--surface-2)] border-b border-[var(--border)] py-1.5 px-4 overflow-hidden relative select-none flex items-center">

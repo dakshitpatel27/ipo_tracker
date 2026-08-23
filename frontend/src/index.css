@@ -528,7 +528,7 @@
   .trading-ticker {
     display: flex;
     width: max-content;
-    animation: marquee-scroll 25s linear infinite;
+    animation: marquee-scroll 55s linear infinite;
   }
   .trading-ticker:hover {
     animation-play-state: paused;

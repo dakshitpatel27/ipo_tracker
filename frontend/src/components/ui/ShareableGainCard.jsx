@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function ShareableGainCard({
   isOpen = false,
   onClose,
-  ipoName = 'Mainboard IPO',
-  profit = 18500,
-  returnPct = 124.5,
+  ipoName = '',
+  profit = 0,
+  returnPct = 0,
   applicant = 'Primary',
   lotCount = 1
 }) {

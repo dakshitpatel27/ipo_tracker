@@ -1,13 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Activity, Flame, TrendingUp, Users, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { api } from '../../api';
 
-const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
-  const SUB_DATA = [
-    { category: 'QIB (Institutional)', times: 52.4, target: 50, icon: Building2, color: 'emerald', momentum: '🔥 Heavy Day 3 Spike' },
-    { category: 'NII (HNI / Corporate)', times: 31.8, target: 30, icon: Flame, color: 'amber', momentum: '⚡ Steady Growth' },
-    { category: 'Retail Individual', times: 14.5, target: 15, icon: Users, color: 'indigo', momentum: '✅ Oversubscribed' },
-    { category: 'Employee Reservation', times: 4.2, target: 5, icon: Activity, color: 'blue', momentum: 'Normal' },
+const LiveSubscriptionHeatmap = ({ ipo }) => {
+  const [currentIpo, setCurrentIpo] = useState(ipo || null);
+  const [loading, setLoading] = useState(!ipo);
+
+  useEffect(() => {
+    if (ipo) {
+      setCurrentIpo(ipo);
+      setLoading(false);
+      return;
+    }
+    async function fetchLiveSub() {
+      try {
+        const ipos = await api.getLiveIpos();
+        if (ipos && ipos.length > 0) {
+          // Pick live or open IPO
+          const openIpo = ipos.find(i => (i.status || '').toUpperCase() === 'LIVE') || ipos[0];
+          setCurrentIpo(openIpo);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchLiveSub();
+  }, [ipo]);
+
+  if (loading) return null;
+  if (!currentIpo) return null;
+
+  const ipoName = currentIpo.name || currentIpo.ipoName || 'Live Market';
+  const subObj = currentIpo.subscriptionNumbers || currentIpo.subscription || {};
+  
+  const qib = parseFloat(String(subObj.qib?.subscription || subObj.qib || 0).replace(/[^\d.]/g, '')) || 0;
+  const nii = parseFloat(String(subObj.nii?.subscription || subObj.nii || subObj.hni || 0).replace(/[^\d.]/g, '')) || 0;
+  const retail = parseFloat(String(subObj.retail?.subscription || subObj.retail || 0).replace(/[^\d.]/g, '')) || 0;
+  const employee = parseFloat(String(subObj.employee?.subscription || subObj.employee || 0).replace(/[^\d.]/g, '')) || 0;
+
+  const subData = [
+    { category: 'QIB (Institutional)', times: qib, icon: Building2, momentum: qib >= 10 ? '🔥 Heavy Institutional Bidding' : 'Normal Flow' },
+    { category: 'NII (HNI / Corporate)', times: nii, icon: Flame, momentum: nii >= 5 ? '⚡ Strong HNI Demand' : 'Normal Flow' },
+    { category: 'Retail Individual', times: retail, icon: Users, momentum: retail >= 1 ? '✅ Oversubscribed' : 'Bidding Open' },
+    { category: 'Employee Reservation', times: employee, icon: Activity, momentum: employee >= 1 ? '✅ Oversubscribed' : 'Normal' },
   ];
 
   return (
@@ -27,9 +65,9 @@ const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {SUB_DATA.map((item, idx) => {
+        {subData.map((item, idx) => {
           const Icon = item.icon;
-          const isHeavy = item.times >= 30;
+          const isHeavy = item.times >= 10;
           return (
             <motion.div
               key={idx}
@@ -46,7 +84,7 @@ const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
                     <Icon size={15} className="text-emerald-500" /> {item.category}
                   </span>
                 </div>
-                <div className="text-2xl font-extrabold text-[var(--text-primary)] font-mono">{item.times}x</div>
+                <div className="text-2xl font-extrabold text-[var(--text-primary)] font-mono">{item.times > 0 ? `${item.times}x` : 'N/A'}</div>
                 <span className="text-[10px] font-bold text-emerald-500 block mt-0.5">{item.momentum}</span>
               </div>
 
@@ -54,7 +92,7 @@ const LiveSubscriptionHeatmap = ({ ipoName = 'Mainboard IPO' }) => {
                 <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 to-indigo-400 transition-all duration-700"
-                    style={{ width: `${Math.min(100, (item.times / item.target) * 100)}%` }}
+                    style={{ width: `${Math.min(100, item.times * 5)}%` }}
                   />
                 </div>
               </div>

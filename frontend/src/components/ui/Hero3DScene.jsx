@@ -2,84 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Sparkles, CheckCircle2, Award, ArrowUpRight, ChevronLeft, ChevronRight, Zap, Trophy, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-const IPO_CARDS = [
-  {
-    id: 'tata-tech',
-    company: 'Tata Technologies',
-    type: 'Mainboard IPO',
-    status: 'ALLOTTED',
-    returnAmt: '+₹45,200',
-    returnPct: '+140%',
-    subTimes: '69.4x',
-    gmp: '+₹295 (85%)',
-    gmpBarPct: 85,
-    quota: 'HNI Lucky Draw',
-    lotDetails: '1 Lot (15 Shares)',
-    sentiment: 'Strong Bullish',
-    color: '#10b981'
-  },
-  {
-    id: 'bajaj-housing',
-    company: 'Bajaj Housing Finance',
-    type: 'Mainboard IPO',
-    status: 'ALLOTTED',
-    returnAmt: '+₹38,400',
-    returnPct: '+135%',
-    subTimes: '64.0x',
-    gmp: '+₹65 (92%)',
-    gmpBarPct: 92,
-    quota: 'Retail Lucky Draw',
-    lotDetails: '2 Lots (420 Shares)',
-    sentiment: 'Blockbuster Demand',
-    color: '#6366f1'
-  },
-  {
-    id: 'premier-energies',
-    company: 'Premier Energies',
-    type: 'Mainboard IPO',
-    status: 'ALLOTTED',
-    returnAmt: '+₹29,800',
-    returnPct: '+120%',
-    subTimes: '74.3x',
-    gmp: '+₹340 (78%)',
-    gmpBarPct: 78,
-    quota: 'bHNI Pro-Rata',
-    lotDetails: '50 Lots (1650 Shares)',
-    sentiment: 'High QIB Buying',
-    color: '#3b82f6'
-  },
-  {
-    id: 'swiggy-ipo',
-    company: 'Swiggy Limited',
-    type: 'Mainboard IPO',
-    status: 'APPLIED',
-    returnAmt: '+₹4,200',
-    returnPct: '+22%',
-    subTimes: '3.6x',
-    gmp: '+₹25 (18%)',
-    gmpBarPct: 22,
-    quota: 'Retail Priority',
-    lotDetails: '1 Lot (38 Shares)',
-    sentiment: 'Moderate Bullish',
-    color: '#f59e0b'
-  },
-  {
-    id: 'ola-electric',
-    company: 'Ola Electric Mobility',
-    type: 'Mainboard IPO',
-    status: 'ALLOTTED',
-    returnAmt: '+₹14,500',
-    returnPct: '+42%',
-    subTimes: '4.2x',
-    gmp: '+₹16 (35%)',
-    gmpBarPct: 42,
-    quota: 'Retail Lucky Draw',
-    lotDetails: '1 Lot (195 Shares)',
-    sentiment: 'Positive Sentiment',
-    color: '#10b981'
-  }
-];
+import { api } from '../../api';
+import { getRecordProfit, isRecordAllotted } from '../../utils/profitCalculator';
 
 // Interactive 3D Particle Matrix Canvas
 const ParticleCanvas = () => {
@@ -162,22 +86,94 @@ const ParticleCanvas = () => {
 };
 
 const Hero3DScene = () => {
+  const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isPaused || simulating) return;
+    async function loadRealData() {
+      try {
+        const [recs, liveIpos] = await Promise.all([
+          api.getRecords().catch(() => []),
+          api.getLiveIpos().catch(() => [])
+        ]);
+
+        let items = [];
+
+        if (recs && recs.length > 0) {
+          items = recs.slice(0, 5).map((rec, idx) => {
+            const profit = getRecordProfit(rec);
+            const amt = parseFloat(rec.amount) || 1;
+            const pct = ((profit / amt) * 100).toFixed(0);
+            const isAlloted = isRecordAllotted(rec);
+
+            return {
+              id: rec.id || `rec-${idx}`,
+              company: rec.ipoName || 'Portfolio Item',
+              type: rec.quota || 'Retail Quota',
+              status: isAlloted ? 'ALLOTTED' : (rec.applied === 'Yes' ? 'APPLIED' : 'PENDING'),
+              returnAmt: profit >= 0 ? `+₹${profit.toLocaleString('en-IN')}` : `-₹${Math.abs(profit).toLocaleString('en-IN')}`,
+              returnPct: profit >= 0 ? `+${pct}%` : `${pct}%`,
+              subTimes: rec.gmp ? `${rec.gmp} GMP` : '1.0x',
+              gmp: rec.gmp ? `₹${rec.gmp}` : 'N/A',
+              gmpBarPct: Math.min(100, Math.max(10, Math.abs(parseFloat(pct) || 20))),
+              quota: `${rec.applicantName || 'Applicant'}`,
+              lotDetails: `${rec.shares || 15} Shares`,
+              sentiment: profit >= 0 ? 'Positive Yield' : 'Risk Tracked',
+              color: '#10b981'
+            };
+          });
+        } else if (liveIpos && liveIpos.length > 0) {
+          items = liveIpos.slice(0, 5).map((ipo, idx) => {
+            const gmpStr = ipo.greyMarketPremium?.gmpTrends?.[0]?.gmp || ipo.gmp || 'N/A';
+            const price = parseFloat(ipo.price) || 100;
+            const subStr = ipo.subscriptionNumbers?.total?.subscription || ipo.subscription || '1.0';
+
+            return {
+              id: ipo.name || `ipo-${idx}`,
+              company: ipo.name || ipo.ipoName || 'Live Market IPO',
+              type: ipo.type || 'Mainboard IPO',
+              status: (ipo.status || 'LIVE').toUpperCase(),
+              returnAmt: gmpStr !== 'N/A' ? `GMP: ${gmpStr}` : 'Live Market',
+              returnPct: `${subStr}x Sub`,
+              subTimes: `${subStr}x`,
+              gmp: gmpStr,
+              gmpBarPct: 50,
+              quota: ipo.category || 'Retail / HNI',
+              lotDetails: `${ipo.lotSize || ipo.lot || '15'} Shares`,
+              sentiment: 'Market Active',
+              color: '#6366f1'
+            };
+          });
+        }
+
+        setCards(items);
+      } catch (err) {
+        setCards([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadRealData();
+  }, []);
+
+  useEffect(() => {
+    if (isPaused || simulating || cards.length === 0) return;
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % IPO_CARDS.length);
+      setCurrentIndex((prev) => (prev + 1) % cards.length);
     }, 4500);
     return () => clearInterval(timer);
-  }, [isPaused, simulating]);
+  }, [isPaused, simulating, cards.length]);
 
-  const currentCard = IPO_CARDS[currentIndex];
-  const nextCardObj = IPO_CARDS[(currentIndex + 1) % IPO_CARDS.length];
+  if (loading) return null;
+  if (cards.length === 0) return null;
+
+  const currentCard = cards[currentIndex] || cards[0];
+  const nextCardObj = cards[(currentIndex + 1) % cards.length] || currentCard;
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -205,8 +201,8 @@ const Hero3DScene = () => {
     }, 1800);
   };
 
-  const nextCard = () => setCurrentIndex((prev) => (prev + 1) % IPO_CARDS.length);
-  const prevCard = () => setCurrentIndex((prev) => (prev - 1 + IPO_CARDS.length) % IPO_CARDS.length);
+  const nextCard = () => setCurrentIndex((prev) => (prev + 1) % cards.length);
+  const prevCard = () => setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
 
   return (
     <div
@@ -310,7 +306,7 @@ const Hero3DScene = () => {
               </button>
 
               <div className="flex items-center gap-1.5">
-                {IPO_CARDS.map((c, idx) => (
+                {cards.map((c, idx) => (
                   <button
                     key={c.id}
                     onClick={() => setCurrentIndex(idx)}

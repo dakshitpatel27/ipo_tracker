@@ -97,7 +97,7 @@ const DrumMesh = ({ isSpinning, resultStatus }) => {
 };
 
 // Main Export Component
-const AllotmentLuckyDrawDrum = ({ onAllotmentResult }) => {
+const AllotmentLuckyDrawDrum = ({ ipoName, onAllotmentResult }) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [resultStatus, setResultStatus] = useState(null); // 'ALLOTTED' | 'NOT_ALLOTTED'
 
@@ -116,7 +116,7 @@ const AllotmentLuckyDrawDrum = ({ onAllotmentResult }) => {
       if (onAllotmentResult) {
         onAllotmentResult({
           status,
-          ipoName: 'Tata Technologies',
+          ipoName: ipoName || 'Active IPO',
           shares: isWin ? 15 : 0
         });
       }

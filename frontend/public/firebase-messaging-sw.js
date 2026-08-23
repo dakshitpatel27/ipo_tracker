@@ -13,5 +13,57 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Firebase SDK automatically handles displaying background notifications 
-// when it receives a 'notification' payload. No manual intervention needed!
+// Handle background messages
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Background payload:', payload);
+  const title = payload.notification?.title || payload.data?.title || '🚀 IPO Tracker Push Alert';
+  const options = {
+    body: payload.notification?.body || payload.data?.body || 'New IPO update available.',
+    icon: '/app-icon.png',
+    badge: '/app-icon.png',
+    data: payload.data || {},
+    requireInteraction: true
+  };
+  return self.registration.showNotification(title, options);
+});
+
+// Native Web Push fallback event listener
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  try {
+    const payload = event.data.json();
+    const title = payload.notification?.title || payload.data?.title || '🚀 IPO Tracker Alert';
+    const options = {
+      body: payload.notification?.body || payload.data?.body || 'New update received.',
+      icon: '/app-icon.png',
+      badge: '/app-icon.png',
+      data: payload.data || {},
+      requireInteraction: true
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (e) {
+    const text = event.data.text();
+    event.waitUntil(self.registration.showNotification('🚀 IPO Tracker Alert', {
+      body: text,
+      icon: '/app-icon.png',
+      requireInteraction: true
+    }));
+  }
+});
+
+// Handle notification click to focus or open app window
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
+});

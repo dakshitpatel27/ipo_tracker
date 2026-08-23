@@ -116,7 +116,7 @@ export default function GmpAlertModal({ isOpen, onClose, defaultIpoName = '', on
                       'Content-Type': 'application/json',
                       'Authorization': `Bearer ${localStorage.getItem('ipo_token')}`
                     },
-                    body: JSON.stringify({ ipoName: ipoName || 'Mainboard IPO', currentGmp: parseFloat(targetGmp) || 350, targetGmp: parseFloat(targetGmp) || 300 })
+                    body: JSON.stringify({ ipoName: ipoName || 'IPO Target', currentGmp: parseFloat(targetGmp) || 350, targetGmp: parseFloat(targetGmp) || 300 })
                   });
                   if (!res.ok) throw new Error('Failed to trigger test alert');
                   toast.success('Realtime test notification dispatched!', { icon: '🚀' });

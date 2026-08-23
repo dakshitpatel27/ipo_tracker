@@ -142,6 +142,28 @@ export const api = {
     return api.post('/allotment/predict', payload);
   },
 
+  async getLiveIpos() {
+    try {
+      const res = await api.get('/live-ipos');
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('Backend proxy /live-ipos failed, attempting direct fetch:', e.message);
+    }
+    try {
+      const res = await fetch('https://finapi.upvaly.com/api/ipo');
+      const json = await res.json();
+      if (json.status === 'success') {
+        return json.data || [];
+      }
+      return [];
+    } catch (err) {
+      console.warn('Failed to fetch live IPOs:', err.message);
+      return [];
+    }
+  },
+
   async getPublicSettings() {
     try {
       const data = await api.get('/settings/public');

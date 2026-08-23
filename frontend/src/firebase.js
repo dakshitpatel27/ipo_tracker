@@ -18,8 +18,8 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "ipo-tracker-cba4e.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ipo-tracker-cba4e",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "ipo-tracker-cba4e.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1076943564993",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1076943564993:web:96e838706b4aa330263f35"
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1047325134530",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1047325134530:web:8bb31659adc54586af355b"
 };
 
 // Initialize Firebase
@@ -52,29 +52,42 @@ export const detectDeviceType = () => {
 
 export const requestForToken = async () => {
   try {
+    if (!("Notification" in window)) {
+      console.warn("This browser does not support desktop notifications");
+      return null;
+    }
+
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
+
+    if (permission !== "granted") {
+      console.warn("Notification permission was not granted by user");
+      return null;
+    }
+
+    let registration = null;
+    if ("serviceWorker" in navigator) {
+      registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      await navigator.serviceWorker.ready;
+    }
+
     const { getMessaging, getToken } = await import("firebase/messaging");
     const messaging = getMessaging(app);
-    const currentToken = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || ""
-    });
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || "BJlqEdcexXwVOJGat1ZtAvShjLPjoQyWe91_ZpIO2Hul5TVVzR9Atno1OXt8K8xazKh5QYlCjjFTLJUkjcCnnwY";
+    
+    const tokenOptions = { vapidKey };
+    if (registration) {
+      tokenOptions.serviceWorkerRegistration = registration;
+    }
+
+    const currentToken = await getToken(messaging, tokenOptions);
     return currentToken || null;
   } catch (err) {
     console.warn("FCM messaging notice:", err?.message || err);
     return null;
   }
-};
-
-export const onMessageListener = (callback) => {
-  import("firebase/messaging").then(({ getMessaging, onMessage }) => {
-    try {
-      const messaging = getMessaging(app);
-      onMessage(messaging, (payload) => {
-        callback(payload);
-      });
-    } catch (e) {
-      console.warn("FCM onMessageListener notice:", e.message);
-    }
-  }).catch(() => {});
 };
 
 export {

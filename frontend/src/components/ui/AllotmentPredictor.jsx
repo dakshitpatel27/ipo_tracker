@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, TrendingUp, Target, ShieldAlert, Award, ChevronRight } from 'lucide-react';
 
-export default function AllotmentPredictor({ ipoName = 'Sample IPO', retailSub = 12.5, qibSub = 45.2, niiSub = 28.0, issuePrice = 500, expectedGmp = 150 }) {
+export default function AllotmentPredictor({ ipoName = '', retailSub = 1.0, qibSub = 1.0, niiSub = 1.0, issuePrice = 100, expectedGmp = 0 }) {
   const [lots, setLots] = useState(1);
 
   // Math probability calculation
