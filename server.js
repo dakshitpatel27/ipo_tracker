@@ -6139,6 +6139,120 @@ app.post('/api/import/execute', authMiddleware, (req, res) => {
     });
 });
 
+// GET Family Analytics (Aggregated performance across applicants)
+app.get('/api/analytics/family', authMiddleware, (req, res) => {
+    const userId = req.user.id;
+
+    db.all('SELECT * FROM applicants WHERE userId = ?', [userId], (err, applicants) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const appMap = new Map();
+        (applicants || []).forEach(a => {
+            if (a.id) appMap.set(a.id, a);
+            if (a.pan) appMap.set(a.pan.toUpperCase(), a);
+        });
+
+        db.all('SELECT * FROM records WHERE userId = ?', [userId], (err2, records) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+
+            const statsMap = new Map();
+
+            let grandInvested = 0;
+            let grandProfit = 0;
+            let grandApplied = 0;
+            let grandAllotted = 0;
+
+            (records || []).forEach(r => {
+                let appObj = null;
+                if (r.applicantId && appMap.has(r.applicantId)) {
+                    appObj = appMap.get(r.applicantId);
+                } else if (r.pan && appMap.has(r.pan.toUpperCase())) {
+                    appObj = appMap.get(r.pan.toUpperCase());
+                }
+
+                const rawName = appObj?.name || r.applicantName;
+                const name = (rawName && rawName !== 'Unknown' && rawName.trim() !== '') 
+                    ? rawName 
+                    : (r.pan ? `PAN (${r.pan.slice(0, 3)}****)` : 'Primary Holder');
+                const pan = appObj?.pan || r.pan || '';
+                const family = appObj?.family || 'Primary Family';
+
+                if (!statsMap.has(name)) {
+                    statsMap.set(name, {
+                        name,
+                        pan,
+                        family,
+                        totalInvested: 0,
+                        totalProfit: 0,
+                        totalApplied: 0,
+                        totalAllotted: 0,
+                        recordCount: 0
+                    });
+                }
+
+                const s = statsMap.get(name);
+                s.recordCount += 1;
+
+                const qty = parseFloat(r.shares) || 1;
+                const buyPrice = parseFloat(r.price) || 0;
+                const investAmt = parseFloat(r.amount) || (qty * buyPrice);
+                s.totalInvested += investAmt;
+                grandInvested += investAmt;
+
+                s.totalApplied += 1;
+                grandApplied += 1;
+
+                const isWon = r.status === 'ALLOTTED' || r.status === 'WON' || r.allotmentStatus === 'ALLOTTED' || r.allotmentStatus === 'WON';
+                if (isWon) {
+                    s.totalAllotted += 1;
+                    grandAllotted += 1;
+                }
+
+                let profit = 0;
+                if (r.holdingStatus === 'Sold') {
+                    const sellPrice = parseFloat(r.sellPrice) || parseFloat(r.listingPrice) || buyPrice;
+                    profit = (sellPrice - buyPrice) * qty;
+                } else if (isWon && r.gmp) {
+                    const gmpNum = parseFloat(String(r.gmp).replace(/[^\d.-]/g, '')) || 0;
+                    profit = gmpNum * qty;
+                } else if (r.amount && !isWon) {
+                    // Applied but not allotted or pending
+                    profit = 0;
+                }
+                s.totalProfit += profit;
+                grandProfit += profit;
+            });
+
+            const applicantStats = Array.from(statsMap.values()).map(s => {
+                const allotmentRate = s.totalApplied > 0 ? ((s.totalAllotted / s.totalApplied) * 100).toFixed(1) : '0.0';
+                const roi = s.totalInvested > 0 ? ((s.totalProfit / s.totalInvested) * 100).toFixed(1) : '0.0';
+                return {
+                    ...s,
+                    allotmentRate,
+                    roi
+                };
+            });
+
+            const overallAllotmentRate = grandApplied > 0 ? ((grandAllotted / grandApplied) * 100).toFixed(1) : '0.0';
+
+            res.json({
+                message: 'success',
+                data: {
+                    applicants: applicantStats,
+                    totals: {
+                        totalApplicants: applicantStats.length,
+                        totalInvested: grandInvested,
+                        totalProfit: grandProfit,
+                        totalApplied: grandApplied,
+                        totalAllotted: grandAllotted,
+                        allotmentRate: overallAllotmentRate
+                    }
+                }
+            });
+        });
+    });
+});
+
 // GET import history logs for user
 app.get('/api/import/history', authMiddleware, (req, res) => {
     db.all('SELECT * FROM import_history WHERE userId = ? ORDER BY createdAt DESC LIMIT 100', [req.user.id], (err, rows) => {
@@ -6213,7 +6327,19 @@ app.delete('/api/import/custom-fields/:id', authMiddleware, (req, res) => {
 app.get('/api/bank-accounts', authMiddleware, (req, res) => {
     db.all('SELECT * FROM bank_accounts WHERE userId = ? ORDER BY createdAt DESC', [req.user.id], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'success', data: rows || [] });
+        const sanitizedRows = (rows || []).map((r, i) => {
+            const rawName = r.accountName || r.name;
+            const bankN = r.bankName || r.bank || r.accountType || 'Bank';
+            const accName = (rawName && rawName.trim() !== '' && rawName !== 'Bank Account')
+                ? rawName
+                : (r.bankName || r.bank ? `${r.bankName || r.bank} Account` : (r.accountNumber ? `A/C ••••${r.accountNumber.slice(-4)}` : `Account #${i + 1}`));
+            return {
+                ...r,
+                accountName: accName,
+                bankName: bankN
+            };
+        });
+        res.json({ message: 'success', data: sanitizedRows });
     });
 });
 
@@ -6320,6 +6446,70 @@ app.post('/api/transactions', authMiddleware, (req, res) => {
                 });
             }
         );
+    });
+});
+
+// PUT update existing transaction
+app.put('/api/transactions/:id', authMiddleware, (req, res) => {
+    const { id } = req.params;
+    const { bankAccountId, type, category, amount, description } = req.body;
+
+    db.get('SELECT * FROM transactions WHERE id = ? AND userId = ?', [id, req.user.id], (err, oldTxn) => {
+        if (err || !oldTxn) return res.status(404).json({ error: 'Transaction not found' });
+
+        const targetAccountId = bankAccountId || oldTxn.bankAccountId;
+        const newType = type || oldTxn.type;
+        const newCategory = category || oldTxn.category;
+        const newAmount = amount !== undefined ? parseFloat(amount) : parseFloat(oldTxn.amount);
+        const newDesc = description !== undefined ? description : oldTxn.description;
+
+        db.get('SELECT * FROM bank_accounts WHERE id = ? AND userId = ?', [targetAccountId, req.user.id], (err2, account) => {
+            if (err2 || !account) return res.status(404).json({ error: 'Bank account not found' });
+
+            const oldNumAmount = parseFloat(oldTxn.amount) || 0;
+            const oldEffect = oldTxn.type === 'credit' ? oldNumAmount : -oldNumAmount;
+            const newEffect = newType === 'credit' ? newAmount : -newAmount;
+            const diffEffect = newEffect - oldEffect;
+
+            const currentAccountBalance = parseFloat(account.balance) || 0;
+            const updatedAccountBalance = currentAccountBalance + diffEffect;
+
+            db.run(
+                'UPDATE transactions SET bankAccountId = ?, type = ?, category = ?, amount = ?, description = ? WHERE id = ? AND userId = ?',
+                [targetAccountId, newType, newCategory, newAmount, newDesc, id, req.user.id],
+                function (err3) {
+                    if (err3) return res.status(500).json({ error: err3.message });
+
+                    db.run('UPDATE bank_accounts SET balance = ? WHERE id = ?', [updatedAccountBalance, targetAccountId], () => {
+                        res.json({ message: 'Transaction updated successfully', id, changes: this.changes });
+                    });
+                }
+            );
+        });
+    });
+});
+
+// DELETE transaction
+app.delete('/api/transactions/:id', authMiddleware, (req, res) => {
+    const { id } = req.params;
+
+    db.get('SELECT * FROM transactions WHERE id = ? AND userId = ?', [id, req.user.id], (err, oldTxn) => {
+        if (err || !oldTxn) return res.status(404).json({ error: 'Transaction not found' });
+
+        const oldNumAmount = parseFloat(oldTxn.amount) || 0;
+        const revertEffect = oldTxn.type === 'credit' ? -oldNumAmount : oldNumAmount;
+
+        db.run('DELETE FROM transactions WHERE id = ? AND userId = ?', [id, req.user.id], function (err2) {
+            if (err2) return res.status(500).json({ error: err2.message });
+
+            db.get('SELECT balance FROM bank_accounts WHERE id = ?', [oldTxn.bankAccountId], (err3, account) => {
+                if (account) {
+                    const newBal = (parseFloat(account.balance) || 0) + revertEffect;
+                    db.run('UPDATE bank_accounts SET balance = ? WHERE id = ?', [newBal, oldTxn.bankAccountId]);
+                }
+                res.json({ message: 'Transaction deleted', id });
+            });
+        });
     });
 });
 

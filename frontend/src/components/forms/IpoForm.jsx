@@ -311,11 +311,27 @@ const IpoForm = ({ initialData, onSubmit, onCancel }) => {
           </label>
           <select name="bankAccountId" value={formData.bankAccountId || ''} onChange={handleChange} className="input-field appearance-none bg-black/40">
             <option value="">— No Account Linked —</option>
-            {bankAccounts.map(acc => (
-              <option key={acc.id} value={acc.id}>
-                {acc.accountName} ({acc.bankName}) — ₹{parseFloat(acc.balance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
-              </option>
-            ))}
+            {bankAccounts.map((acc, idx) => {
+              const rawName = acc.accountName || acc.name;
+              const bankN = acc.bankName || acc.bank || '';
+              const accountTitle = (rawName && rawName.trim() !== '' && rawName !== 'Bank Account')
+                ? rawName
+                : (bankN ? `${bankN} Account` : (acc.accountNumber ? `A/C ••••${acc.accountNumber.slice(-4)}` : `Bank Account #${idx + 1}`));
+
+              const bankSub = (bankN && bankN !== accountTitle) ? bankN : (acc.accountType || '');
+              const maskedAcc = acc.accountNumber ? `••••${acc.accountNumber.slice(-4)}` : '';
+              
+              let detailParts = [];
+              if (bankSub) detailParts.push(bankSub);
+              if (maskedAcc) detailParts.push(maskedAcc);
+              const detailStr = detailParts.length > 0 ? ` (${detailParts.join(' • ')})` : '';
+
+              return (
+                <option key={acc.id} value={acc.id}>
+                  {accountTitle}{detailStr} — ₹{parseFloat(acc.balance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                </option>
+              );
+            })}
           </select>
           {formData.bankAccountId && (() => {
             const selectedAcc = bankAccounts.find(a => a.id === formData.bankAccountId);

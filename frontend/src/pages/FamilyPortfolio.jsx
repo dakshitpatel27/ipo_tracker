@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api';
 import { Users, TrendingUp, PieChart, Target, Trophy, ArrowUpRight, ArrowDownRight, RefreshCw, Award } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6'];
 
@@ -127,15 +127,16 @@ const FamilyPortfolio = () => {
           </div>
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                 <XAxis dataKey="name" stroke="transparent" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis stroke="transparent" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickLine={false} axisLine={false}
-                  tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} width={50} />
+                  tickFormatter={(v) => `₹${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} width={55} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
-                <Bar dataKey="profit" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="profit">
                   {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+                    <Cell key={i} fill={entry.profit >= 0 ? '#10b981' : '#f43f5e'} fillOpacity={0.85} radius={entry.profit >= 0 ? [6, 6, 0, 0] : [0, 0, 6, 6]} />
                   ))}
                 </Bar>
               </BarChart>

@@ -1149,6 +1149,23 @@ export const api = {
     return parseResponse(res);
   },
 
+  async updateTransaction(id, data) {
+    const res = await fetch(`${API_URL}/transactions/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseResponse(res);
+  },
+
+  async deleteTransaction(id) {
+    const res = await fetch(`${API_URL}/transactions/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return parseResponse(res);
+  },
+
   async getKostakDeals() {
     const res = await fetch(`${API_URL}/kostak`, { headers: getHeaders() });
     const data = await parseResponse(res);

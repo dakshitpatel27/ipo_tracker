@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { api } from '../api';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Edit2, User, Upload, Download, FileSpreadsheet, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Edit2, User, Upload, Download, FileSpreadsheet, Sparkles, Search, X } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import UpgradeModal from '../components/ui/UpgradeModal';
@@ -14,6 +14,7 @@ const Applicants = () => {
   const { user, subscriptionTiers } = useAuth();
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -149,6 +150,20 @@ const Applicants = () => {
     }
   };
 
+  const filteredApplicants = useMemo(() => {
+    if (!searchQuery.trim()) return applicants;
+    const q = searchQuery.toLowerCase().trim();
+    return (applicants || []).filter(app =>
+      (app.name || '').toLowerCase().includes(q) ||
+      (app.pan || '').toLowerCase().includes(q) ||
+      (app.upiId || '').toLowerCase().includes(q) ||
+      (app.family || '').toLowerCase().includes(q) ||
+      (app.dematId || '').toLowerCase().includes(q) ||
+      (app.bankAccount || '').toLowerCase().includes(q) ||
+      (app.ifscCode || '').toLowerCase().includes(q)
+    );
+  }, [applicants, searchQuery]);
+
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -187,16 +202,42 @@ const Applicants = () => {
       </div>
 
       <div className="flex-1 overflow-auto custom-scrollbar p-6 glass-card">
+        {/* Search & Filter Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl border border-[var(--border)] mb-6">
+          <div className="relative flex-1 w-full sm:max-w-md">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <input
+              type="text"
+              placeholder="Search by name, PAN, UPI, Demat, Bank or Family..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input-field pl-9 pr-8 text-xs w-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-white rounded-md transition-colors"
+                title="Clear Search"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] font-medium self-end sm:self-auto">
+            Showing <strong className="text-white font-bold">{filteredApplicants.length}</strong> of {applicants.length} profiles
+          </div>
+        </div>
+
         {loading ? <PageLoader text="Loading applicant profiles..." /> : (
           <div className="space-y-8">
-            {Object.entries((applicants || []).reduce((acc, app) => {
+            {Object.entries((filteredApplicants || []).reduce((acc, app) => {
               const fam = app.family || 'Uncategorized';
               if(!acc[fam]) acc[fam] = [];
               acc[fam].push(app);
               return acc;
             }, {})).map(([family, apps]) => (
               <div key={family} className="space-y-4">
-                <h2 className="text-base font-bold text-indigo-400 border-b border-[var(--border)] pb-2">{family} Family Portfolio</h2>
+                <h2 className="text-base font-bold text-indigo-400 border-b border-[var(--border)] pb-2">{family} Family Portfolio ({apps.length})</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {apps.map(app => (
                     <motion.div 
@@ -236,6 +277,19 @@ const Applicants = () => {
                 </div>
               </div>
             ))}
+            {filteredApplicants.length === 0 && (
+              <div className="text-center text-[var(--text-muted)] py-12">
+                <Search size={32} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm font-semibold text-white">No applicants matching "{searchQuery}"</p>
+                <p className="text-xs mt-1">Try searching with a different name, PAN, or family group.</p>
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="mt-3 text-xs text-indigo-400 hover:underline font-medium"
+                >
+                  Clear Search Filter
+                </button>
+              </div>
+            )}
             {applicants.length === 0 && <div className="text-center text-secondary py-10">No applicants found. Create one to get started.</div>}
           </div>
         )}

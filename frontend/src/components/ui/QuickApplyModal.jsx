@@ -257,11 +257,27 @@ export default function QuickApplyModal({ isOpen, onClose, ipo = null, initialIp
                 className="w-full bg-[#18181b] border border-border rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none cursor-pointer truncate"
               >
                 <option value="">— No Account —</option>
-                {bankAccounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.accountName} (₹{parseFloat(acc.balance || 0).toLocaleString('en-IN')})
-                  </option>
-                ))}
+                {bankAccounts.map((acc, idx) => {
+                  const rawName = acc.accountName || acc.name;
+                  const bankN = acc.bankName || acc.bank || '';
+                  const accountTitle = (rawName && rawName.trim() !== '' && rawName !== 'Bank Account')
+                    ? rawName
+                    : (bankN ? `${bankN} Account` : (acc.accountNumber ? `A/C ••••${acc.accountNumber.slice(-4)}` : `Bank Account #${idx + 1}`));
+
+                  const bankSub = (bankN && bankN !== accountTitle) ? bankN : (acc.accountType || '');
+                  const maskedAcc = acc.accountNumber ? `••••${acc.accountNumber.slice(-4)}` : '';
+                  
+                  let detailParts = [];
+                  if (bankSub) detailParts.push(bankSub);
+                  if (maskedAcc) detailParts.push(maskedAcc);
+                  const detailStr = detailParts.length > 0 ? ` (${detailParts.join(' • ')})` : '';
+
+                  return (
+                    <option key={acc.id} value={acc.id}>
+                      {accountTitle}{detailStr} — ₹{parseFloat(acc.balance || 0).toLocaleString('en-IN')}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

@@ -46,11 +46,23 @@ export default function AllotmentChecker() {
     }
   };
 
+  const [applicantMap, setApplicantMap] = useState({});
+
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const data = await api.getRecords();
+      const [data, appList] = await Promise.all([
+        api.getRecords(),
+        api.getApplicants().catch(() => [])
+      ]);
       setRecords(data || []);
+
+      const appMap = {};
+      (appList || []).forEach(a => {
+        if (a.pan) appMap[a.pan.toUpperCase()] = a.name;
+        if (a.id) appMap[a.id] = a.name;
+      });
+      setApplicantMap(appMap);
     } catch (err) {
       toast.error('Failed to load application records');
     } finally {
@@ -373,7 +385,15 @@ export default function AllotmentChecker() {
                             <div className="text-[10px] text-zinc-400 font-mono">{r.quota || 'Retail'} • Applied: {r.applied}</div>
                           </td>
                           <td>
-                            <div className="font-semibold text-zinc-200">{r.applicantName}</div>
+                            <div className="font-semibold text-zinc-200">
+                              {r.applicantName && r.applicantName.trim() !== ''
+                                ? r.applicantName
+                                : (r.pan && applicantMap[r.pan.toUpperCase()]
+                                    ? applicantMap[r.pan.toUpperCase()]
+                                    : (r.applicantId && applicantMap[r.applicantId]
+                                        ? applicantMap[r.applicantId]
+                                        : (r.pan ? `Holder (${r.pan.slice(0, 3)}****)` : 'Primary Applicant')))}
+                            </div>
                             <div className="text-[10px] font-mono text-indigo-400 font-bold">PAN: {r.pan || 'N/A'}</div>
                           </td>
                           <td className="font-mono text-xs">

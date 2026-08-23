@@ -147,7 +147,7 @@ const AccountCard = ({ account, isSelected, onClick, onEdit, onDelete }) => {
 };
 
 // Transaction Row Component
-const TransactionRow = ({ txn, showAccountName }) => {
+const TransactionRow = ({ txn, showAccountName, onEdit, onDelete }) => {
   const catInfo = CATEGORY_LABELS[txn.category] || { label: txn.category, color: '#6b7280', icon: CreditCard };
   const CatIcon = catInfo.icon;
   const isCredit = txn.type === 'credit';
@@ -156,7 +156,7 @@ const TransactionRow = ({ txn, showAccountName }) => {
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]/50 hover:bg-white/[0.02] transition-colors group"
+      className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]/50 hover:bg-white/[0.02] transition-colors group relative"
     >
       {/* Icon */}
       <div
@@ -192,10 +192,28 @@ const TransactionRow = ({ txn, showAccountName }) => {
         </p>
       </div>
 
-      {/* Date */}
-      <div className="text-right shrink-0 hidden sm:block w-20">
-        <p className="text-[11px] text-[var(--text-muted)]">{formatDate(txn.date || txn.createdAt)}</p>
-        <p className="text-[9px] text-[var(--text-muted)]">{formatTime(txn.createdAt)}</p>
+      {/* Date & Actions */}
+      <div className="text-right shrink-0 flex items-center gap-2">
+        <div className="hidden sm:block w-20">
+          <p className="text-[11px] text-[var(--text-muted)]">{formatDate(txn.date || txn.createdAt)}</p>
+          <p className="text-[9px] text-[var(--text-muted)]">{formatTime(txn.createdAt)}</p>
+        </div>
+        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onEdit(txn)}
+            className="p-1.5 text-[var(--text-muted)] hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
+            title="Edit Transaction"
+          >
+            <Edit2 size={13} />
+          </button>
+          <button
+            onClick={() => onDelete(txn.id)}
+            className="p-1.5 text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+            title="Delete Transaction"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
     </motion.div>
   );
@@ -214,6 +232,8 @@ const Accounts = () => {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [accountToDelete, setAccountToDelete] = useState(null);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [txnToDelete, setTxnToDelete] = useState(null);
 
   // Forms
   const [accountForm, setAccountForm] = useState({
@@ -303,9 +323,27 @@ const Accounts = () => {
   const handleTransactionSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.addTransaction(txnForm);
-      toast.success('Transaction recorded!');
+      if (editingTransaction) {
+        await api.updateTransaction(editingTransaction.id, txnForm);
+        toast.success('Transaction updated!');
+      } else {
+        await api.addTransaction(txnForm);
+        toast.success('Transaction recorded!');
+      }
       setIsTransactionModalOpen(false);
+      setEditingTransaction(null);
+      loadAll();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDeleteTransaction = async () => {
+    if (!txnToDelete) return;
+    try {
+      await api.deleteTransaction(txnToDelete);
+      toast.success('Transaction deleted!');
+      setTxnToDelete(null);
       loadAll();
     } catch (err) {
       toast.error(err.message);
@@ -336,12 +374,25 @@ const Accounts = () => {
   };
 
   const openAddTransaction = () => {
+    setEditingTransaction(null);
     setTxnForm({
       bankAccountId: selectedAccountId || (accounts.length > 0 ? accounts[0].id : ''),
       type: 'credit',
       category: '',
       amount: '',
       description: ''
+    });
+    setIsTransactionModalOpen(true);
+  };
+
+  const openEditTransaction = (txn) => {
+    setEditingTransaction(txn);
+    setTxnForm({
+      bankAccountId: txn.bankAccountId || '',
+      type: txn.type || 'credit',
+      category: txn.category || '',
+      amount: txn.amount || '',
+      description: txn.description || ''
     });
     setIsTransactionModalOpen(true);
   };
@@ -522,7 +573,13 @@ const Accounts = () => {
               </div>
             ) : (
               filteredTransactions.map((txn) => (
-                <TransactionRow key={txn.id} txn={txn} showAccountName={!selectedAccountId} />
+                <TransactionRow
+                  key={txn.id}
+                  txn={txn}
+                  showAccountName={!selectedAccountId}
+                  onEdit={openEditTransaction}
+                  onDelete={(id) => setTxnToDelete(id)}
+                />
               ))
             )}
           </div>
@@ -643,8 +700,8 @@ const Accounts = () => {
       {/* Add Transaction Modal */}
       <Modal
         isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        title="Add Transaction"
+        onClose={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }}
+        title={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
       >
         <form onSubmit={handleTransactionSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -659,14 +716,24 @@ const Accounts = () => {
                 className="input-field"
               >
                 <option value="">Select Account</option>
-                {accounts.map(a => {
-                  const displayName = a.accountName || a.name || a.bankName || a.bank || 'Bank Account';
-                  const displayBank = a.bankName || a.bank || a.accountType || '';
-                  const maskedAcc = a.accountNumber ? ` ••••${a.accountNumber.slice(-4)}` : '';
-                  const detailStr = displayBank ? ` (${displayBank}${maskedAcc})` : (maskedAcc ? ` (${maskedAcc.trim()})` : '');
+                {accounts.map((a, idx) => {
+                  const rawName = a.accountName || a.name;
+                  const bankN = a.bankName || a.bank || '';
+                  const accountTitle = (rawName && rawName.trim() !== '' && rawName !== 'Bank Account')
+                    ? rawName
+                    : (bankN ? `${bankN} Account` : (a.accountNumber ? `A/C ••••${a.accountNumber.slice(-4)}` : `Bank Account #${idx + 1}`));
+
+                  const bankSub = (bankN && bankN !== accountTitle) ? bankN : (a.accountType || '');
+                  const maskedAcc = a.accountNumber ? `••••${a.accountNumber.slice(-4)}` : '';
+                  
+                  let detailParts = [];
+                  if (bankSub) detailParts.push(bankSub);
+                  if (maskedAcc) detailParts.push(maskedAcc);
+                  const detailStr = detailParts.length > 0 ? ` (${detailParts.join(' • ')})` : '';
+
                   return (
                     <option key={a.id} value={a.id}>
-                      {displayName}{detailStr} — {formatCurrency(a.balance)}
+                      {accountTitle}{detailStr} — {formatCurrency(a.balance)}
                     </option>
                   );
                 })}
@@ -745,17 +812,17 @@ const Accounts = () => {
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
-            <button type="button" onClick={() => setIsTransactionModalOpen(false)} className="btn-outline">
+            <button type="button" onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="btn-outline">
               Cancel
             </button>
             <button type="submit" className="btn-primary">
-              Record Transaction
+              {editingTransaction ? 'Update Transaction' : 'Record Transaction'}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Delete Confirmation */}
+      {/* Delete Account Confirmation */}
       <ConfirmModal
         isOpen={!!accountToDelete}
         onClose={() => setAccountToDelete(null)}
@@ -763,6 +830,16 @@ const Accounts = () => {
         title="Delete Bank Account"
         message="Are you sure you want to delete this bank account? All associated transactions will also be deleted. This action cannot be undone."
         confirmText="Delete Account"
+      />
+
+      {/* Delete Transaction Confirmation */}
+      <ConfirmModal
+        isOpen={!!txnToDelete}
+        onClose={() => setTxnToDelete(null)}
+        onConfirm={handleDeleteTransaction}
+        title="Delete Transaction"
+        message="Are you sure you want to delete this transaction? The bank account balance will be automatically adjusted. This action cannot be undone."
+        confirmText="Delete Transaction"
       />
     </div>
   );
