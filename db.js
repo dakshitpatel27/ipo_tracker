@@ -248,6 +248,7 @@ const initSchema = () => {
         db.run(`ALTER TABLE users ADD COLUMN autoPollEnabled INTEGER DEFAULT 1`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN autoPollInterval INTEGER DEFAULT 30`, () => { });
         db.run(`ALTER TABLE users ADD COLUMN lastPolledAt TEXT`, () => { });
+        db.run(`ALTER TABLE users ADD COLUMN authProvider TEXT DEFAULT 'email'`, () => { });
     });
 
     // 2. Records

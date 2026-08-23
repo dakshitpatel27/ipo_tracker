@@ -38,6 +38,12 @@ const AdminPanel = () => {
   const [userToDelete, setUserToDelete] = useState(null);
   const [userToImpersonate, setUserToImpersonate] = useState(null);
   const [testEmailModalOpen, setTestEmailModalOpen] = useState(false);
+
+  // User Search & Filters State
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('all');
+  const [userAuthFilter, setUserAuthFilter] = useState('all');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
   
   // Custom Notification State
   const [notiTitle, setNotiTitle] = useState('');
@@ -518,6 +524,25 @@ const AdminPanel = () => {
       tabs.push({ id: 'backup', label: 'Database Backup', icon: Download });
   }
 
+  const filteredUsers = (users || []).filter(u => {
+    const provider = u.authProvider || (u.phoneNumber ? 'phone' : (u.email && u.email.includes('@gmail.com') ? 'google' : 'email'));
+    
+    if (userStatusFilter !== 'all' && u.status !== userStatusFilter) return false;
+    if (userAuthFilter !== 'all' && provider !== userAuthFilter) return false;
+    if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+
+    if (userSearchQuery && userSearchQuery.trim()) {
+      const q = userSearchQuery.toLowerCase().trim();
+      const nameMatch = (u.name || '').toLowerCase().includes(q);
+      const unameMatch = (u.username || '').toLowerCase().includes(q);
+      const emailMatch = (u.email || '').toLowerCase().includes(q);
+      const phoneMatch = (u.phoneNumber || '').toLowerCase().includes(q);
+      return nameMatch || unameMatch || emailMatch || phoneMatch;
+    }
+
+    return true;
+  });
+
   return (
     <div className="space-y-6 flex-1 w-full h-full flex flex-col">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-between items-center">
@@ -546,9 +571,87 @@ const AdminPanel = () => {
 
       <div className="glass-card flex-1 overflow-hidden flex flex-col">
         {activeTab === 'users' && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full space-y-4">
+              {/* Summary Stats Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-black/20 border-b border-border/50 shrink-0">
+                <div className="bg-surface/50 p-3 rounded-xl border border-border flex flex-col">
+                  <span className="text-[10px] text-secondary font-bold uppercase">Total Registered</span>
+                  <span className="text-xl font-black text-white">{users.length}</span>
+                </div>
+                <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 flex flex-col">
+                  <span className="text-[10px] text-amber-400 font-bold uppercase">Pending Approval</span>
+                  <span className="text-xl font-black text-amber-300">{users.filter(u => u.status === 'pending').length}</span>
+                </div>
+                <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/30 flex flex-col">
+                  <span className="text-[10px] text-blue-400 font-bold uppercase">Google Auth</span>
+                  <span className="text-xl font-black text-blue-300">
+                    {users.filter(u => (u.authProvider === 'google' || (!u.authProvider && u.email && u.email.includes('@gmail.com')))).length}
+                  </span>
+                </div>
+                <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30 flex flex-col">
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase">Email / Password</span>
+                  <span className="text-xl font-black text-emerald-300">
+                    {users.filter(u => u.authProvider === 'email' || (!u.authProvider && u.username && !u.phoneNumber)).length}
+                  </span>
+                </div>
+                <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/30 flex flex-col">
+                  <span className="text-[10px] text-indigo-400 font-bold uppercase">Phone OTP</span>
+                  <span className="text-xl font-black text-indigo-300">
+                    {users.filter(u => u.authProvider === 'phone' || u.phoneNumber).length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Filters & Search Control Bar */}
+              <div className="p-4 border-b border-border/50 flex flex-wrap gap-3 items-center justify-between bg-surface/20 shrink-0">
+                <div className="flex-1 min-w-[200px]">
+                  <input
+                    type="text"
+                    placeholder="Search by Name, Username, Email, Phone..."
+                    value={userSearchQuery}
+                    onChange={e => setUserSearchQuery(e.target.value)}
+                    className="w-full bg-black/40 border border-border rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <select
+                    value={userStatusFilter}
+                    onChange={e => setUserStatusFilter(e.target.value)}
+                    className="bg-black/40 border border-border rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Status: All</option>
+                    <option value="pending">⌛ Pending Approval</option>
+                    <option value="approved">✓ Approved</option>
+                    <option value="rejected">❌ Rejected</option>
+                  </select>
+
+                  <select
+                    value={userAuthFilter}
+                    onChange={e => setUserAuthFilter(e.target.value)}
+                    className="bg-black/40 border border-border rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Auth Method: All</option>
+                    <option value="google">🌐 Google Auth</option>
+                    <option value="email">📧 Email / Password</option>
+                    <option value="phone">📱 Phone OTP</option>
+                  </select>
+
+                  <select
+                    value={userRoleFilter}
+                    onChange={e => setUserRoleFilter(e.target.value)}
+                    className="bg-black/40 border border-border rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Role: All</option>
+                    <option value="master">🛡️ Master Admin</option>
+                    <option value="admin">⭐ Admin</option>
+                    <option value="user">👤 User</option>
+                  </select>
+                </div>
+              </div>
+
               {selectedUsers.length > 0 && (
-                <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-3 flex justify-between items-center text-sm">
+                <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-3 flex justify-between items-center text-sm shrink-0">
                   <div className="text-emerald-500 font-medium">
                     {selectedUsers.length} user(s) selected
                   </div>
@@ -560,142 +663,165 @@ const AdminPanel = () => {
                   </div>
                 </div>
               )}
+
               <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm text-[var(--text-primary)]">
                   <thead className="text-xs uppercase bg-[var(--surface-2)] text-[var(--text-muted)] font-semibold sticky top-0 z-10 backdrop-blur-md border-b border-[var(--border)]">
                     <tr>
                       <th className="px-4 py-4 w-12 text-center">
                         <input type="checkbox" className="rounded bg-surface-2 border-border cursor-pointer accent-emerald-500" 
-                               checked={selectedUsers.length > 0 && selectedUsers.length === users.length} 
-                               onChange={selectAllUsers} />
+                               checked={selectedUsers.length > 0 && selectedUsers.length === filteredUsers.length} 
+                               onChange={() => {
+                                 if (selectedUsers.length === filteredUsers.length) setSelectedUsers([]);
+                                 else setSelectedUsers(filteredUsers.map(u => u.id));
+                               }} />
                       </th>
                       <th className="px-6 py-4">User</th>
-                    <th className="px-6 py-4">Role</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Subscription</th>
-                    <th className="px-6 py-4">Registered Date</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {users.map((user) => (
-                    <tr key={user.id} className={`hover:bg-surface-hover transition-colors ${selectedUsers.includes(user.id) ? 'bg-emerald-500/5' : ''}`}>
-                      <td className="px-4 py-4 text-center">
-                        <input type="checkbox" className="rounded bg-surface-2 border-border cursor-pointer accent-emerald-500" 
-                               checked={selectedUsers.includes(user.id)} 
-                               onChange={() => toggleSelectUser(user.id)} />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-emerald-500">
-                            <User size={14} />
-                          </div>
-                          <div>
-                            <div className="font-bold text-[var(--text-primary)]">{user.name || user.username}</div>
-                            <div className="text-xs text-secondary">{user.email} • @{user.username}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 uppercase text-xs tracking-wider">
-                        {user.role === 'master' ? (
-                          <span className="text-amber-400 font-bold flex items-center gap-1"><Shield size={12} /> MASTER ADMIN</span>
-                        ) : user.role === 'admin' ? (
-                          <span className="text-emerald-400 font-bold">{user.role}</span>
-                        ) : (
-                          user.role
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {user.status === 'pending' && <span className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded text-xs font-medium border border-amber-500/20">Pending</span>}
-                        {user.status === 'approved' && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded text-xs font-medium border border-emerald-500/20">Approved</span>}
-                        {user.status === 'rejected' && <span className="px-2 py-1 bg-rose-500/10 text-rose-500 rounded text-xs font-medium border border-rose-500/20">Rejected</span>}
-                      </td>
-                      <td className="px-6 py-4 uppercase text-xs tracking-wider">
-                         <span className={`px-2 py-1 rounded text-[10px] font-bold border ${user.subscription === 'pro' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
-                           {user.subscription || 'free'}
-                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-secondary">
-                        {formatDate(user.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 text-right flex justify-end gap-2">
-                        {user.status === 'pending' && (
-                          <>
-                            <button onClick={() => handleUpdateStatus(user.id, 'approved', user.role)} className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" title="Approve">
-                              <Check size={16} />
-                            </button>
-                            <button onClick={() => handleUpdateStatus(user.id, 'rejected', user.role)} className="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20" title="Reject">
-                              <X size={16} />
-                            </button>
-                          </>
-                        )}
-                        
-                        {user.status === 'approved' && (
-                          <>
-                            {user.id === currentUser?.id ? (
-                               <span className="text-xs text-secondary/50 italic flex items-center mr-2">Current User</span>
-                            ) : (user.role === 'admin' || user.role === 'master') && currentUser?.role !== 'master' ? (
-                               <span className="text-xs text-secondary/50 italic flex items-center mr-2">Admin Protected</span>
+                      <th className="px-6 py-4">Auth Method</th>
+                      <th className="px-6 py-4">Role</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Subscription</th>
+                      <th className="px-6 py-4">Registered Date</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {filteredUsers.map((user) => {
+                      const provider = user.authProvider || (user.phoneNumber ? 'phone' : (user.email && user.email.includes('@gmail.com') ? 'google' : 'email'));
+                      return (
+                        <tr key={user.id} className={`hover:bg-surface-hover transition-colors ${selectedUsers.includes(user.id) ? 'bg-emerald-500/5' : ''}`}>
+                          <td className="px-4 py-4 text-center">
+                            <input type="checkbox" className="rounded bg-surface-2 border-border cursor-pointer accent-emerald-500" 
+                                   checked={selectedUsers.includes(user.id)} 
+                                   onChange={() => toggleSelectUser(user.id)} />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-emerald-500 shrink-0">
+                                <User size={14} />
+                              </div>
+                              <div className="truncate max-w-[200px]">
+                                <div className="font-bold text-[var(--text-primary)] truncate">{user.name || user.username}</div>
+                                <div className="text-xs text-secondary truncate">{user.email || user.phoneNumber || `@${user.username}`}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {provider === 'google' ? (
+                              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded text-[11px] font-bold inline-flex items-center gap-1">
+                                🌐 Google
+                              </span>
+                            ) : provider === 'phone' ? (
+                              <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded text-[11px] font-bold inline-flex items-center gap-1">
+                                📱 Phone SMS
+                              </span>
                             ) : (
+                              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded text-[11px] font-bold inline-flex items-center gap-1">
+                                📧 Email / Pass
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 uppercase text-xs tracking-wider">
+                            {user.role === 'master' ? (
+                              <span className="text-amber-400 font-bold flex items-center gap-1"><Shield size={12} /> MASTER ADMIN</span>
+                            ) : user.role === 'admin' ? (
+                              <span className="text-emerald-400 font-bold">{user.role}</span>
+                            ) : (
+                              user.role
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {user.status === 'pending' && <span className="px-2 py-1 bg-amber-500/10 text-amber-400 rounded text-xs font-bold border border-amber-500/30 flex items-center gap-1 w-fit">⌛ Pending</span>}
+                            {user.status === 'approved' && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs font-bold border border-emerald-500/30 flex items-center gap-1 w-fit">✓ Approved</span>}
+                            {user.status === 'rejected' && <span className="px-2 py-1 bg-rose-500/10 text-rose-400 rounded text-xs font-bold border border-rose-500/30 flex items-center gap-1 w-fit">❌ Rejected</span>}
+                          </td>
+                          <td className="px-6 py-4 uppercase text-xs tracking-wider">
+                             <span className={`px-2 py-1 rounded text-[10px] font-bold border ${user.subscription === 'pro' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
+                               {user.subscription || 'free'}
+                             </span>
+                          </td>
+                          <td className="px-6 py-4 text-secondary text-xs">
+                            {formatDate(user.createdAt)}
+                          </td>
+                          <td className="px-6 py-4 text-right flex justify-end gap-2">
+                            {user.status === 'pending' && (
                               <>
-                                {currentUser?.role === 'master' && (
-                                   <button onClick={() => setUserToImpersonate(user)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 mr-2" title="Login As User">
-                                     <LogIn size={16} />
-                                   </button>
-                                )}
-                                {currentUser?.role === 'master' && user.subscription !== 'pro' && (
-                                   <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'pro')} className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 mr-2" title="Upgrade to Pro">
-                                     <ArrowUpCircle size={16} />
-                                   </button>
-                                )}
-                                {currentUser?.role === 'master' && user.subscription === 'pro' && (
-                                   <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'free')} className="p-2 rounded-lg bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 mr-2" title="Downgrade to Free">
-                                     <ArrowDownCircle size={16} />
-                                   </button>
-                                )}
-                                {user.role === 'admin' || user.role === 'master' ? (
-                                  <button onClick={() => handleUpdateStatus(user.id, user.status, 'user')} className="p-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20" title="Demote to User">
-                                    <ShieldOff size={16} />
-                                  </button>
-                                ) : (
-                                  <button onClick={() => handleUpdateStatus(user.id, user.status, 'admin')} className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20" title="Promote to Admin">
-                                    <Shield size={16} />
-                                  </button>
-                                )}
-                                <button onClick={() => handleUpdateStatus(user.id, 'rejected', user.role)} className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20" title="Suspend User">
-                                  <Ban size={16} />
+                                <button onClick={() => handleUpdateStatus(user.id, 'approved', user.role)} className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black font-extrabold hover:bg-emerald-400 text-xs flex items-center gap-1 transition-all shadow-md shadow-emerald-500/20" title="Approve User">
+                                  <Check size={14} /> Approve
+                                </button>
+                                <button onClick={() => handleUpdateStatus(user.id, 'rejected', user.role)} className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 text-xs font-bold flex items-center gap-1 transition-colors" title="Reject User">
+                                  <X size={14} /> Reject
                                 </button>
                               </>
                             )}
-                          </>
-                        )}
-                        
-                        {user.status === 'rejected' && user.id !== currentUser?.id && (
-                          <button onClick={() => handleUpdateStatus(user.id, 'approved', user.role)} className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" title="Restore User">
-                            <Check size={16} />
-                          </button>
-                        )}
-                        
-                        {user.id !== currentUser?.id ? (
-                          (user.role === 'admin' || user.role === 'master') && currentUser?.role !== 'master' ? null :
-                          <button onClick={() => setUserToDelete(user.id)} className="p-2 rounded-lg text-secondary hover:text-rose-400 hover:bg-rose-500/10 ml-2" title="Delete User">
-                            <Trash2 size={16} />
-                          </button>
-                        ) : (
-                          <button disabled className="p-2 rounded-lg text-secondary/30 ml-2 cursor-not-allowed" title="Cannot delete yourself">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 && (
-                    <tr><td colSpan="5" className="text-center py-8 text-secondary">No users found.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                            
+                            {user.status === 'approved' && (
+                              <>
+                                {user.id === currentUser?.id ? (
+                                   <span className="text-xs text-secondary/50 italic flex items-center mr-2">Current User</span>
+                                ) : (user.role === 'admin' || user.role === 'master') && currentUser?.role !== 'master' ? (
+                                   <span className="text-xs text-secondary/50 italic flex items-center mr-2">Admin Protected</span>
+                                ) : (
+                                  <>
+                                    {currentUser?.role === 'master' && (
+                                       <button onClick={() => setUserToImpersonate(user)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 mr-2" title="Login As User">
+                                         <LogIn size={16} />
+                                       </button>
+                                    )}
+                                    {currentUser?.role === 'master' && user.subscription !== 'pro' && (
+                                       <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'pro')} className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 mr-2" title="Upgrade to Pro">
+                                         <ArrowUpCircle size={16} />
+                                       </button>
+                                    )}
+                                    {currentUser?.role === 'master' && user.subscription === 'pro' && (
+                                       <button onClick={() => handleUpdateStatus(user.id, user.status, user.role, 'free')} className="p-2 rounded-lg bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 mr-2" title="Downgrade to Free">
+                                         <ArrowDownCircle size={16} />
+                                       </button>
+                                    )}
+                                    {user.role === 'admin' || user.role === 'master' ? (
+                                      <button onClick={() => handleUpdateStatus(user.id, user.status, 'user')} className="p-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20" title="Demote to User">
+                                        <ShieldOff size={16} />
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => handleUpdateStatus(user.id, user.status, 'admin')} className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20" title="Promote to Admin">
+                                        <Shield size={16} />
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleUpdateStatus(user.id, 'rejected', user.role)} className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20" title="Suspend User">
+                                      <Ban size={16} />
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            )}
+                            
+                            {user.status === 'rejected' && user.id !== currentUser?.id && (
+                              <button onClick={() => handleUpdateStatus(user.id, 'approved', user.role)} className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 text-xs font-bold flex items-center gap-1 transition-colors" title="Restore User">
+                                <Check size={14} /> Restore
+                              </button>
+                            )}
+                            
+                            {user.id !== currentUser?.id ? (
+                              (user.role === 'admin' || user.role === 'master') && currentUser?.role !== 'master' ? null :
+                              <button onClick={() => setUserToDelete(user.id)} className="p-2 rounded-lg text-secondary hover:text-rose-400 hover:bg-rose-500/10 ml-2" title="Delete User">
+                                <Trash2 size={16} />
+                              </button>
+                            ) : (
+                              <button disabled className="p-2 rounded-lg text-secondary/30 ml-2 cursor-not-allowed" title="Cannot delete yourself">
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredUsers.length === 0 && (
+                      <tr><td colSpan="8" className="text-center py-10 text-secondary">No matching users found for current search/filters.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
         )}
         
         {activeTab === 'cron' && (

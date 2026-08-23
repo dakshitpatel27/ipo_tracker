@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
         api.setToken(token);
         try {
           const res = await api.getMe();
-          if (res.user && res.user.status === 'approved') {
+          if (res.user) {
             setUser(res.user);
             localStorage.setItem('ipo_user', JSON.stringify(res.user));
           } else {
@@ -47,11 +47,8 @@ export const AuthProvider = ({ children }) => {
           if (savedUserStr) {
             try {
               const savedUser = JSON.parse(savedUserStr);
-              if (savedUser && savedUser.status === 'approved') {
-                setUser(savedUser);
-              } else {
-                setUser(null);
-              }
+              if (savedUser) setUser(savedUser);
+              else setUser(null);
             } catch (err) {
               setUser(null);
             }
@@ -60,9 +57,21 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        setUser(null);
-        localStorage.removeItem('ipo_user');
-        api.setToken(null);
+        const savedUserStr = localStorage.getItem('ipo_user');
+        if (savedUserStr) {
+          try {
+            const savedUser = JSON.parse(savedUserStr);
+            if (savedUser && savedUser.status === 'pending') {
+              setUser(savedUser);
+            } else {
+              setUser(null);
+            }
+          } catch (err) {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
       }
       setLoading(false);
     });
@@ -91,14 +100,18 @@ export const AuthProvider = ({ children }) => {
   // Email/Password Login
   const login = async (usernameOrEmail, password) => {
     const res = await api.login({ username: usernameOrEmail, password });
-    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
-      return { message: 'registered_pending', user: res.user };
-    }
     if (res.token && res.user) {
       setUser(res.user);
       localStorage.setItem('ipo_token', res.token);
       localStorage.setItem('ipo_user', JSON.stringify(res.user));
       api.setToken(res.token);
+      return res;
+    }
+    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+      const pendingUserData = res.user || { username: usernameOrEmail, status: 'pending' };
+      setUser(pendingUserData);
+      localStorage.setItem('ipo_user', JSON.stringify(pendingUserData));
+      return { message: 'registered_pending', user: pendingUserData };
     }
     return res;
   };
@@ -116,12 +129,7 @@ export const AuthProvider = ({ children }) => {
         isSignup
       });
 
-      if (res.message === 'registered_pending' || res.user?.status === 'pending') {
-        try { await firebaseSignOut(auth); } catch (e) {}
-        return { message: 'registered_pending', user: res.user };
-      }
-
-      if (res.token && res.user && res.user.status === 'approved') {
+      if (res.token && res.user) {
         setUser(res.user);
         localStorage.setItem('ipo_token', res.token);
         localStorage.setItem('ipo_user', JSON.stringify(res.user));
@@ -129,8 +137,14 @@ export const AuthProvider = ({ children }) => {
         return res.user;
       }
 
-      try { await firebaseSignOut(auth); } catch (e) {}
-      throw new Error(res.error || 'Account not found. Please sign up first.');
+      if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+        const pendingUserData = res.user || { name: fbUser.displayName, email: fbUser.email, status: 'pending' };
+        setUser(pendingUserData);
+        localStorage.setItem('ipo_user', JSON.stringify(pendingUserData));
+        return { message: 'registered_pending', user: pendingUserData };
+      }
+
+      throw new Error(res.error || 'Google authentication failed.');
     } catch (err) {
       try { await firebaseSignOut(auth); } catch (e) {}
       throw new Error(err.message || 'Google authentication failed');
@@ -154,7 +168,10 @@ export const AuthProvider = ({ children }) => {
       // Verify phone number exists in backend before sending SMS
       const checkRes = await api.phoneAuth({ phoneNumber, isSignup: false });
       if (checkRes.message === 'registered_pending' || checkRes.user?.status === 'pending') {
-        throw new Error('Account is pending admin approval');
+        const pendingUserData = checkRes.user || { username: phoneNumber, status: 'pending' };
+        setUser(pendingUserData);
+        localStorage.setItem('ipo_user', JSON.stringify(pendingUserData));
+        return { message: 'registered_pending', user: pendingUserData };
       }
     }
     const verifier = setupRecaptcha();
@@ -177,12 +194,7 @@ export const AuthProvider = ({ children }) => {
       isSignup
     });
 
-    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
-      try { await firebaseSignOut(auth); } catch (e) {}
-      return { message: 'registered_pending', user: res.user };
-    }
-
-    if (res.token && res.user && res.user.status === 'approved') {
+    if (res.token && res.user) {
       setUser(res.user);
       localStorage.setItem('ipo_token', res.token);
       localStorage.setItem('ipo_user', JSON.stringify(res.user));
@@ -190,13 +202,30 @@ export const AuthProvider = ({ children }) => {
       return res.user;
     }
 
-    try { await firebaseSignOut(auth); } catch (e) {}
+    if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+      const pendingUserData = res.user || { username: phoneNumber, status: 'pending' };
+      setUser(pendingUserData);
+      localStorage.setItem('ipo_user', JSON.stringify(pendingUserData));
+      return { message: 'registered_pending', user: pendingUserData };
+    }
+
     throw new Error(res.error || 'Account not found. Please sign up first.');
-````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````  };
+  };
 
   // Email/Password Registration
   const register = async (name, username, password, email) => {
-    return api.register({ name, username, password, email });
+    const res = await api.register({ name, username, password, email });
+    if (res.token && res.user) {
+      setUser(res.user);
+      localStorage.setItem('ipo_token', res.token);
+      localStorage.setItem('ipo_user', JSON.stringify(res.user));
+      api.setToken(res.token);
+    } else if (res.message === 'registered_pending' || res.user?.status === 'pending') {
+      const pendingUserData = res.user || { name, username, email, status: 'pending' };
+      setUser(pendingUserData);
+      localStorage.setItem('ipo_user', JSON.stringify(pendingUserData));
+    }
+    return res;
   };
 
   const login2FA = async (username, token) => {
@@ -228,6 +257,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      setUser,
       firebaseUser,
       login, 
       loginWithGoogle,

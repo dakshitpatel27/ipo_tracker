@@ -206,75 +206,128 @@ if (!process.env.JWT_SECRET) {
     console.warn('[SECURITY WARNING] JWT_SECRET environment variable is not set! Using default fallback secret.');
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_REGEX = /^[a-zA-Z0-9_.]+$/;
+const PHONE_REGEX = /^[0-9+]{8,15}$/;
+
+function validatePublicUserInput({ name, username, email, password, phoneNumber }) {
+    if (name !== undefined && name !== null && name !== '') {
+        const trimmedName = String(name).trim();
+        if (trimmedName.length < 2) return 'Full Name must be at least 2 characters long';
+        if (trimmedName.length > 60) return 'Full Name cannot exceed 60 characters';
+    }
+
+    if (username !== undefined && username !== null && username !== '') {
+        const trimmedUsername = String(username).trim();
+        if (trimmedUsername.length < 3) return 'Username must be at least 3 characters long';
+        if (trimmedUsername.length > 30) return 'Username cannot exceed 30 characters';
+        if (!USERNAME_REGEX.test(trimmedUsername)) return 'Username can only contain letters, numbers, dots (.), and underscores (_)';
+    }
+
+    if (email !== undefined && email !== null && email !== '') {
+        const trimmedEmail = String(email).trim();
+        if (!EMAIL_REGEX.test(trimmedEmail)) return 'Please enter a valid email address (e.g. name@domain.com)';
+    }
+
+    if (password !== undefined && password !== null) {
+        if (String(password).length < 6) return 'Password must be at least 6 characters long';
+    }
+
+    if (phoneNumber !== undefined && phoneNumber !== null && phoneNumber !== '') {
+        const cleanPhone = String(phoneNumber).replace(/\s+/g, '');
+        if (!PHONE_REGEX.test(cleanPhone)) return 'Please enter a valid phone number (8 to 15 digits)';
+    }
+
+    return null;
+}
+
 // --- AUTH API ---
 app.post('/api/auth/register', authRateLimiter(10, 15 * 60 * 1000), async (req, res) => {
     const { username, password, email, name } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+
+    const cleanUsername = String(username).trim();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const cleanName = name ? String(name).trim() : null;
+
+    const validationErr = validatePublicUserInput({ name: cleanName, username: cleanUsername, email: cleanEmail, password });
+    if (validationErr) return res.status(400).json({ error: validationErr });
 
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
-        const createdAt = new Date().toISOString();
-
-        db.get('SELECT COUNT(*) as count FROM users', [], (countErr, row) => {
-            const isFirstUser = (!countErr && row && row.count === 0);
-            const role = isFirstUser ? 'admin' : 'user';
-            const status = isFirstUser ? 'approved' : 'pending';
-
-            db.run(
-                'INSERT INTO users (id, username, password, email, name, createdAt, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [id, username, hashedPassword, email || null, name || null, createdAt, role, status],
-                function (err) {
-                    if (err) {
-                        if (err.message.includes('UNIQUE')) {
-                            return res.status(400).json({ error: 'Username already exists' });
-                        }
-                        return res.status(400).json({ error: err.message });
-                    }
-
-                    if (isFirstUser) {
-                        db.run('UPDATE records SET userId = ? WHERE userId IS NULL', [id]);
-                        db.run('UPDATE applicants SET userId = ? WHERE userId IS NULL', [id]);
-                    } else {
-                        // Send push notification to admins
-                        db.all("SELECT fcmTokens FROM users WHERE role = 'admin' AND status = 'approved'", [], (adminErr, admins) => {
-                            if (!adminErr && admins.length > 0) {
-                                const adminTokens = [];
-                                admins.forEach(a => {
-                                    if (a.fcmTokens) {
-                                        try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch (e) { }
-                                    }
-                                });
-                                if (adminTokens.length > 0) {
-                                    try {
-                                        admin.messaging().sendEachForMulticast({
-                                            tokens: [...new Set(adminTokens)],
-                                            notification: { title: 'New User Registration', body: `${username} has registered and is waiting for approval.` }
-                                        });
-                                    } catch (e) { }
-                                }
-                            }
-                        });
-                    }
-
-                    if (status === 'pending') {
-                        res.json({ message: 'registered_pending', user: { id, username, name: name || null, email, role, status, createdAt } });
-                    } else {
-                        const token = jwt.sign({ id, username, role, status }, JWT_SECRET, { expiresIn: '7d' });
-                        res.json({ message: 'success', token, user: { id, username, name: name || null, email, role, status, createdAt } });
-                    }
+        // Pre-check for duplicate username or email in SQLite
+        db.get('SELECT id, username, email FROM users WHERE LOWER(username) = LOWER(?) OR (email IS NOT NULL AND LOWER(email) = LOWER(?))', [cleanUsername, cleanEmail], async (checkErr, existingUser) => {
+            if (existingUser) {
+                if (existingUser.username.toLowerCase() === cleanUsername.toLowerCase()) {
+                    return res.status(400).json({ error: 'Username is already taken. Please choose another username.' });
                 }
-            );
+                if (cleanEmail && existingUser.email && existingUser.email.toLowerCase() === cleanEmail) {
+                    return res.status(400).json({ error: 'An account with this email address already exists. Please sign in instead.' });
+                }
+            }
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const id = require('crypto').randomUUID ? require('crypto').randomUUID() : Date.now().toString();
+            const createdAt = new Date().toISOString();
+
+            db.get('SELECT COUNT(*) as count FROM users', [], (countErr, row) => {
+                const isFirstUser = (!countErr && row && row.count === 0);
+                const role = isFirstUser ? 'admin' : 'user';
+                const status = isFirstUser ? 'approved' : 'pending';
+
+                db.run(
+                    'INSERT INTO users (id, username, password, email, name, createdAt, role, status, authProvider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [id, cleanUsername, hashedPassword, cleanEmail, cleanName, createdAt, role, status, 'email'],
+                    function (err) {
+                        if (err) {
+                            if (err.message.includes('UNIQUE')) {
+                                return res.status(400).json({ error: 'Username or email already exists' });
+                            }
+                            return res.status(400).json({ error: err.message });
+                        }
+
+                        if (isFirstUser) {
+                            db.run('UPDATE records SET userId = ? WHERE userId IS NULL', [id]);
+                            db.run('UPDATE applicants SET userId = ? WHERE userId IS NULL', [id]);
+                        } else {
+                            db.all("SELECT fcmTokens FROM users WHERE (role = 'admin' OR role = 'master') AND status = 'approved'", [], (adminErr, admins) => {
+                                if (!adminErr && admins && admins.length > 0) {
+                                    const adminTokens = [];
+                                    admins.forEach(a => {
+                                        if (a.fcmTokens) {
+                                            try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch (e) { }
+                                        }
+                                    });
+                                    if (adminTokens.length > 0) {
+                                        try {
+                                            admin.messaging().sendEachForMulticast({
+                                                tokens: [...new Set(adminTokens)],
+                                                notification: { title: '🆕 New User Registration (Email)', body: `${cleanName || cleanUsername} (${cleanEmail || 'No Email'}) registered and is pending admin approval.` }
+                                            });
+                                        } catch (e) { }
+                                    }
+                                }
+                            });
+                        }
+
+                        if (status === 'pending') {
+                            res.json({ message: 'registered_pending', user: { id, username: cleanUsername, name: cleanName, email: cleanEmail, role, status, authProvider: 'email', createdAt } });
+                        } else {
+                            const token = jwt.sign({ id, username: cleanUsername, role, status }, JWT_SECRET, { expiresIn: '7d' });
+                            res.json({ message: 'success', token, user: { id, username: cleanUsername, name: cleanName, email: cleanEmail, role, status, authProvider: 'email', createdAt } });
+                        }
+                    }
+                );
+            });
         });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
+    } catch (e) {
+        res.status(500).json({ error: 'Registration error: ' + e.message });
     }
 });
 
 app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
     db.get('SELECT * FROM users WHERE username = ? OR email = ?', [username, username], async (err, user) => {
-        if (err || !user) return res.status(404).json({ error: 'Account not found. Please sign up first.' });
+        if (err || !user) return res.status(404).json({ error: 'Account not found. Please click "Create account" to sign up first.' });
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
@@ -292,7 +345,7 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
         }
 
         if (user.status === 'pending') {
-            return res.status(403).json({ error: 'Account is pending admin approval', message: 'registered_pending' });
+            return res.json({ message: 'registered_pending', user: { id: user.id, username: user.username, name: user.name, email: user.email, role: user.role, status: 'pending', authProvider: user.authProvider || 'email', createdAt: user.createdAt } });
         }
         if (user.status === 'rejected') {
             return res.status(403).json({ error: 'Account has been rejected by an administrator' });
@@ -309,12 +362,12 @@ app.post('/api/auth/login', authRateLimiter(10, 15 * 60 * 1000), (req, res) => {
             const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
             db.run('UPDATE sessions SET token = ? WHERE id = ?', [token, sessionId]);
 
-            res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
+            res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || null, email: user.email, role: user.role, status: user.status, subscription: user.subscription, authProvider: user.authProvider || 'email', createdAt: user.createdAt } });
         });
     });
 });
 
-// Google Sign-In / Sign-Up Backend Verification & Auto-Registration Endpoint
+// Google Sign-In / Sign-Up Backend Verification Endpoint
 app.post('/api/auth/google-auth', async (req, res) => {
     const { email, name, uid, isSignup } = req.body;
     if (!email && !uid) return res.status(400).json({ error: 'Email or UID required' });
@@ -326,7 +379,7 @@ app.post('/api/auth/google-auth', async (req, res) => {
 
         if (!user) {
             if (!isSignup) {
-                return res.status(404).json({ error: 'Account not found. Please sign up with Google first.' });
+                return res.status(404).json({ error: 'No account found with this Google email. Please click "Sign Up with Google" to create an account.' });
             }
 
             const id = uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
@@ -336,20 +389,43 @@ app.post('/api/auth/google-auth', async (req, res) => {
             const role = isMaster ? 'master' : 'user';
 
             db.run(
-                'INSERT INTO users (id, username, email, name, createdAt, role, status, subscription) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [id, username, email || null, name || null, createdAt, role, status, 'pro'],
+                'INSERT INTO users (id, username, email, name, createdAt, role, status, subscription, authProvider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, username, email || null, name || null, createdAt, role, status, 'pro', 'google'],
                 (inErr) => {
                     if (inErr) return res.status(400).json({ error: inErr.message });
+
                     if (status === 'pending') {
-                        return res.json({ message: 'registered_pending', user: { id, username, name, email, role, status, createdAt } });
+                        db.all("SELECT fcmTokens FROM users WHERE (role = 'admin' OR role = 'master') AND status = 'approved'", [], (adminErr, admins) => {
+                            if (!adminErr && admins && admins.length > 0) {
+                                const adminTokens = [];
+                                admins.forEach(a => {
+                                    if (a.fcmTokens) {
+                                        try { adminTokens.push(...JSON.parse(a.fcmTokens)); } catch (e) { }
+                                    }
+                                });
+                                if (adminTokens.length > 0) {
+                                    try {
+                                        admin.messaging().sendEachForMulticast({
+                                            tokens: [...new Set(adminTokens)],
+                                            notification: { title: '🆕 New User Registered (Google)', body: `${name || username} (${email}) registered via Google and is pending admin approval.` }
+                                        });
+                                    } catch (e) { }
+                                }
+                            }
+                        });
+
+                        return res.json({ message: 'registered_pending', user: { id, username, name: name || username, email, role, status, subscription: 'pro', authProvider: 'google', createdAt } });
                     }
-                    const token = jwt.sign({ id, username, role, status }, JWT_SECRET, { expiresIn: '7d' });
-                    res.json({ message: 'success', token, user: { id, username, name, email, role, status, createdAt } });
+
+                    createSession(id, req, (sessErr, sessionId) => {
+                        const token = jwt.sign({ id, username, role, status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
+                        res.json({ message: 'success', token, user: { id, username, name: name || username, email, role, status, subscription: 'pro', authProvider: 'google', createdAt } });
+                    });
                 }
             );
         } else {
             if (user.status === 'pending') {
-                return res.status(403).json({ error: 'Account is pending admin approval', message: 'registered_pending' });
+                return res.json({ message: 'registered_pending', user: { id: user.id, username: user.username, name: user.name || name || user.username, email: user.email || email, role: user.role, status: user.status, subscription: user.subscription, authProvider: user.authProvider || 'google', createdAt: user.createdAt } });
             }
             if (user.status === 'rejected') {
                 return res.status(403).json({ error: 'Account has been rejected by an administrator' });
@@ -357,13 +433,13 @@ app.post('/api/auth/google-auth', async (req, res) => {
 
             createSession(user.id, req, (sessErr, sessionId) => {
                 const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status, sessionId }, JWT_SECRET, { expiresIn: '7d' });
-                res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || name || null, email: user.email || email, role: user.role, status: user.status, subscription: user.subscription, createdAt: user.createdAt } });
+                res.json({ message: 'success', token, user: { id: user.id, username: user.username, name: user.name || name || null, email: user.email || email, role: user.role, status: user.status, subscription: user.subscription, authProvider: user.authProvider || 'google', createdAt: user.createdAt } });
             });
         }
     });
 });
 
-// Phone Sign-In / Sign-Up Backend Verification & Auto-Registration Endpoint
+// Phone Sign-In / Sign-Up Backend Verification Endpoint
 app.post('/api/auth/phone-auth', async (req, res) => {
     const { phoneNumber, uid, isSignup } = req.body;
     if (!phoneNumber && !uid) return res.status(400).json({ error: 'Phone number or UID required' });
@@ -5041,10 +5117,11 @@ app.post('/api/admin/users/bulk-update', authMiddleware, isAdmin, (req, res) => 
 
 // GET all users (Master Admin / Admin Only)
 const handleGetUsers = (req, res) => {
-    db.all('SELECT id, username, name, email, role, status, subscription, createdAt FROM users ORDER BY createdAt DESC', [], (err, rows) => {
+    db.all('SELECT id, username, name, email, role, status, subscription, createdAt, authProvider, phoneNumber FROM users ORDER BY createdAt DESC', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const sanitizedRows = (rows || []).map(u => ({
             ...u,
+            authProvider: u.authProvider || (u.phoneNumber ? 'phone' : (u.email && u.email.includes('@gmail.com') ? 'google' : 'email')),
             createdAt: u.createdAt && !isNaN(new Date(u.createdAt).getTime()) ? u.createdAt : new Date().toISOString()
         }));
         res.json({ message: 'success', data: sanitizedRows });

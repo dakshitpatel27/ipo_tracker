@@ -36,6 +36,7 @@ import OfflineSyncBanner from './components/ui/OfflineSyncBanner';
 import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
 import HomeScreenWidget from './components/ui/HomeScreenWidget';
 import ConfirmModal from './components/ui/ConfirmModal';
+import PendingApproval from './pages/PendingApproval';
 
 const GlobalLoader = ({ text, brandName }) => {
   return (
@@ -84,7 +85,7 @@ function App() {
   }, []);
 
   React.useEffect(() => {
-    if (user) {
+    if (user && user.status === 'approved') {
       requestForToken().then((token) => {
         if (token) {
           api.registerFcmToken(token).catch(err => console.error('Failed to register FCM token', err));
@@ -100,6 +101,25 @@ function App() {
   }
 
   if (!user) return <Auth />;
+
+  if (user.status === 'pending') {
+    return <PendingApproval pendingUser={user} />;
+  }
+
+  if (user.status === 'rejected') {
+    return (
+      <div className="fixed inset-0 bg-[#09090b] z-[9999] flex items-center justify-center p-4">
+        <div className="glass-card max-w-sm w-full p-8 text-center space-y-4 border-rose-500/30">
+          <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mx-auto border border-rose-500/20">
+            <X size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-white">Account Registration Rejected</h2>
+          <p className="text-xs text-zinc-400">Your registration request was rejected by an administrator.</p>
+          <button onClick={logout} className="btn-primary w-full py-2.5 bg-rose-600 hover:bg-rose-700">Log Out & Return to Login</button>
+        </div>
+      </div>
+    );
+  }
 
   const isValidRoute = (pathname) => {
     const validPaths = [

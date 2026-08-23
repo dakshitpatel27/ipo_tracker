@@ -40,11 +40,45 @@ const Auth = () => {
   const [require2FA, setRequire2FA] = useState(false);
   const [totpToken, setTotpToken] = useState('');
 
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const USERNAME_REGEX = /^[a-zA-Z0-9_.]+$/;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSubmitting(true);
+
+    // Client-side validations
     try {
+      if (authMode === 'phone') {
+        const cleanNumber = phoneNumber.replace(/\D/g, '');
+        if (!otpSent && cleanNumber.length < 10) {
+          setError('Please enter a valid 10-digit mobile number.');
+          return;
+        }
+      } else if (!isLogin) {
+        if (!name || name.trim().length < 2) {
+          setError('Full Name must be at least 2 characters long.');
+          return;
+        }
+        if (!email || !EMAIL_REGEX.test(email.trim())) {
+          setError('Please enter a valid email address (e.g. user@domain.com).');
+          return;
+        }
+        if (!username || username.trim().length < 3) {
+          setError('Username must be at least 3 characters long.');
+          return;
+        }
+        if (!USERNAME_REGEX.test(username.trim())) {
+          setError('Username can only contain letters, numbers, dots (.), and underscores (_).');
+          return;
+        }
+        if (!password || password.length < 6) {
+          setError('Password must be at least 6 characters long.');
+          return;
+        }
+      }
+
+      setSubmitting(true);
       if (authMode === 'phone') {
         if (!otpSent) {
           const cleanNumber = phoneNumber.replace(/\D/g, '');
@@ -75,7 +109,7 @@ const Auth = () => {
             }
           }
         } else {
-          const res = await register(name, username || email.split('@')[0], password, email);
+          const res = await register(name.trim(), username.trim(), password, email.trim().toLowerCase());
           if (res?.message === 'registered_pending' || res?.status === 'pending') {
             setPendingMessage(true);
           }
